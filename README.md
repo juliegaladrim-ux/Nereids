@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nereids — Prototype
 
-## Getting Started
+Prototype cliquable de la plateforme de suivi de dossiers automobiles Nereids (Galadrim).
+**Toutes les données sont fictives.** Elles sont stockées dans le navigateur (localStorage) :
+un dossier créé pendant une démo reste visible, et le bandeau « Prototype » permet de tout réinitialiser.
 
-First, run the development server:
+## Lancer en local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Puis ouvrir http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js (App Router) + TypeScript
+- Tailwind CSS v4
+- [shadcn/ui](https://ui.shadcn.com) — variante **Base UI** (`components.json`), composants dans `src/components/ui`
+- Icônes : lucide-react
 
-## Learn More
+## Organisation
 
-To learn more about Next.js, take a look at the following resources:
+| Dossier | Contenu |
+| --- | --- |
+| `src/app/[role]/…` | Une URL par rôle : `/admin`, `/gestionnaire`, `/expert`, `/reparateur`, `/suiveur`, `/client` |
+| `src/lib/roles.ts` | Rôles, navigation et état d'avancement de chaque espace |
+| `src/lib/data.ts` | Modèle de données (types), référentiels (statuts V1, types de dossiers, catégories de documents) et données fictives |
+| `src/lib/store.tsx` | Store du proto (lecture / écriture des dossiers, persistance localStorage) |
+| `src/lib/access.ts` | Règles de visibilité des dossiers par rôle |
+| `src/features/…` | Écrans : tableau de bord admin, liste, création, fiche dossier, mon compte |
+| `src/components/app-shell` | Sidebar, en-tête (recherche ⌘K, notifications), bandeau « Prototype » |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Charte graphique
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Couleurs **provisoires** dans `src/app/globals.css` (`--primary`, tons de statut `--tone-*`).
+Logo provisoire dans `src/components/logo.tsx`. À remplacer à réception de la charte Nereids.
 
-## Deploy on Vercel
+## Avancement
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- ✅ Administrateur Nereids : tableau de bord, liste des dossiers, création, fiche dossier (assignation, statut, relance, documents, messages, clôture, archivage), mon compte
+- ⬜ Gestionnaire, expert, réparateur, intervenant suiveur, client : espaces créés, écrans à concevoir (mon compte déjà disponible)

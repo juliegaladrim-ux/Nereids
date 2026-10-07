@@ -1,0 +1,754 @@
+/**
+ * Modèle de données du prototype — toutes les données sont FICTIVES.
+ * Structure pensée pour être réutilisable par les devs (types proches du CDC §6/§7).
+ */
+
+import type { RoleId } from "./roles"
+
+// ─── Référentiels ────────────────────────────────────────────────────────────
+
+export type DossierType = "sinistre" | "litige_auto" | "litige_assurantiel"
+
+export const DOSSIER_TYPES: Record<DossierType, { label: string; short: string; description: string }> = {
+  sinistre: {
+    label: "Sinistre",
+    short: "Sinistre",
+    description: "Accident, recours direct contre l'assurance adverse.",
+  },
+  litige_auto: {
+    label: "Litige automobile",
+    short: "Litige auto",
+    description: "Achat, vente, réparation, désaccord technique.",
+  },
+  litige_assurantiel: {
+    label: "Litige assurantiel",
+    short: "Litige assur.",
+    description: "Désaccord avec la compagnie du client (valeur, rapport…).",
+  },
+}
+
+export type SinistreType = "responsable" | "non_resp_sans_tiers" | "non_resp_avec_tiers"
+
+export const SINISTRE_TYPES: Record<SinistreType, { label: string; recours: boolean }> = {
+  responsable: { label: "Sinistre responsable", recours: false },
+  non_resp_sans_tiers: { label: "Non responsable, sans tiers", recours: false },
+  non_resp_avec_tiers: { label: "Non responsable, avec tiers", recours: true },
+}
+
+export type LitigeAssurantielType =
+  | "valeur"
+  | "rapport_minore"
+  | "imputable"
+  | "incoherence"
+  | "indemnisation"
+  | "sans_reparation"
+
+export const LITIGE_ASSUR_TYPES: Record<LitigeAssurantielType, { label: string; hint: string }> = {
+  valeur: { label: "Valeur contestée", hint: "La valeur retenue pour le véhicule est trop basse." },
+  rapport_minore: { label: "Rapport minoré", hint: "Le rapport de la compagnie sous-évalue les dommages." },
+  imputable: { label: "Problème imputable", hint: "Dommage causé lors d'une réparation ou expertise." },
+  incoherence: { label: "Incohérence de déclaration", hint: "La compagnie conteste la déclaration." },
+  indemnisation: { label: "Problème d'indemnisation", hint: "Retard ou refus d'indemnisation." },
+  sans_reparation: { label: "Indemnisation sans réparation", hint: "Désaccord sur une indemnisation en l'état." },
+}
+
+/** Statuts V1 (CDC §17) */
+export type StatusId =
+  | "nouveau"
+  | "en_etude"
+  | "recours_valide"
+  | "attente_client"
+  | "attente_tiers"
+  | "attente_compagnie"
+  | "attente_expertise"
+  | "attente_pv"
+  | "attente_rapport"
+  | "attente_reparation"
+  | "complement"
+  | "reclamation_envoyee"
+  | "attente_retour"
+  | "attente_paiement"
+  | "cloture"
+  | "archive"
+
+/** Ton visuel du statut — les couleurs seront recalées sur la charte */
+export type StatusTone = "new" | "progress" | "waiting" | "alert" | "final" | "done" | "muted"
+
+export const STATUSES: Record<StatusId, { label: string; tone: StatusTone }> = {
+  nouveau: { label: "Nouveau", tone: "new" },
+  en_etude: { label: "En étude", tone: "progress" },
+  recours_valide: { label: "Recours validé", tone: "progress" },
+  attente_client: { label: "En attente client", tone: "waiting" },
+  attente_tiers: { label: "En attente tiers", tone: "waiting" },
+  attente_compagnie: { label: "En attente compagnie", tone: "waiting" },
+  attente_expertise: { label: "En attente expertise", tone: "waiting" },
+  attente_pv: { label: "En attente PV", tone: "waiting" },
+  attente_rapport: { label: "En attente rapport", tone: "waiting" },
+  attente_reparation: { label: "En attente réparation", tone: "waiting" },
+  complement: { label: "Complément à traiter", tone: "alert" },
+  reclamation_envoyee: { label: "Réclamation envoyée", tone: "final" },
+  attente_retour: { label: "En attente retour", tone: "final" },
+  attente_paiement: { label: "En attente paiement", tone: "final" },
+  cloture: { label: "Clôturé", tone: "done" },
+  archive: { label: "Archivé", tone: "muted" },
+}
+
+export const ACTIVE_STATUSES = (Object.keys(STATUSES) as StatusId[]).filter(
+  (s) => s !== "cloture" && s !== "archive",
+)
+
+export const CLOSING_REASONS = [
+  "Dossier terminé",
+  "Accord trouvé",
+  "Paiement reçu",
+  "Sans suite",
+  "Hors périmètre",
+  "Non validé par l'expert",
+]
+
+export type DocCategory =
+  | "constat"
+  | "carte_grise"
+  | "photos"
+  | "devis"
+  | "facture"
+  | "facture_proforma"
+  | "pv"
+  | "rapport"
+  | "controle_technique"
+  | "facture_achat"
+  | "entretien"
+  | "recherche_marche"
+  | "rapport_compagnie"
+  | "courrier"
+  | "autre"
+
+export const DOC_CATEGORIES: Record<DocCategory, string> = {
+  constat: "Constat",
+  carte_grise: "Carte grise",
+  photos: "Photos",
+  devis: "Devis",
+  facture: "Facture",
+  facture_proforma: "Facture proforma",
+  pv: "PV d'expertise",
+  rapport: "Rapport d'expertise",
+  controle_technique: "Contrôle technique",
+  facture_achat: "Facture d'achat",
+  entretien: "Factures d'entretien",
+  recherche_marche: "Recherche marché",
+  rapport_compagnie: "Rapport de la compagnie",
+  courrier: "Courrier",
+  autre: "Autre",
+}
+
+/** Pièces attendues à la création, selon le type (CDC §4) */
+export function expectedDocs(type: DossierType, sub?: LitigeAssurantielType): DocCategory[] {
+  if (type === "sinistre") return ["constat", "carte_grise", "photos"]
+  if (type === "litige_auto")
+    return ["facture_achat", "facture", "entretien", "carte_grise", "controle_technique"]
+  switch (sub) {
+    case "valeur":
+      return ["recherche_marche", "carte_grise", "entretien", "controle_technique", "rapport_compagnie"]
+    case "rapport_minore":
+      return ["rapport_compagnie", "carte_grise"]
+    case "imputable":
+      return ["photos", "rapport_compagnie", "carte_grise"]
+    default:
+      return ["carte_grise", "entretien", "controle_technique", "rapport_compagnie"]
+  }
+}
+
+/** Libellé de la « compagnie visée » selon le type (CDC §8) */
+export function compagnieLabel(type: DossierType): string {
+  if (type === "sinistre") return "Assurance adverse"
+  if (type === "litige_auto") return "Suiveur principal"
+  return "Compagnie visée"
+}
+
+// ─── Entités ─────────────────────────────────────────────────────────────────
+
+export type User = {
+  id: string
+  role: RoleId
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  structure: string
+  fonction: string
+  region?: string
+  /** Charge actuelle (nb dossiers actifs) — utile pour l'assignation */
+  load?: number
+}
+
+export type Intervenants = {
+  gestionnaire?: string
+  expert?: string
+  reparateur?: string
+  suiveurs: string[]
+}
+
+export type DocumentItem = {
+  id: string
+  name: string
+  category: DocCategory
+  addedBy: string // userId
+  addedAt: string // ISO
+  size: string
+}
+
+export type TimelineKind = "creation" | "status" | "document" | "message" | "assignation" | "relance" | "expertise" | "system"
+
+export type TimelineEvent = {
+  id: string
+  at: string // ISO
+  kind: TimelineKind
+  author: string // userId ou "system"
+  title: string
+  body?: string
+  /** Pour les messages : rôles destinataires */
+  recipients?: (RoleId | "all")[]
+}
+
+export type Expertise = {
+  date?: string // ISO
+  lieu?: string
+  convoques: string[]
+  pvDocId?: string
+  rapportDocId?: string
+  realisee?: boolean
+}
+
+export type Dossier = {
+  id: string
+  ref: string // réf. Nereids
+  type: DossierType
+  sinistreType?: SinistreType
+  litigeType?: LitigeAssurantielType
+  status: StatusId
+  createdAt: string
+  updatedAt: string
+  client: { firstName: string; lastName: string; phone: string; email: string; userId?: string }
+  vehicule: { marque: string; modele: string; immat: string; vin?: string }
+  compagnie?: { nom: string; email?: string; reference?: string }
+  tiers?: { nom: string; coordonnees?: string }[]
+  refs: { sinistre?: string; interne?: string; expert?: string }
+  region: string
+  intervenants: Intervenants
+  /** Les 3 questions du CDC §2 */
+  pilotage: {
+    ouEnEst: string
+    attente: string
+    prochaineAction: string
+    quiDoitAgir: RoleId | "nereids"
+    echeance?: string // ISO — si dépassée → retard
+  }
+  expertise: Expertise
+  documents: DocumentItem[]
+  timeline: TimelineEvent[]
+  description?: string
+  cloture?: { motif: string; commentaire?: string; at: string }
+  horsPerimetre?: boolean
+}
+
+// ─── Dates relatives (pour que le proto reste « frais ») ─────────────────────
+
+const DAY = 86_400_000
+export function daysFromNow(d: number, hour = 10): string {
+  const t = new Date(Date.now() + d * DAY)
+  t.setHours(hour, 0, 0, 0)
+  return t.toISOString()
+}
+
+export function isLate(d: Dossier): boolean {
+  if (d.status === "cloture" || d.status === "archive") return false
+  return !!d.pilotage.echeance && new Date(d.pilotage.echeance).getTime() < Date.now()
+}
+
+export function lateDays(d: Dossier): number {
+  if (!d.pilotage.echeance) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(d.pilotage.echeance).getTime()) / DAY))
+}
+
+export function needsAssignment(d: Dossier): boolean {
+  return (
+    d.status !== "cloture" &&
+    d.status !== "archive" &&
+    !d.horsPerimetre &&
+    (!d.intervenants.gestionnaire || !d.intervenants.expert)
+  )
+}
+
+// ─── Utilisateurs fictifs ────────────────────────────────────────────────────
+
+export const USERS: User[] = [
+  { id: "u-admin", role: "admin", firstName: "Sophie", lastName: "Marchand", email: "sophie.marchand@nereids.fr", phone: "06 12 34 56 78", structure: "Nereids", fonction: "Responsable des opérations" },
+  { id: "u-admin2", role: "admin", firstName: "Antoine", lastName: "Roux", email: "antoine.roux@nereids.fr", phone: "06 22 34 56 78", structure: "Nereids", fonction: "Chargé de pilotage" },
+
+  { id: "u-gest", role: "gestionnaire", firstName: "Julie", lastName: "Perrin", email: "julie.perrin@helpyou.fr", phone: "06 45 67 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", region: "Auvergne-Rhône-Alpes", load: 14 },
+  { id: "u-gest2", role: "gestionnaire", firstName: "Nicolas", lastName: "Fabre", email: "nicolas.fabre@helpyou.fr", phone: "06 45 67 00 12", structure: "Help You", fonction: "Gestionnaire de dossiers", region: "Auvergne-Rhône-Alpes", load: 9 },
+  { id: "u-gest3", role: "gestionnaire", firstName: "Inès", lastName: "Haddad", email: "ines.haddad@helpyou.fr", phone: "06 45 11 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", region: "Provence-Alpes-Côte d'Azur", load: 17 },
+
+  { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", email: "m.delorme@cabinet-delorme.fr", phone: "06 78 90 12 34", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", region: "Auvergne-Rhône-Alpes", load: 11 },
+  { id: "u-expert2", role: "expert", firstName: "Hélène", lastName: "Garnier", email: "h.garnier@expertises-garnier.fr", phone: "06 78 11 12 34", structure: "Garnier Expertises", fonction: "Experte automobile", region: "Auvergne-Rhône-Alpes", load: 6 },
+  { id: "u-expert3", role: "expert", firstName: "Yanis", lastName: "Meunier", email: "y.meunier@sudexpert.fr", phone: "06 78 22 12 34", structure: "Sud Expert", fonction: "Expert automobile", region: "Provence-Alpes-Côte d'Azur", load: 15 },
+
+  { id: "u-rep", role: "reparateur", firstName: "Karim", lastName: "Benali", email: "contact@garage-benali.fr", phone: "04 71 22 33 44", structure: "Garage Benali Carrosserie", fonction: "Gérant", region: "Auvergne-Rhône-Alpes", load: 7 },
+  { id: "u-rep2", role: "reparateur", firstName: "Laura", lastName: "Chevalier", email: "atelier@carrosserie-chevalier.fr", phone: "04 77 22 33 44", structure: "Carrosserie Chevalier", fonction: "Cheffe d'atelier", region: "Auvergne-Rhône-Alpes", load: 4 },
+
+  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste" },
+  { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat" },
+
+  { id: "u-client", role: "client", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", phone: "06 98 76 54 32", structure: "Particulier", fonction: "" },
+]
+
+export function getUser(id?: string): User | undefined {
+  return USERS.find((u) => u.id === id)
+}
+
+export function fullName(u?: { firstName: string; lastName: string }): string {
+  return u ? `${u.firstName} ${u.lastName}` : "—"
+}
+
+export const REGIONS = ["Auvergne-Rhône-Alpes", "Provence-Alpes-Côte d'Azur", "Île-de-France", "Occitanie"]
+
+// ─── Dossiers fictifs ────────────────────────────────────────────────────────
+
+let seq = 0
+const ev = (at: string, kind: TimelineKind, author: string, title: string, body?: string, recipients?: TimelineEvent["recipients"]): TimelineEvent => ({
+  id: `e${++seq}`,
+  at,
+  kind,
+  author,
+  title,
+  body,
+  recipients,
+})
+const doc = (name: string, category: DocCategory, addedBy: string, at: string, size = "1,2 Mo"): DocumentItem => ({
+  id: `d${++seq}`,
+  name,
+  category,
+  addedBy,
+  addedAt: at,
+  size,
+})
+
+export function seedDossiers(): Dossier[] {
+  seq = 0
+  return [
+    {
+      id: "NER-2026-0142",
+      ref: "NER-2026-0142",
+      type: "sinistre",
+      sinistreType: "non_resp_avec_tiers",
+      status: "attente_expertise",
+      createdAt: daysFromNow(-12),
+      updatedAt: daysFromNow(-1),
+      client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr", userId: "u-client" },
+      vehicule: { marque: "Peugeot", modele: "308 SW", immat: "GH-482-KL", vin: "VF3LBYHZPKS123456" },
+      compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-77812-S" },
+      refs: { sinistre: "SIN-2026-55481", interne: "HY-3381", expert: "DEL-26-118" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest", expert: "u-expert", reparateur: "u-rep", suiveurs: ["u-suiveur"] },
+      pilotage: {
+        ouEnEst: "Expertise programmée, convocations envoyées à toutes les parties.",
+        attente: "Réalisation de l'expertise sur site",
+        prochaineAction: "Réaliser l'expertise et déposer le PV sous 24 h",
+        quiDoitAgir: "expert",
+        echeance: daysFromNow(2),
+      },
+      expertise: { date: daysFromNow(2, 9), lieu: "Garage Benali Carrosserie, 12 rue des Forges, 43200 Yssingeaux", convoques: ["u-client", "u-rep", "u-expert"] },
+      documents: [
+        doc("Constat amiable.pdf", "constat", "u-client", daysFromNow(-12), "820 Ko"),
+        doc("Carte grise recto-verso.pdf", "carte_grise", "u-client", daysFromNow(-12), "1,1 Mo"),
+        doc("Photos avant droit (6).zip", "photos", "u-client", daysFromNow(-12), "14,3 Mo"),
+        doc("Devis réparation n°D-2291.pdf", "devis", "u-rep", daysFromNow(-6), "240 Ko"),
+        doc("Convocation expertise.pdf", "courrier", "u-gest", daysFromNow(-3), "95 Ko"),
+      ],
+      timeline: [
+        ev(daysFromNow(-12, 9), "creation", "u-client", "Dossier créé", "Sinistre non responsable avec tiers — recours direct."),
+        ev(daysFromNow(-12, 9), "document", "u-client", "3 documents ajoutés", "Constat, carte grise, photos"),
+        ev(daysFromNow(-11, 14), "assignation", "u-admin", "Intervenants assignés", "Gestionnaire : Julie Perrin · Expert : Marc Delorme"),
+        ev(daysFromNow(-11, 14), "status", "system", "Statut → En étude"),
+        ev(daysFromNow(-9, 11), "status", "u-expert", "Statut → Recours validé", "Responsabilité du tiers établie par le constat (cas 10)."),
+        ev(daysFromNow(-9, 11), "message", "u-gest", "Message", "Bonjour M. Lefèvre, pouvez-vous nous indiquer le garage qui réalisera les réparations ?", ["client"]),
+        ev(daysFromNow(-8, 18), "message", "u-client", "Message", "Bonjour, ce sera le Garage Benali à Yssingeaux.", ["gestionnaire"]),
+        ev(daysFromNow(-6, 10), "document", "u-rep", "Devis déposé", "Devis réparation n°D-2291 — 3 480,00 € TTC"),
+        ev(daysFromNow(-3, 15), "expertise", "u-gest", "Convocation envoyée", "Expertise prévue sur site, client, réparateur et expert convoqués."),
+        ev(daysFromNow(-3, 15), "status", "system", "Statut → En attente expertise"),
+        ev(daysFromNow(-1, 9), "message", "u-suiveur", "Message", "Merci de nous transmettre le PV dès réception.", ["gestionnaire", "expert"]),
+      ],
+    },
+    {
+      id: "NER-2026-0151",
+      ref: "NER-2026-0151",
+      type: "litige_assurantiel",
+      litigeType: "valeur",
+      status: "nouveau",
+      createdAt: daysFromNow(-1, 16),
+      updatedAt: daysFromNow(-1, 16),
+      client: { firstName: "Camille", lastName: "Bertin", phone: "06 11 22 33 44", email: "camille.bertin@mail.fr" },
+      vehicule: { marque: "Renault", modele: "Clio V", immat: "FX-219-AB" },
+      compagnie: { nom: "Mutuelle du Centre", email: "litiges@mutuelle-centre.fr", reference: "MDC-2026-0087" },
+      refs: { sinistre: "MDC-SIN-44120" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { suiveurs: [] },
+      pilotage: {
+        ouEnEst: "Dossier reçu, en attente d'assignation.",
+        attente: "Assignation d'un gestionnaire et d'un expert",
+        prochaineAction: "Assigner les intervenants",
+        quiDoitAgir: "nereids",
+        echeance: daysFromNow(1),
+      },
+      expertise: { convoques: [] },
+      documents: [
+        doc("Rapport expertise compagnie.pdf", "rapport_compagnie", "u-gest", daysFromNow(-1, 16)),
+        doc("Carte grise.pdf", "carte_grise", "u-gest", daysFromNow(-1, 16), "900 Ko"),
+        doc("Annonces véhicules similaires.pdf", "recherche_marche", "u-gest", daysFromNow(-1, 16), "3,4 Mo"),
+      ],
+      timeline: [
+        ev(daysFromNow(-1, 16), "creation", "u-gest", "Dossier créé", "Litige assurantiel — valeur contestée (VRADE proposée : 9 800 €)."),
+      ],
+    },
+    {
+      id: "NER-2026-0149",
+      ref: "NER-2026-0149",
+      type: "sinistre",
+      sinistreType: "non_resp_avec_tiers",
+      status: "nouveau",
+      createdAt: daysFromNow(-2, 11),
+      updatedAt: daysFromNow(-2, 11),
+      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr" },
+      vehicule: { marque: "Volkswagen", modele: "Golf 8", immat: "GA-773-RT" },
+      compagnie: { nom: "Garantia Assurances", email: "recours@garantia.fr" },
+      refs: {},
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest2", suiveurs: [] },
+      pilotage: {
+        ouEnEst: "Dossier créé par le client, pièces incomplètes.",
+        attente: "Assignation d'un expert · photos manquantes",
+        prochaineAction: "Assigner un expert",
+        quiDoitAgir: "nereids",
+        echeance: daysFromNow(-1),
+      },
+      expertise: { convoques: [] },
+      documents: [doc("Constat.jpg", "constat", "u-client", daysFromNow(-2, 11), "2,1 Mo")],
+      timeline: [ev(daysFromNow(-2, 11), "creation", "system", "Dossier créé par le client", "Pièces manquantes : carte grise, photos.")],
+    },
+    {
+      id: "NER-2026-0137",
+      ref: "NER-2026-0137",
+      type: "litige_auto",
+      status: "attente_rapport",
+      createdAt: daysFromNow(-24),
+      updatedAt: daysFromNow(-6),
+      client: { firstName: "Sandrine", lastName: "Morel", phone: "06 33 21 45 67", email: "s.morel@mail.fr" },
+      vehicule: { marque: "Citroën", modele: "C4 Picasso", immat: "DJ-085-XN" },
+      compagnie: { nom: "Protec Juris", email: "dossiers@protecjuris.fr", reference: "PJ-55-2026-1209" },
+      tiers: [{ nom: "Garage du Lignon (réparateur mis en cause)", coordonnees: "04 71 00 11 22" }],
+      refs: { interne: "HY-3302", expert: "DEL-26-097" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest", expert: "u-expert", suiveurs: ["u-suiveur"] },
+      pilotage: {
+        ouEnEst: "Expertise contradictoire réalisée, PV déposé.",
+        attente: "Pré-rapport de l'expert (attendu à +48 h)",
+        prochaineAction: "Relancer l'expert pour le pré-rapport",
+        quiDoitAgir: "expert",
+        echeance: daysFromNow(-3),
+      },
+      expertise: { date: daysFromNow(-7, 14), lieu: "Garage du Lignon, Le Chambon-sur-Lignon", convoques: ["u-client", "u-expert", "u-suiveur"], realisee: true },
+      documents: [
+        doc("Facture réparation boîte de vitesses.pdf", "facture", "u-client", daysFromNow(-24)),
+        doc("Carnet d'entretien.pdf", "entretien", "u-client", daysFromNow(-24), "4,8 Mo"),
+        doc("PV expertise contradictoire.pdf", "pv", "u-expert", daysFromNow(-6), "610 Ko"),
+      ],
+      timeline: [
+        ev(daysFromNow(-24), "creation", "u-gest", "Dossier créé", "Litige suite à réparation — boîte de vitesses."),
+        ev(daysFromNow(-21), "status", "u-expert", "Statut → Recours validé", "Le dossier est recevable."),
+        ev(daysFromNow(-14), "expertise", "u-gest", "Convocation envoyée"),
+        ev(daysFromNow(-7, 14), "expertise", "u-expert", "Expertise réalisée"),
+        ev(daysFromNow(-6), "document", "u-expert", "PV déposé"),
+        ev(daysFromNow(-6), "status", "system", "Statut → En attente rapport"),
+        ev(daysFromNow(-2), "relance", "system", "Relance automatique envoyée à l'expert", "Pré-rapport non transmis à +96 h.", ["expert"]),
+      ],
+    },
+    {
+      id: "NER-2026-0129",
+      ref: "NER-2026-0129",
+      type: "sinistre",
+      sinistreType: "non_resp_avec_tiers",
+      status: "attente_reparation",
+      createdAt: daysFromNow(-35),
+      updatedAt: daysFromNow(-9),
+      client: { firstName: "Julien", lastName: "Arnaud", phone: "06 71 82 93 04", email: "julien.arnaud@mail.fr" },
+      vehicule: { marque: "Toyota", modele: "Yaris Hybride", immat: "FN-512-QS" },
+      compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-76201-S" },
+      refs: { sinistre: "SIN-2026-51209", expert: "GAR-26-044" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest2", expert: "u-expert2", reparateur: "u-rep2", suiveurs: [] },
+      pilotage: {
+        ouEnEst: "PV reçu, réparations en cours chez le réparateur.",
+        attente: "Facture proforma du réparateur",
+        prochaineAction: "Déposer la facture proforma",
+        quiDoitAgir: "reparateur",
+        echeance: daysFromNow(-5),
+      },
+      expertise: { date: daysFromNow(-12), lieu: "Carrosserie Chevalier, Saint-Étienne", convoques: ["u-expert2", "u-rep2"], realisee: true },
+      documents: [doc("PV expertise.pdf", "pv", "u-expert2", daysFromNow(-11))],
+      timeline: [
+        ev(daysFromNow(-35), "creation", "u-gest2", "Dossier créé"),
+        ev(daysFromNow(-12), "expertise", "u-expert2", "Expertise réalisée"),
+        ev(daysFromNow(-11), "status", "system", "Statut → En attente réparation"),
+      ],
+    },
+    {
+      id: "NER-2026-0118",
+      ref: "NER-2026-0118",
+      type: "litige_assurantiel",
+      litigeType: "rapport_minore",
+      status: "attente_retour",
+      createdAt: daysFromNow(-48),
+      updatedAt: daysFromNow(-10),
+      client: { firstName: "Nathalie", lastName: "Giraud", phone: "06 40 50 60 70", email: "n.giraud@mail.fr" },
+      vehicule: { marque: "Dacia", modele: "Duster", immat: "EZ-904-LM" },
+      compagnie: { nom: "Garantia Assurances", email: "reclamations@garantia.fr", reference: "GA-2026-11873" },
+      refs: { sinistre: "GA-SIN-90311", expert: "DEL-26-071" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest", expert: "u-expert", suiveurs: [] },
+      pilotage: {
+        ouEnEst: "Réclamation envoyée à la compagnie le " + new Date(daysFromNow(-10)).toLocaleDateString("fr-FR") + ".",
+        attente: "Retour de la compagnie",
+        prochaineAction: "Relance automatique compagnie à J+15",
+        quiDoitAgir: "nereids",
+        echeance: daysFromNow(5),
+      },
+      expertise: { convoques: [] },
+      documents: [doc("Rapport Nereids.pdf", "rapport", "u-expert", daysFromNow(-12)), doc("Courrier réclamation.pdf", "courrier", "u-admin", daysFromNow(-10))],
+      timeline: [
+        ev(daysFromNow(-48), "creation", "u-gest", "Dossier créé"),
+        ev(daysFromNow(-10), "status", "u-admin", "Statut → Réclamation envoyée"),
+        ev(daysFromNow(-10), "status", "system", "Statut → En attente retour"),
+      ],
+    },
+    {
+      id: "NER-2026-0103",
+      ref: "NER-2026-0103",
+      type: "sinistre",
+      sinistreType: "non_resp_avec_tiers",
+      status: "attente_paiement",
+      createdAt: daysFromNow(-70),
+      updatedAt: daysFromNow(-4),
+      client: { firstName: "Hugo", lastName: "Leroy", phone: "06 12 98 34 76", email: "hugo.leroy@mail.fr" },
+      vehicule: { marque: "Peugeot", modele: "2008", immat: "GB-311-DF" },
+      compagnie: { nom: "Mutuelle du Centre", email: "recours@mutuelle-centre.fr", reference: "MDC-REC-3381" },
+      refs: { sinistre: "MDC-SIN-41007", expert: "MEU-26-022" },
+      region: "Provence-Alpes-Côte d'Azur",
+      intervenants: { gestionnaire: "u-gest3", expert: "u-expert3", reparateur: "u-rep", suiveurs: [] },
+      pilotage: {
+        ouEnEst: "Accord de la compagnie adverse, paiement annoncé.",
+        attente: "Réception du paiement",
+        prochaineAction: "Confirmer la réception du paiement puis clôturer",
+        quiDoitAgir: "nereids",
+        echeance: daysFromNow(8),
+      },
+      expertise: { date: daysFromNow(-40), convoques: [], realisee: true },
+      documents: [],
+      timeline: [ev(daysFromNow(-70), "creation", "u-gest3", "Dossier créé"), ev(daysFromNow(-4), "status", "u-admin", "Statut → En attente paiement")],
+    },
+    {
+      id: "NER-2026-0097",
+      ref: "NER-2026-0097",
+      type: "litige_assurantiel",
+      litigeType: "imputable",
+      status: "complement",
+      createdAt: daysFromNow(-30),
+      updatedAt: daysFromNow(-8),
+      client: { firstName: "Aurélie", lastName: "Fontaine", phone: "06 87 65 43 21", email: "a.fontaine@mail.fr" },
+      vehicule: { marque: "BMW", modele: "Série 1", immat: "FT-640-PR" },
+      compagnie: { nom: "Assurances Atlantique", email: "litiges@atlantique-assur.fr" },
+      refs: { sinistre: "AT-SIN-12093" },
+      region: "Provence-Alpes-Côte d'Azur",
+      intervenants: { gestionnaire: "u-gest3", expert: "u-expert3", suiveurs: ["u-suiveur2"] },
+      pilotage: {
+        ouEnEst: "Étude en cours : photos insuffisantes pour l'expert.",
+        attente: "Au moins 3 photos du dommage (1 reçue)",
+        prochaineAction: "Relancer le client pour les photos",
+        quiDoitAgir: "client",
+        echeance: daysFromNow(-4),
+      },
+      expertise: { convoques: [] },
+      documents: [doc("Photo portière.jpg", "photos", "u-client", daysFromNow(-30), "3,0 Mo")],
+      timeline: [ev(daysFromNow(-30), "creation", "u-gest3", "Dossier créé"), ev(daysFromNow(-8), "status", "u-expert3", "Statut → Complément à traiter", "Il manque au moins 2 photos.")],
+    },
+    {
+      id: "NER-2026-0088",
+      ref: "NER-2026-0088",
+      type: "sinistre",
+      sinistreType: "non_resp_avec_tiers",
+      status: "attente_pv",
+      createdAt: daysFromNow(-20),
+      updatedAt: daysFromNow(-2),
+      client: { firstName: "Léa", lastName: "Dupuis", phone: "06 23 45 67 89", email: "lea.dupuis@mail.fr" },
+      vehicule: { marque: "Fiat", modele: "500", immat: "GD-118-VC" },
+      compagnie: { nom: "Garantia Assurances", email: "recours@garantia.fr", reference: "GA-REC-7720" },
+      refs: { sinistre: "GA-SIN-88120", expert: "GAR-26-051" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest2", expert: "u-expert2", reparateur: "u-rep2", suiveurs: [] },
+      pilotage: {
+        ouEnEst: "Expertise réalisée il y a 2 jours.",
+        attente: "PV d'expertise",
+        prochaineAction: "Déposer le PV",
+        quiDoitAgir: "expert",
+        echeance: daysFromNow(-1),
+      },
+      expertise: { date: daysFromNow(-2, 10), lieu: "Carrosserie Chevalier, Saint-Étienne", convoques: ["u-expert2", "u-rep2"], realisee: true },
+      documents: [],
+      timeline: [ev(daysFromNow(-20), "creation", "u-gest2", "Dossier créé"), ev(daysFromNow(-2), "expertise", "u-expert2", "Expertise réalisée"), ev(daysFromNow(-2), "status", "system", "Statut → En attente PV")],
+    },
+    {
+      id: "NER-2026-0076",
+      ref: "NER-2026-0076",
+      type: "litige_auto",
+      status: "en_etude",
+      createdAt: daysFromNow(-6),
+      updatedAt: daysFromNow(-5),
+      client: { firstName: "Romain", lastName: "Caron", phone: "06 19 28 37 46", email: "r.caron@mail.fr" },
+      vehicule: { marque: "Audi", modele: "A3 Sportback", immat: "EH-337-GN" },
+      compagnie: { nom: "Cabinet Lambert (avocat)", email: "p.lambert@avocat-lambert.fr" },
+      tiers: [{ nom: "AutoPlus Occasions (vendeur)" }],
+      refs: {},
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest", expert: "u-expert2", suiveurs: ["u-suiveur2"] },
+      pilotage: {
+        ouEnEst: "Pièces reçues, analyse par l'expert.",
+        attente: "Validation du dossier par l'expert",
+        prochaineAction: "Valider ou refuser le dossier",
+        quiDoitAgir: "expert",
+        echeance: daysFromNow(3),
+      },
+      expertise: { convoques: [] },
+      documents: [doc("Facture d'achat.pdf", "facture_achat", "u-client", daysFromNow(-6))],
+      timeline: [ev(daysFromNow(-6), "creation", "u-gest", "Dossier créé", "Vice caché suspecté après achat d'occasion.")],
+    },
+    {
+      id: "NER-2026-0064",
+      ref: "NER-2026-0064",
+      type: "sinistre",
+      sinistreType: "non_resp_avec_tiers",
+      status: "cloture",
+      createdAt: daysFromNow(-120),
+      updatedAt: daysFromNow(-15),
+      client: { firstName: "Martine", lastName: "Blanc", phone: "06 01 02 03 04", email: "m.blanc@mail.fr" },
+      vehicule: { marque: "Renault", modele: "Captur", immat: "FA-220-HJ" },
+      compagnie: { nom: "Assurances Atlantique", reference: "AT-70011-S" },
+      refs: { sinistre: "SIN-2026-40102" },
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest", expert: "u-expert", reparateur: "u-rep", suiveurs: [] },
+      pilotage: { ouEnEst: "Dossier clôturé.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" },
+      expertise: { convoques: [], realisee: true },
+      documents: [],
+      timeline: [ev(daysFromNow(-120), "creation", "u-gest", "Dossier créé"), ev(daysFromNow(-15), "status", "u-admin", "Statut → Clôturé", "Motif : Paiement reçu")],
+      cloture: { motif: "Paiement reçu", at: daysFromNow(-15) },
+    },
+    {
+      id: "NER-2026-0031",
+      ref: "NER-2026-0031",
+      type: "litige_assurantiel",
+      litigeType: "valeur",
+      status: "archive",
+      createdAt: daysFromNow(-200),
+      updatedAt: daysFromNow(-60),
+      client: { firstName: "Patrick", lastName: "Vidal", phone: "06 09 08 07 06", email: "p.vidal@mail.fr" },
+      vehicule: { marque: "Skoda", modele: "Octavia", immat: "EK-551-TY" },
+      compagnie: { nom: "Mutuelle du Centre" },
+      refs: {},
+      region: "Auvergne-Rhône-Alpes",
+      intervenants: { gestionnaire: "u-gest2", expert: "u-expert", suiveurs: [] },
+      pilotage: { ouEnEst: "Dossier archivé.", attente: "—", prochaineAction: "—", quiDoitAgir: "nereids" },
+      expertise: { convoques: [] },
+      documents: [],
+      timeline: [ev(daysFromNow(-200), "creation", "u-gest2", "Dossier créé"), ev(daysFromNow(-60), "status", "u-admin", "Statut → Archivé")],
+      cloture: { motif: "Accord trouvé", at: daysFromNow(-70) },
+    },
+  ]
+}
+
+/** Étapes du workflow par type — utilisé pour la frise de progression */
+export const WORKFLOW_STEPS: Record<DossierType, { label: string; statuses: StatusId[] }[]> = {
+  sinistre: [
+    { label: "Création", statuses: ["nouveau"] },
+    { label: "Étude", statuses: ["en_etude", "attente_client", "complement"] },
+    { label: "Recours validé", statuses: ["recours_valide", "attente_tiers", "attente_compagnie"] },
+    { label: "Expertise", statuses: ["attente_expertise", "attente_pv"] },
+    { label: "Réparation", statuses: ["attente_reparation"] },
+    { label: "Rapport", statuses: ["attente_rapport"] },
+    { label: "Réclamation", statuses: ["reclamation_envoyee", "attente_retour"] },
+    { label: "Paiement", statuses: ["attente_paiement"] },
+    { label: "Clôture", statuses: ["cloture", "archive"] },
+  ],
+  litige_auto: [
+    { label: "Création", statuses: ["nouveau"] },
+    { label: "Étude", statuses: ["en_etude", "attente_client", "complement"] },
+    { label: "Validé", statuses: ["recours_valide", "attente_tiers", "attente_compagnie"] },
+    { label: "Expertise", statuses: ["attente_expertise", "attente_pv"] },
+    { label: "Rapport", statuses: ["attente_rapport", "attente_reparation"] },
+    { label: "Discussion", statuses: ["reclamation_envoyee", "attente_retour", "attente_paiement"] },
+    { label: "Clôture", statuses: ["cloture", "archive"] },
+  ],
+  litige_assurantiel: [
+    { label: "Création", statuses: ["nouveau"] },
+    { label: "Étude", statuses: ["en_etude", "attente_client", "complement"] },
+    { label: "Validé", statuses: ["recours_valide", "attente_compagnie", "attente_tiers"] },
+    { label: "Tierce expertise", statuses: ["attente_expertise", "attente_pv", "attente_rapport", "attente_reparation"] },
+    { label: "Réclamation", statuses: ["reclamation_envoyee", "attente_retour"] },
+    { label: "Paiement", statuses: ["attente_paiement"] },
+    { label: "Clôture", statuses: ["cloture", "archive"] },
+  ],
+}
+
+export const ACTOR_LABELS: Record<RoleId | "nereids" | "all", string> = {
+  admin: "Nereids",
+  nereids: "Nereids",
+  gestionnaire: "Gestionnaire",
+  expert: "Expert",
+  reparateur: "Réparateur",
+  suiveur: "Intervenant suiveur",
+  client: "Client",
+  all: "Tous les intervenants",
+}
+
+/** Pilotage par défaut associé à un statut (utilisé lors d'un changement de statut) */
+export function defaultPilotage(status: StatusId, type: DossierType): Omit<Dossier["pilotage"], "echeance"> & { delayDays?: number } {
+  const map: Record<StatusId, Omit<Dossier["pilotage"], "echeance"> & { delayDays?: number }> = {
+    nouveau: { ouEnEst: "Dossier créé.", attente: "Assignation des intervenants", prochaineAction: "Assigner les intervenants", quiDoitAgir: "nereids", delayDays: 1 },
+    en_etude: { ouEnEst: "Dossier en cours d'étude par l'expert.", attente: "Validation du dossier par l'expert", prochaineAction: "Étudier et valider le dossier", quiDoitAgir: "expert", delayDays: 3 },
+    recours_valide: {
+      ouEnEst: type === "sinistre" ? "Recours validé." : "Dossier validé par l'expert.",
+      attente: type === "sinistre" ? "Devis du réparateur et coordonnées de la compagnie adverse" : "Organisation de l'expertise",
+      prochaineAction: type === "sinistre" ? "Demander le devis au réparateur" : "Organiser l'expertise (date, lieu, convocation)",
+      quiDoitAgir: "gestionnaire",
+      delayDays: 5,
+    },
+    attente_client: { ouEnEst: "Informations ou pièces demandées au client.", attente: "Retour du client", prochaineAction: "Relancer le client si besoin", quiDoitAgir: "client", delayDays: 5 },
+    attente_tiers: { ouEnEst: "Demande envoyée au tiers.", attente: "Retour du tiers", prochaineAction: "Relancer le tiers", quiDoitAgir: "nereids", delayDays: 7 },
+    attente_compagnie: { ouEnEst: "Demande envoyée à la compagnie.", attente: "Retour de la compagnie", prochaineAction: "Relancer la compagnie", quiDoitAgir: "nereids", delayDays: 15 },
+    attente_expertise: { ouEnEst: "Expertise programmée, convocations envoyées.", attente: "Réalisation de l'expertise", prochaineAction: "Réaliser l'expertise", quiDoitAgir: "expert", delayDays: 7 },
+    attente_pv: { ouEnEst: "Expertise réalisée.", attente: "PV d'expertise (sous 24 h)", prochaineAction: "Déposer le PV", quiDoitAgir: "expert", delayDays: 1 },
+    attente_rapport: { ouEnEst: "PV déposé.", attente: "Rapport de l'expert", prochaineAction: "Déposer le rapport", quiDoitAgir: "expert", delayDays: 2 },
+    attente_reparation: { ouEnEst: "PV reçu, réparation en cours.", attente: "Facture proforma du réparateur", prochaineAction: "Déposer la facture proforma", quiDoitAgir: "reparateur", delayDays: 10 },
+    complement: { ouEnEst: "Un complément est nécessaire.", attente: "Complément à fournir", prochaineAction: "Traiter le complément", quiDoitAgir: "gestionnaire", delayDays: 3 },
+    reclamation_envoyee: { ouEnEst: "Réclamation envoyée à la compagnie.", attente: "Retour de la compagnie", prochaineAction: "Relance automatique à J+15", quiDoitAgir: "nereids", delayDays: 15 },
+    attente_retour: { ouEnEst: "Réclamation en cours de traitement.", attente: "Retour de la compagnie", prochaineAction: "Relance automatique à J+21", quiDoitAgir: "nereids", delayDays: 21 },
+    attente_paiement: { ouEnEst: "Accord obtenu.", attente: "Réception du paiement", prochaineAction: "Confirmer le paiement puis clôturer", quiDoitAgir: "nereids", delayDays: 15 },
+    cloture: { ouEnEst: "Dossier clôturé.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" },
+    archive: { ouEnEst: "Dossier archivé.", attente: "—", prochaineAction: "—", quiDoitAgir: "nereids" },
+  }
+  return map[status]
+}
+
+/** Expertise non réalisée prévue dans les `days` prochains jours (inclut aujourd'hui) */
+export function hasUpcomingExpertise(d: Dossier, days = 7): boolean {
+  if (!d.expertise.date || d.expertise.realisee) return false
+  const t = new Date(d.expertise.date).getTime()
+  return t >= Date.now() - DAY && t <= Date.now() + days * DAY
+}

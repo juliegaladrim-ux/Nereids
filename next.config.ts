@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Prototype 100 % côté client (données fictives en localStorage) :
+  // pas besoin de cacheComponents / partialPrefetching.
   turbopack: {
     rules: {
       "*.css": {
