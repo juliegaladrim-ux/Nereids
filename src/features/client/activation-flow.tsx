@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import {
   ArrowLeft,
   Camera,
@@ -10,11 +11,9 @@ import {
   CircleAlert,
   Eye,
   EyeOff,
-  Hourglass,
   Lock,
   Mail,
   Pencil,
-  Send,
   Upload,
   UserRound,
   X,
@@ -22,7 +21,6 @@ import {
 
 import { Immat } from "@/components/immat"
 import { Logo } from "@/components/logo"
-import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -37,7 +35,7 @@ import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { CLIENT_DOC_COPY, clientTypeLabel } from "./client-docs"
 
-export type ActivationStep = "mail" | "password" | "infos" | "pieces" | "recap" | "done"
+export type ActivationStep = "mail" | "password" | "infos" | "pieces" | "recap"
 
 /** Étapes numérotées vues par le client (le mail et l'écran final n'en font pas partie) */
 const NUMBERED: ActivationStep[] = ["password", "infos", "pieces", "recap"]
@@ -60,7 +58,7 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
   const router = useRouter()
 
   const [step, setStep] = React.useState<ActivationStep>(
-    initialStep ?? (d.clientAccess?.submittedAt ? "done" : d.clientAccess?.activatedAt ? "infos" : "mail"),
+    initialStep ?? (d.clientAccess?.activatedAt ? "infos" : "mail"),
   )
   const [infos, setInfos] = React.useState<Infos>({
     client: { firstName: d.client.firstName, lastName: d.client.lastName, phone: d.client.phone, email: d.client.email },
@@ -127,7 +125,10 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
         },
       }
     })
-    go("done")
+    toast.success(`Bienvenue dans votre espace, ${infos.client.firstName}`, {
+      description: missing.length ? "Vous pourrez ajouter les documents manquants ici." : "Votre dossier est transmis à Nereids.",
+    })
+    router.push("/client/tableau-de-bord")
   }
 
   const index = NUMBERED.indexOf(step)
@@ -170,7 +171,6 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
         {step === "recap" && (
           <RecapStep d={d} infos={infos} expected={expected} uploads={uploads} missing={missing} onEdit={go} onSubmit={submit} />
         )}
-        {step === "done" && <DoneStep d={d} missing={missing} onHome={() => router.push("/client/tableau-de-bord")} />}
       </main>
     </div>
   )
@@ -580,10 +580,10 @@ function RecapStep({
     <StepLayout
       icon={<Check />}
       title="Récapitulatif"
-      subtitle="Vérifiez avant d'envoyer votre dossier à Nereids."
+      subtitle="Vérifiez une dernière fois avant d'accéder à votre espace."
       footer={
         <Button size="lg" className="w-full" onClick={onSubmit}>
-          <Send /> Envoyer mon dossier
+          Confirmer et accéder à mon espace
         </Button>
       }
     >
@@ -619,7 +619,7 @@ function RecapStep({
           </ul>
           {missing.length > 0 && (
             <p className="mt-3 rounded-md bg-tone-waiting-bg px-3 py-2 text-sm text-tone-waiting">
-              Vous pouvez envoyer maintenant et ajouter les documents manquants plus tard depuis votre espace.
+              Pas de souci : vous pourrez ajouter les documents manquants depuis votre espace.
             </p>
           )}
         </RecapCard>
@@ -649,44 +649,6 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
     <div className="flex items-center justify-between gap-4 text-[15px]">
       <span className="text-muted-foreground">{k}</span>
       <span className="min-w-0 truncate text-right font-medium">{v}</span>
-    </div>
-  )
-}
-
-// ─── 6. Dossier envoyé ───────────────────────────────────────────────────────
-
-function DoneStep({ d, missing, onHome }: { d: Dossier; missing: DocCategory[]; onHome: () => void }) {
-  return (
-    <div className="flex flex-1 flex-col items-center pt-6 text-center">
-      <span className="grid size-16 place-items-center rounded-full bg-tone-done-bg text-tone-done">
-        <Check className="size-8" strokeWidth={2.5} />
-      </span>
-      <h1 className="mt-5 text-2xl font-bold tracking-tight">Dossier envoyé</h1>
-      <p className="mt-2 text-muted-foreground">Merci {d.client.firstName}, Nereids a bien reçu votre dossier.</p>
-
-      <div className="mt-8 w-full rounded-xl border bg-card p-4 text-left">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold">{d.ref}</span>
-          <StatusBadge status={d.status} />
-        </div>
-        <div className="mt-4 flex gap-3 rounded-lg bg-muted p-3">
-          <Hourglass className="mt-0.5 size-5 shrink-0 text-primary" />
-          <div className="text-[15px]">
-            <p className="font-medium">Prochaine étape</p>
-            <p className="text-muted-foreground">Un expert va étudier votre dossier. Vous serez prévenu par e-mail sous 48 h.</p>
-          </div>
-        </div>
-        {missing.length > 0 && (
-          <p className="mt-3 flex items-center gap-2 text-sm text-tone-waiting">
-            <CircleAlert className="size-4 shrink-0" />
-            À compléter : {missing.map((c) => CLIENT_DOC_COPY[c]?.label ?? DOC_CATEGORIES[c]).join(", ")}
-          </p>
-        )}
-      </div>
-
-      <Button size="lg" className="mt-8 w-full" onClick={onHome}>
-        Accéder à mon espace
-      </Button>
     </div>
   )
 }

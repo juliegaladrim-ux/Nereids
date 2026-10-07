@@ -6,7 +6,7 @@ import { ProtoBar } from "@/components/app-shell/proto-bar"
 import { RoleProvider } from "@/components/app-shell/role-context"
 import { ActivationFlow, type ActivationStep } from "@/features/client/activation-flow"
 
-const STEPS: ActivationStep[] = ["mail", "password", "infos", "pieces", "recap", "done"]
+const STEPS: ActivationStep[] = ["mail", "password", "infos", "pieces", "recap"]
 
 /** Parcours d'activation du client particulier, ouvert depuis l'e-mail d'invitation (hors espace connecté) */
 export default function ActivationPage({ params, searchParams }: PageProps<"/activation/[id]">) {
