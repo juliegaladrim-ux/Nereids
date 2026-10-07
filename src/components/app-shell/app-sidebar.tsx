@@ -40,11 +40,18 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3 p-3">
-        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
-          <Link href={href()} className="px-1 py-1 group-data-[collapsible=icon]:px-0">
-            <Logo className="group-data-[collapsible=icon]:[&>span]:hidden" />
-          </Link>
-          <SidebarTrigger className="ml-auto text-muted-foreground group-data-[collapsible=icon]:ml-0" aria-label="Replier le menu" />
+        <div className="flex items-center gap-1">
+          <div className="group/logo relative">
+            <Link href={href()} className="block px-1 py-1 group-data-[collapsible=icon]:px-0">
+              <Logo className="group-data-[collapsible=icon]:[&>span]:hidden" />
+            </Link>
+            {/* Menu replié : le bouton d'ouverture remplace le logo au survol */}
+            <SidebarTrigger
+              aria-label="Déplier le menu"
+              className="absolute top-1 left-0 hidden size-8 bg-sidebar opacity-0 transition-opacity group-hover/logo:opacity-100 focus-visible:opacity-100 group-data-[collapsible=icon]:inline-flex hover:bg-sidebar-accent"
+            />
+          </div>
+          <SidebarTrigger className="ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden" aria-label="Replier le menu" />
         </div>
         {role.canCreateDossier && (
           <Button
