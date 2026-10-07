@@ -249,6 +249,8 @@ export type Dossier = {
   description?: string
   cloture?: { motif: string; commentaire?: string; at: string }
   horsPerimetre?: boolean
+  /** Accès du client particulier : invitation e-mail → activation → envoi des pièces */
+  clientAccess?: { invitedAt: string; activatedAt?: string; submittedAt?: string }
 }
 
 // ─── Dates relatives (pour que le proto reste « frais ») ─────────────────────
@@ -299,7 +301,12 @@ export const USERS: User[] = [
   { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste" },
   { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat" },
 
-  { id: "u-client", role: "client", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", phone: "06 98 76 54 32", structure: "Particulier", fonction: "" },
+  // Autres clients des dossiers de démo (sans compte actif dans le proto)
+  { id: "u-c-lefevre", role: "client", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", phone: "06 98 76 54 32", structure: "Particulier", fonction: "" },
+  { id: "u-c-morel", role: "client", firstName: "Sandrine", lastName: "Morel", email: "s.morel@mail.fr", phone: "06 33 21 45 67", structure: "Particulier", fonction: "" },
+  { id: "u-c-fontaine", role: "client", firstName: "Aurélie", lastName: "Fontaine", email: "a.fontaine@mail.fr", phone: "06 87 65 43 21", structure: "Particulier", fonction: "" },
+  { id: "u-c-caron", role: "client", firstName: "Romain", lastName: "Caron", email: "r.caron@mail.fr", phone: "06 19 28 37 46", structure: "Particulier", fonction: "" },
+  { id: "u-client", role: "client", firstName: "Mehdi", lastName: "Saïdi", email: "mehdi.saidi@mail.fr", phone: "06 55 44 33 22", structure: "Particulier", fonction: "" },
 ]
 
 export function getUser(id?: string): User | undefined {
@@ -333,6 +340,9 @@ const doc = (name: string, category: DocCategory, addedBy: string, at: string, s
   size,
 })
 
+/** Dossier de démo du parcours d'activation client (invitation e-mail) */
+export const CLIENT_ACTIVATION_DOSSIER = "NER-2026-0149"
+
 export function seedDossiers(): Dossier[] {
   seq = 0
   return [
@@ -344,7 +354,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_expertise",
       createdAt: daysFromNow(-12),
       updatedAt: daysFromNow(-1),
-      client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr", userId: "u-client" },
+      client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr" },
       vehicule: { marque: "Peugeot", modele: "308 SW", immat: "GH-482-KL", vin: "VF3LBYHZPKS123456" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-77812-S" },
       refs: { sinistre: "SIN-2026-55481", interne: "HY-3381", expert: "DEL-26-118" },
@@ -357,22 +367,22 @@ export function seedDossiers(): Dossier[] {
         quiDoitAgir: "expert",
         echeance: daysFromNow(2),
       },
-      expertise: { date: daysFromNow(2, 9), lieu: "Garage Benali Carrosserie, 12 rue des Forges, 43200 Yssingeaux", convoques: ["u-client", "u-rep", "u-expert"] },
+      expertise: { date: daysFromNow(2, 9), lieu: "Garage Benali Carrosserie, 12 rue des Forges, 43200 Yssingeaux", convoques: ["u-c-lefevre", "u-rep", "u-expert"] },
       documents: [
-        doc("Constat amiable.pdf", "constat", "u-client", daysFromNow(-12), "820 Ko"),
-        doc("Carte grise recto-verso.pdf", "carte_grise", "u-client", daysFromNow(-12), "1,1 Mo"),
-        doc("Photos avant droit (6).zip", "photos", "u-client", daysFromNow(-12), "14,3 Mo"),
+        doc("Constat amiable.pdf", "constat", "u-c-lefevre", daysFromNow(-12), "820 Ko"),
+        doc("Carte grise recto-verso.pdf", "carte_grise", "u-c-lefevre", daysFromNow(-12), "1,1 Mo"),
+        doc("Photos avant droit (6).zip", "photos", "u-c-lefevre", daysFromNow(-12), "14,3 Mo"),
         doc("Devis réparation n°D-2291.pdf", "devis", "u-rep", daysFromNow(-6), "240 Ko"),
         doc("Convocation expertise.pdf", "courrier", "u-gest", daysFromNow(-3), "95 Ko"),
       ],
       timeline: [
-        ev(daysFromNow(-12, 9), "creation", "u-client", "Dossier créé", "Sinistre non responsable avec tiers — recours direct."),
-        ev(daysFromNow(-12, 9), "document", "u-client", "3 documents ajoutés", "Constat, carte grise, photos"),
+        ev(daysFromNow(-12, 9), "creation", "u-c-lefevre", "Dossier créé", "Sinistre non responsable avec tiers — recours direct."),
+        ev(daysFromNow(-12, 9), "document", "u-c-lefevre", "3 documents ajoutés", "Constat, carte grise, photos"),
         ev(daysFromNow(-11, 14), "assignation", "u-admin", "Intervenants assignés", "Gestionnaire : Julie Perrin · Expert : Marc Delorme"),
         ev(daysFromNow(-11, 14), "status", "system", "Statut → En étude"),
         ev(daysFromNow(-9, 11), "status", "u-expert", "Statut → Recours validé", "Responsabilité du tiers établie par le constat (cas 10)."),
         ev(daysFromNow(-9, 11), "message", "u-gest", "Message", "Bonjour M. Lefèvre, pouvez-vous nous indiquer le garage qui réalisera les réparations ?", ["client"]),
-        ev(daysFromNow(-8, 18), "message", "u-client", "Message", "Bonjour, ce sera le Garage Benali à Yssingeaux.", ["gestionnaire"]),
+        ev(daysFromNow(-8, 18), "message", "u-c-lefevre", "Message", "Bonjour, ce sera le Garage Benali à Yssingeaux.", ["gestionnaire"]),
         ev(daysFromNow(-6, 10), "document", "u-rep", "Devis déposé", "Devis réparation n°D-2291 — 3 480,00 € TTC"),
         ev(daysFromNow(-3, 15), "expertise", "u-gest", "Convocation envoyée", "Expertise prévue sur site, client, réparateur et expert convoqués."),
         ev(daysFromNow(-3, 15), "status", "system", "Statut → En attente expertise"),
@@ -418,22 +428,26 @@ export function seedDossiers(): Dossier[] {
       status: "nouveau",
       createdAt: daysFromNow(-2, 11),
       updatedAt: daysFromNow(-2, 11),
-      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr" },
+      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", userId: "u-client" },
       vehicule: { marque: "Volkswagen", modele: "Golf 8", immat: "GA-773-RT" },
       compagnie: { nom: "Garantia Assurances", email: "recours@garantia.fr" },
       refs: {},
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest2", suiveurs: [] },
       pilotage: {
-        ouEnEst: "Dossier créé par le client, pièces incomplètes.",
-        attente: "Assignation d'un expert · photos manquantes",
+        ouEnEst: "Dossier créé, invitation envoyée au client.",
+        attente: "Assignation d'un expert · pièces du client (constat, carte grise, photos)",
         prochaineAction: "Assigner un expert",
         quiDoitAgir: "nereids",
         echeance: daysFromNow(-1),
       },
       expertise: { convoques: [] },
-      documents: [doc("Constat.jpg", "constat", "u-client", daysFromNow(-2, 11), "2,1 Mo")],
-      timeline: [ev(daysFromNow(-2, 11), "creation", "system", "Dossier créé par le client", "Pièces manquantes : carte grise, photos.")],
+      documents: [],
+      timeline: [
+        ev(daysFromNow(-2, 11), "creation", "u-admin", "Dossier créé", "Sinistre non responsable avec tiers — recours direct."),
+        ev(daysFromNow(-2, 11), "system", "system", "Invitation envoyée au client", "E-mail de création de compte envoyé à mehdi.saidi@mail.fr"),
+      ],
+      clientAccess: { invitedAt: daysFromNow(-2, 11) },
     },
     {
       id: "NER-2026-0137",
@@ -456,10 +470,10 @@ export function seedDossiers(): Dossier[] {
         quiDoitAgir: "expert",
         echeance: daysFromNow(-3),
       },
-      expertise: { date: daysFromNow(-7, 14), lieu: "Garage du Lignon, Le Chambon-sur-Lignon", convoques: ["u-client", "u-expert", "u-suiveur"], realisee: true },
+      expertise: { date: daysFromNow(-7, 14), lieu: "Garage du Lignon, Le Chambon-sur-Lignon", convoques: ["u-c-morel", "u-expert", "u-suiveur"], realisee: true },
       documents: [
-        doc("Facture réparation boîte de vitesses.pdf", "facture", "u-client", daysFromNow(-24)),
-        doc("Carnet d'entretien.pdf", "entretien", "u-client", daysFromNow(-24), "4,8 Mo"),
+        doc("Facture réparation boîte de vitesses.pdf", "facture", "u-c-morel", daysFromNow(-24)),
+        doc("Carnet d'entretien.pdf", "entretien", "u-c-morel", daysFromNow(-24), "4,8 Mo"),
         doc("PV expertise contradictoire.pdf", "pv", "u-expert", daysFromNow(-6), "610 Ko"),
       ],
       timeline: [
@@ -577,7 +591,7 @@ export function seedDossiers(): Dossier[] {
         echeance: daysFromNow(-4),
       },
       expertise: { convoques: [] },
-      documents: [doc("Photo portière.jpg", "photos", "u-client", daysFromNow(-30), "3,0 Mo")],
+      documents: [doc("Photo portière.jpg", "photos", "u-c-fontaine", daysFromNow(-30), "3,0 Mo")],
       timeline: [ev(daysFromNow(-30), "creation", "u-gest3", "Dossier créé"), ev(daysFromNow(-8), "status", "u-expert3", "Statut → Complément à traiter", "Il manque au moins 2 photos.")],
     },
     {
@@ -627,7 +641,7 @@ export function seedDossiers(): Dossier[] {
         echeance: daysFromNow(3),
       },
       expertise: { convoques: [] },
-      documents: [doc("Facture d'achat.pdf", "facture_achat", "u-client", daysFromNow(-6))],
+      documents: [doc("Facture d'achat.pdf", "facture_achat", "u-c-caron", daysFromNow(-6))],
       timeline: [ev(daysFromNow(-6), "creation", "u-gest", "Dossier créé", "Vice caché suspecté après achat d'occasion.")],
     },
     {

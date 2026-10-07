@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { ChevronUp, FlaskConical, RotateCcw } from "lucide-react"
+import { ChevronUp, FlaskConical, Mail, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { CLIENT_ACTIVATION_DOSSIER, seedDossiers } from "@/lib/data"
 import { ROLES } from "@/lib/roles"
 import { useStore } from "@/lib/store"
 import { useRole } from "./role-context"
@@ -25,7 +26,7 @@ import { useRole } from "./role-context"
  */
 export function ProtoBar() {
   const { role } = useRole()
-  const { reset } = useStore()
+  const { reset, updateDossier } = useStore()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -38,6 +39,13 @@ export function ProtoBar() {
       target.nav.some((n) => rest === n.path) ||
       (rest.startsWith("dossiers/") && rest !== "dossiers/nouveau")
     router.push(`/${id}/${keep ? rest : "tableau-de-bord"}`)
+  }
+
+  /** Remet le dossier d'activation dans son état initial et rouvre l'e-mail d'invitation */
+  function replayActivation() {
+    const seed = seedDossiers().find((d) => d.id === CLIENT_ACTIVATION_DOSSIER)!
+    updateDossier(seed.id, () => seed)
+    router.push(`/activation/${seed.id}`)
   }
 
   return (
@@ -65,6 +73,10 @@ export function ProtoBar() {
               </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={replayActivation}>
+              <Mail />
+              Rejouer l&apos;activation client (e-mail)
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 reset()

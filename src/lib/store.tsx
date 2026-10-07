@@ -10,7 +10,7 @@ import { seedDossiers, type Dossier, type TimelineEvent } from "./data"
  * restent visibles. Un bouton « Réinitialiser » remet les données de départ.
  */
 
-const STORAGE_KEY = "nereids-proto-v1"
+const STORAGE_KEY = "nereids-proto-v2"
 
 type Store = {
   dossiers: Dossier[]

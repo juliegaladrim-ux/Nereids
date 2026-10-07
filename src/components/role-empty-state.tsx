@@ -42,10 +42,7 @@ const PLANNED: Partial<Record<RoleId, Partial<Record<PageKey, string[]>>>> = {
     dossier: ["Consultation : statut, prochaine action, suivi", "Répondre aux messages, déposer et télécharger des pièces", "Aucune action de pilotage"],
   },
   client: {
-    "tableau-de-bord": ["Parcours le plus guidé, pensé mobile en priorité", "Où en est mon dossier et ce que j'ai à faire"],
-    dossiers: ["Mes dossiers (souvent un seul)"],
     dossier: ["Statut, documents, messages", "Renseigner mon réparateur, déposer mes pièces"],
-    nouveau: ["Création guidée : sinistre, litige automobile ou assurantiel", "Pièces adaptées au type, complétables plus tard"],
   },
   admin: {
     utilisateurs: ["Liste : nom, rôle, structure, région, statut du compte", "Ajouter un utilisateur / partenaire et envoyer l'invitation", "Droits : lecture seule ou lecture / écriture"],

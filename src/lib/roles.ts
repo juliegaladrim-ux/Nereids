@@ -109,8 +109,9 @@ export const ROLES: Role[] = [
     short: "Client",
     description: "Suit son dossier, dépose ses pièces et échange avec Nereids.",
     userId: "u-client",
-    ready: false,
-    canCreateDossier: true,
+    ready: true,
+    // Le dossier est toujours créé par Nereids (CR 05/10) : le client est invité par e-mail
+    canCreateDossier: false,
     nav: [
       { label: "Accueil", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
