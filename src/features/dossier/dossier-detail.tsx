@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { Immat } from "@/components/immat"
 import { LateBadge, StatusBadge } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
@@ -106,7 +107,7 @@ export function DossierDetail({ id }: { id: string }) {
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
                 {d.client.firstName} {d.client.lastName}
               </h1>
-              <span className="rounded-md border bg-card px-2 py-0.5 font-mono text-sm font-medium">{d.vehicule.immat}</span>
+              <Immat value={d.vehicule.immat} className="h-7 text-sm" />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {d.ref} · {DOSSIER_TYPES[d.type].label}
@@ -411,7 +412,7 @@ function General({ dossier: d }: { dossier: Dossier }) {
         title="Véhicule"
         rows={[
           ["Marque / modèle", `${d.vehicule.marque} ${d.vehicule.modele}`],
-          ["Immatriculation", <span key="i" className="font-mono">{d.vehicule.immat}</span>],
+          ["Immatriculation", <Immat key="i" value={d.vehicule.immat} />],
           ["VIN", d.vehicule.vin && <span key="v" className="font-mono text-xs">{d.vehicule.vin}</span>],
         ]}
       />

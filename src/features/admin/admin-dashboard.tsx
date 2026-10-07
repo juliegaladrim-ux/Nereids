@@ -1,14 +1,15 @@
 "use client"
 
 import Link from "next/link"
-import { AlertTriangle, ArrowRight, CalendarClock, FolderOpen, UserPlus } from "lucide-react"
+import { AlertTriangle, Archive, ArrowRight, CalendarClock, ChevronRight, FolderOpen, Users, Zap, UserPlus } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
 import { LateBadge, StatusBadge } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ACTOR_LABELS,
   DOSSIER_TYPES,
@@ -65,51 +66,56 @@ export function AdminDashboard() {
         <Kpi label="Dossiers en cours" value={active.length} icon={FolderOpen} href={href("dossiers")} />
         <Kpi label="À assigner" value={toAssign.length} icon={UserPlus} href={href("dossiers?vue=a-assigner")} tone={toAssign.length ? "primary" : undefined} />
         <Kpi label="En retard" value={late.length} icon={AlertTriangle} href={href("dossiers?vue=en-retard")} tone={late.length ? "danger" : undefined} />
-        <Kpi label="Expertises sous 7 jours" value={upcoming.length} icon={CalendarClock} href={href("dossiers?vue=expertises")} />
+        <Kpi label="Expertises à 7 j" value={upcoming.length} icon={CalendarClock} href={href("dossiers?vue=expertises")} />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
         {/* À traiter */}
         <Card>
           <CardHeader>
-            <CardTitle>À traiter en priorité</CardTitle>
-            <CardDescription>Dossiers à assigner et dossiers en retard, avec l&apos;action attendue.</CardDescription>
+            <CardTitle>
+              <Zap />
+              À traiter en priorité
+            </CardTitle>
+            <CardAction>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums">{priorities.length}</span>
+            </CardAction>
           </CardHeader>
           <CardContent className="px-0">
             {priorities.length === 0 ? (
-              <p className="px-6 text-sm text-muted-foreground">Rien d&apos;urgent, tout est à jour. 🎉</p>
+              <p className="px-5 text-sm text-muted-foreground">Rien d&apos;urgent, tout est à jour. 🎉</p>
             ) : (
               <ul className="divide-y">
                 {priorities.map(({ d, reason }) => (
                   <li key={d.id}>
                     <Link
                       href={href(`dossiers/${d.id}`)}
-                      className="flex flex-col gap-2 px-6 py-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-4"
+                      className="flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-muted/60 sm:flex-row sm:items-center sm:gap-4"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">
+                          <span className="font-semibold">
                             {d.client.firstName} {d.client.lastName}
                           </span>
-                          <span className="text-sm text-muted-foreground">
-                            {d.vehicule.immat} · {DOSSIER_TYPES[d.type].short}
-                          </span>
+                          <Immat value={d.vehicule.immat} />
+                          <span className="text-sm text-muted-foreground">{DOSSIER_TYPES[d.type].short}</span>
                         </div>
-                        <p className="mt-0.5 text-sm">
-                          <span className="text-muted-foreground">Prochaine action : </span>
-                          {d.pilotage.prochaineAction}{" "}
-                          <span className="text-muted-foreground">({ACTOR_LABELS[d.pilotage.quiDoitAgir]})</span>
+                        <p className="mt-1.5 flex items-center gap-1.5 text-sm">
+                          <ArrowRight className="size-3.5 shrink-0 text-primary" />
+                          <span className="font-medium">{d.pilotage.prochaineAction}</span>
+                          <span className="text-muted-foreground">· {ACTOR_LABELS[d.pilotage.quiDoitAgir]}</span>
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {reason === "assign" ? (
-                          <span className="inline-flex h-6 items-center rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary">
+                          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-primary-soft px-2.5 text-xs font-semibold text-primary">
+                            <UserPlus className="size-3.5" />
                             À assigner
                           </span>
                         ) : null}
                         {isLate(d) && <LateBadge days={lateDays(d)} />}
                         <StatusBadge status={d.status} />
-                        <ArrowRight className="hidden size-4 text-muted-foreground sm:block" />
+                        <ChevronRight className="hidden size-4 text-muted-foreground sm:block" />
                       </div>
                     </Link>
                   </li>
@@ -123,8 +129,10 @@ export function AdminDashboard() {
           {/* Expertises à venir */}
           <Card>
             <CardHeader>
-              <CardTitle>Expertises à venir</CardTitle>
-              <CardDescription>7 prochains jours</CardDescription>
+              <CardTitle>
+                <CalendarClock />
+                Expertises · 7 jours
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {upcoming.length === 0 ? (
@@ -134,18 +142,18 @@ export function AdminDashboard() {
                   {upcoming.map((d) => (
                     <li key={d.id}>
                       <Link href={href(`dossiers/${d.id}`)} className="group flex gap-3">
-                        <div className="grid w-12 shrink-0 place-items-center rounded-lg bg-muted py-1.5 text-center leading-tight">
-                          <span className="text-[0.65rem] text-muted-foreground uppercase">
+                        <div className="grid w-12 shrink-0 place-items-center rounded-lg bg-primary-soft py-1.5 text-primary text-center leading-tight">
+                          <span className="text-[0.65rem] font-semibold uppercase">
                             {new Date(d.expertise.date!).toLocaleDateString("fr-FR", { month: "short" })}
                           </span>
-                          <span className="text-lg font-semibold">{new Date(d.expertise.date!).getDate()}</span>
+                          <span className="text-lg font-bold">{new Date(d.expertise.date!).getDate()}</span>
                         </div>
                         <div className="min-w-0 text-sm">
-                          <p className="font-medium group-hover:underline">
-                            {d.client.firstName} {d.client.lastName} · {d.vehicule.immat}
+                          <p className="font-semibold group-hover:text-primary">
+                            {d.client.firstName} {d.client.lastName}
                           </p>
                           <p className="text-muted-foreground first-letter:uppercase">{formatLongDate(d.expertise.date)}</p>
-                          <p className="truncate text-muted-foreground">Expert : {fullName(getUser(d.intervenants.expert))}</p>
+                          <p className="truncate text-muted-foreground">{fullName(getUser(d.intervenants.expert))}</p>
                         </div>
                       </Link>
                     </li>
@@ -158,8 +166,10 @@ export function AdminDashboard() {
           {/* Charge par gestionnaire */}
           <Card>
             <CardHeader>
-              <CardTitle>Charge par gestionnaire</CardTitle>
-              <CardDescription>Dossiers actifs</CardDescription>
+              <CardTitle>
+                <Users />
+                Charge par gestionnaire
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
@@ -167,8 +177,13 @@ export function AdminDashboard() {
                   <li key={g.id} className="flex items-center gap-3 text-sm">
                     <UserAvatar user={g} />
                     <span className="flex-1 truncate">{fullName(g)}</span>
-                    {late > 0 && <span className="text-xs text-destructive">{late} en retard</span>}
-                    <span className="w-6 text-right font-medium tabular-nums">{total}</span>
+                    {late > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">
+                        <AlertTriangle className="size-3.5" />
+                        {late}
+                      </span>
+                    )}
+                    <span className="w-6 text-right font-bold tabular-nums">{total}</span>
                   </li>
                 ))}
               </ul>
@@ -178,7 +193,10 @@ export function AdminDashboard() {
           {toClose.length > 0 && (
             <Card size="sm">
               <CardHeader>
-                <CardTitle>{toClose.length} dossier(s) clôturé(s) à archiver</CardTitle>
+                <CardTitle>
+                  <Archive />
+                  {toClose.length} à archiver
+                </CardTitle>
                 <CardAction>
                   <Button size="sm" variant="outline" render={<Link href={href("dossiers?vue=clotures")} />} nativeButton={false}>
                     Voir
@@ -210,29 +228,31 @@ function Kpi({
     <Link
       href={href}
       className={cn(
-        "group flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20",
-        tone === "danger" && "border-destructive/30 bg-destructive/[0.04]",
-        tone === "primary" && "border-primary/30 bg-primary/[0.04]",
+        "group flex items-center gap-4 rounded-xl border bg-card p-5 transition-colors hover:border-foreground/30",
+        tone === "danger" && "border-destructive/40",
+        tone === "primary" && "border-primary/40",
       )}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <Icon
+      <span
+        className={cn(
+          "grid size-11 shrink-0 place-items-center rounded-full bg-muted text-foreground",
+          tone === "danger" && "bg-destructive/10 text-destructive",
+          tone === "primary" && "bg-primary-soft text-primary",
+        )}
+      >
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0">
+        <span
           className={cn(
-            "size-4 text-muted-foreground",
+            "block text-3xl leading-none font-bold tabular-nums",
             tone === "danger" && "text-destructive",
             tone === "primary" && "text-primary",
           )}
-        />
-      </div>
-      <span
-        className={cn(
-          "text-3xl font-semibold tabular-nums",
-          tone === "danger" && "text-destructive",
-          tone === "primary" && "text-primary",
-        )}
-      >
-        {value}
+        >
+          {value}
+        </span>
+        <span className="mt-1.5 block truncate text-sm font-medium text-muted-foreground">{label}</span>
       </span>
     </Link>
   )

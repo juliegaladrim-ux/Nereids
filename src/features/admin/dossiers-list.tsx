@@ -3,9 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Plus, Search, X } from "lucide-react"
+import { CircleDashed, Plus, Search, UserPlus, X } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
 import { SimpleSelect } from "@/components/simple-select"
 import { LateBadge, StatusBadge } from "@/components/status-badge"
@@ -86,8 +87,8 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
         title={mode === "archives" ? "Archives" : "Dossiers"}
         description={
           mode === "archives"
-            ? "Dossiers archivés : hors du tableau actif, toujours consultables et téléchargeables."
-            : "Tous les dossiers de la plateforme."
+            ? "Toujours consultables et téléchargeables."
+            : undefined
         }
         actions={
           mode === "actifs" && (
@@ -105,7 +106,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
               {VIEWS.map((v) => (
                 <TabsTrigger key={v.id} value={v.id} className="px-3">
                   {v.label}
-                  <span className="ml-1 rounded-full bg-background/70 px-1.5 text-xs text-muted-foreground tabular-nums">
+                  <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-primary">
                     {counts[v.id]}
                   </span>
                 </TabsTrigger>
@@ -118,12 +119,12 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
       {/* Recherche + filtres */}
       <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="relative lg:w-80">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Immat., réf., client, expert…"
-            className="pl-8"
+            className="pl-9"
           />
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
@@ -172,7 +173,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
       <div className="overflow-hidden rounded-xl border bg-card">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Dossier</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Véhicule</TableHead>
@@ -210,8 +211,8 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                   {d.client.firstName} {d.client.lastName}
                 </TableCell>
                 <TableCell>
-                  <div className="font-mono text-xs font-medium">{d.vehicule.immat}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <Immat value={d.vehicule.immat} />
+                  <div className="mt-1 text-xs text-muted-foreground">
                     {d.vehicule.marque} {d.vehicule.modele}
                   </div>
                 </TableCell>
@@ -220,7 +221,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                     <StatusBadge status={d.status as StatusId} />
                     {isLate(d) && <LateBadge days={lateDays(d)} />}
                     {needsAssignment(d) && (
-                      <span className="text-xs font-medium text-primary">À assigner</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary"><UserPlus className="size-3.5" />À assigner</span>
                     )}
                   </div>
                 </TableCell>
@@ -248,6 +249,11 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
 }
 
 function Missing() {
-  return <span className="text-muted-foreground italic">Non assigné</span>
+  return (
+    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+      <CircleDashed className="size-4" />
+      Non assigné
+    </span>
+  )
 }
 

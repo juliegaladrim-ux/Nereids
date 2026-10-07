@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
 import { daysFromNow, fullName, getUser } from "@/lib/data"
 import { visibleDossiers } from "@/lib/access"
 import { relativeDays } from "@/lib/format"
@@ -26,10 +25,9 @@ import { useRole } from "./role-context"
 
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur sm:px-4">
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/90 px-3 backdrop-blur sm:px-6 lg:px-8">
       <SidebarTrigger />
-      <Separator orientation="vertical" className="mx-1 h-5 self-center" />
-      <GlobalSearch />
+            <GlobalSearch />
       <div className="ml-auto flex items-center gap-1">
         <Notifications />
       </div>
@@ -59,7 +57,7 @@ function GlobalSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex h-8 w-full max-w-md items-center gap-2 rounded-lg border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted"
+        className="flex h-10 w-full max-w-md items-center gap-2 rounded-[6px] border border-input bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-foreground/30"
       >
         <Search className="size-4" />
         <span className="truncate">
@@ -128,7 +126,7 @@ function Notifications() {
       <PopoverTrigger render={<Button variant="ghost" size="icon" className="relative" aria-label="Notifications" />}>
         <Bell />
         {unread > 0 && (
-          <span className="absolute top-1 right-1 grid size-4 place-items-center rounded-full bg-destructive text-[0.6rem] font-semibold text-white">
+          <span className="absolute top-1.5 right-1.5 grid size-4 place-items-center rounded-full bg-destructive text-[0.6rem] font-semibold text-white">
             {unread}
           </span>
         )}

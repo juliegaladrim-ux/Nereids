@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-figtree);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -35,6 +35,8 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -65,54 +67,56 @@
 }
 
 :root {
-  --background: oklch(0.985 0.002 250);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* ⚠️ Couleurs provisoires — à remplacer par la charte Nereids */
-  --primary: oklch(0.42 0.13 255);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.42 0.13 255 / 60%);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.42 0.13 255);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* DA Nereids v1 — Figtree, primaire #0033ff, contraste élevé */
+  --background: #f3f4f7;
+  --foreground: #0e1324;
+  --card: #ffffff;
+  --card-foreground: #0e1324;
+  --popover: #ffffff;
+  --popover-foreground: #0e1324;
+  --primary: #0033ff;
+  --primary-hover: #0029cc;
+  --primary-soft: #e8edff;
+  --primary-foreground: #ffffff;
+  --secondary: #eceef3;
+  --secondary-foreground: #0e1324;
+  --muted: #f0f1f5;
+  --muted-foreground: #535a6b;
+  --accent: #eceef3;
+  --accent-foreground: #0e1324;
+  --destructive: #d92d20;
+  --border: #dde0e7;
+  --input: #c4c9d4;
+  --ring: #0033ff;
+  --chart-1: #0033ff;
+  --chart-2: #5c7cff;
+  --chart-3: #a3b5ff;
+  --chart-4: #535a6b;
+  --chart-5: #c4c9d4;
+  --radius: 0.5rem;
+  --sidebar: #f3f4f7;
+  --sidebar-foreground: #0e1324;
+  --sidebar-primary: #0033ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e6e8ee;
+  --sidebar-accent-foreground: #0e1324;
+  --sidebar-border: #dde0e7;
+  --sidebar-ring: #0033ff;
 
-  --tone-new: oklch(0.45 0.15 255);
-  --tone-new-bg: oklch(0.95 0.03 255);
-  --tone-progress: oklch(0.45 0.12 200);
-  --tone-progress-bg: oklch(0.95 0.03 200);
-  --tone-waiting: oklch(0.5 0.12 70);
-  --tone-waiting-bg: oklch(0.96 0.05 85);
-  --tone-alert: oklch(0.52 0.19 30);
-  --tone-alert-bg: oklch(0.95 0.04 30);
-  --tone-final: oklch(0.45 0.14 300);
-  --tone-final-bg: oklch(0.95 0.03 300);
-  --tone-done: oklch(0.45 0.12 155);
-  --tone-done-bg: oklch(0.95 0.04 155);
-  --tone-muted: oklch(0.5 0 0);
-  --tone-muted-bg: oklch(0.95 0 0);
+  --tone-new: #0033ff;
+  --tone-new-bg: #e8edff;
+  --tone-progress: #0b6e8a;
+  --tone-progress-bg: #e0f4f8;
+  --tone-waiting: #9a5b00;
+  --tone-waiting-bg: #fff2d9;
+  --tone-alert: #c4320a;
+  --tone-alert-bg: #ffebe5;
+  --tone-final: #6a2bd9;
+  --tone-final-bg: #f1e9ff;
+  --tone-done: #08784a;
+  --tone-done-bg: #e2f6ec;
+  --tone-muted: #535a6b;
+  --tone-muted-bg: #eceef3;
 }
 
 .dark {
@@ -122,8 +126,10 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #5c7cff;
+  --primary-hover: #7a94ff;
+  --primary-soft: oklch(0.3 0.08 265);
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -176,5 +182,9 @@
   }
   html {
     @apply font-sans;
+    font-feature-settings: "tnum" 0;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.01em;
   }
 }

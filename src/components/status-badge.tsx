@@ -1,3 +1,5 @@
+import { Clock } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 import { STATUSES, type StatusId, type StatusTone } from "@/lib/data"
 
@@ -26,7 +28,7 @@ export function StatusBadge({ status, className }: { status: StatusId; className
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold whitespace-nowrap",
         TONE_CLASSES[s.tone],
         className,
       )}
@@ -41,10 +43,11 @@ export function LateBadge({ days, className }: { days: number; className?: strin
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-full bg-destructive/10 px-2 text-xs font-medium whitespace-nowrap text-destructive",
+        "inline-flex h-6 items-center gap-1 rounded-full bg-destructive/10 px-2 text-xs font-semibold whitespace-nowrap text-destructive",
         className,
       )}
     >
+      <Clock className="size-3.5" />
       Retard {days > 0 ? `${days} j` : ""}
     </span>
   )
