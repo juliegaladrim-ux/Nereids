@@ -162,7 +162,7 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
 
       <main className="mx-auto flex w-full max-w-xl flex-1 flex-col px-4 pt-6 pb-44 sm:pb-24">
         {step === "mail" && <MailStep d={d} onOpen={() => go("password")} />}
-        {step === "password" && <PasswordStep email={d.client.email} onDone={activate} />}
+        {step === "password" && <PasswordStep client={d.client} onDone={activate} />}
         {step === "infos" && <InfosStep infos={infos} setInfos={setInfos} onNext={() => go("pieces")} />}
         {step === "pieces" && (
           <PiecesStep d={d} expected={expected} uploads={uploads} setUploads={setUploads} missing={missing} onNext={() => go("recap")} />
@@ -218,7 +218,7 @@ function MailStep({ d, onOpen }: { d: Dossier; onOpen: () => void }) {
 
 // ─── 2. Mot de passe ─────────────────────────────────────────────────────────
 
-function PasswordStep({ email, onDone }: { email: string; onDone: () => void }) {
+function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: () => void }) {
   const [pwd, setPwd] = React.useState("")
   const [show, setShow] = React.useState(false)
   const rules = [
@@ -231,18 +231,28 @@ function PasswordStep({ email, onDone }: { email: string; onDone: () => void }) 
   return (
     <StepLayout
       icon={<Lock />}
-      title="Créez votre mot de passe"
+      title={`Bienvenue ${client.firstName}`}
+      subtitle="Créez votre mot de passe pour accéder à votre dossier."
       footer={
         <Button size="lg" className="w-full" disabled={!valid} onClick={onDone}>
           Créer mon compte
         </Button>
       }
     >
+      {/* Identité reprise du dossier créé par Nereids : non modifiable ici */}
+      <dl className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4">
+        {[
+          ["Prénom", client.firstName],
+          ["Nom", client.lastName],
+          ["E-mail", client.email],
+        ].map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between gap-4 text-[15px]">
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className="min-w-0 truncate text-right font-medium">{v}</dd>
+          </div>
+        ))}
+      </dl>
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="a-mail">E-mail</FieldLabel>
-          <Input id="a-mail" value={email} readOnly className="h-12 bg-muted text-base" />
-        </Field>
         <Field>
           <FieldLabel htmlFor="a-pwd">Mot de passe</FieldLabel>
           <div className="relative">

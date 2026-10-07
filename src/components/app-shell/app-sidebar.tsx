@@ -27,12 +27,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { useReplayActivation } from "@/features/client/use-replay-activation"
 import { fullName } from "@/lib/data"
 import { useRole } from "./role-context"
 
 export function AppSidebar() {
   const { role, user, href } = useRole()
   const pathname = usePathname()
+  const replayActivation = useReplayActivation()
 
   return (
     <Sidebar collapsible="icon">
@@ -105,10 +107,18 @@ export function AppSidebar() {
                   <UserRound />
                   Mon compte
                 </DropdownMenuItem>
-                <DropdownMenuItem render={<Link href="/" />}>
-                  <LogOut />
-                  Se déconnecter
-                </DropdownMenuItem>
+                {/* Client : la déconnexion simule sa première connexion, arrivé depuis le lien de l'e-mail */}
+                {role.id === "client" ? (
+                  <DropdownMenuItem onClick={() => replayActivation("password")}>
+                    <LogOut />
+                    Se déconnecter
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem render={<Link href="/" />}>
+                    <LogOut />
+                    Se déconnecter
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
