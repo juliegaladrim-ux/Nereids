@@ -26,6 +26,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { useReplayActivation } from "@/features/client/use-replay-activation"
 import { fullName } from "@/lib/data"
@@ -39,9 +40,12 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3 p-3">
-        <Link href={href()} className="px-1 py-1 group-data-[collapsible=icon]:px-0">
-          <Logo className="group-data-[collapsible=icon]:[&>span]:hidden" />
-        </Link>
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
+          <Link href={href()} className="px-1 py-1 group-data-[collapsible=icon]:px-0">
+            <Logo className="group-data-[collapsible=icon]:[&>span]:hidden" />
+          </Link>
+          <SidebarTrigger className="ml-auto text-muted-foreground group-data-[collapsible=icon]:ml-0" aria-label="Replier le menu" />
+        </div>
         {role.canCreateDossier && (
           <Button
             className="w-full group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0"

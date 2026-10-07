@@ -27,7 +27,8 @@ import { useRole } from "./role-context"
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/90 px-3 backdrop-blur sm:px-6 lg:px-8">
-      <SidebarTrigger />
+      {/* Sur mobile le menu est fermé par défaut : on garde le bouton pour l'ouvrir */}
+      <SidebarTrigger className="md:hidden" />
       <GlobalSearch />
       <div className="ml-auto flex items-center gap-1">
         <Notifications />
