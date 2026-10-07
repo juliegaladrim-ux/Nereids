@@ -221,12 +221,6 @@ function MailStep({ d, onOpen }: { d: Dossier; onOpen: () => void }) {
 function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: () => void }) {
   const [pwd, setPwd] = React.useState("")
   const [show, setShow] = React.useState(false)
-  const rules = [
-    { label: "8 caractères minimum", ok: pwd.length >= 8 },
-    { label: "1 majuscule", ok: /[A-Z]/.test(pwd) },
-    { label: "1 chiffre", ok: /\d/.test(pwd) },
-  ]
-  const valid = rules.every((r) => r.ok)
 
   return (
     <StepLayout
@@ -234,7 +228,7 @@ function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: (
       title={`Bienvenue ${client.firstName}`}
       subtitle="Créez votre mot de passe pour accéder à votre dossier."
       footer={
-        <Button size="lg" className="w-full" disabled={!valid} onClick={onDone}>
+        <Button size="lg" className="w-full" onClick={onDone}>
           Créer mon compte
         </Button>
       }
@@ -263,7 +257,7 @@ function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: (
               autoComplete="new-password"
               value={pwd}
               onChange={(e) => setPwd(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && valid && onDone()}
+              onKeyDown={(e) => e.key === "Enter" && onDone()}
               className="h-12 pr-12 text-base"
             />
             <Button
@@ -276,14 +270,7 @@ function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: (
               {show ? <EyeOff /> : <Eye />}
             </Button>
           </div>
-          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
-            {rules.map((r) => (
-              <li key={r.label} className={cn("flex items-center gap-1.5 text-sm", r.ok ? "text-tone-done" : "text-muted-foreground")}>
-                {r.ok ? <Check className="size-4" /> : <span className="grid size-4 place-items-center"><span className="size-1.5 rounded-full bg-current" /></span>}
-                {r.label}
-              </li>
-            ))}
-          </ul>
+          {/* Proto : aucun contrôle, n'importe quel mot de passe est accepté */}
         </Field>
       </FieldGroup>
       <p className="mt-6 text-xs text-muted-foreground">
