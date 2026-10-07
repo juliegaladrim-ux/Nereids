@@ -7,6 +7,7 @@ import { Bell, FileText, MessageSquare, RefreshCw, Search } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import {
+  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -27,7 +28,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/90 px-3 backdrop-blur sm:px-6 lg:px-8">
       <SidebarTrigger />
-            <GlobalSearch />
+      <GlobalSearch />
       <div className="ml-auto flex items-center gap-1">
         <Notifications />
       </div>
@@ -61,48 +62,55 @@ function GlobalSearch() {
       >
         <Search className="size-4" />
         <span className="truncate">
-          <span className="hidden sm:inline">Rechercher : immatriculation, réf. sinistre, client…</span>
-          <span className="sm:hidden">Rechercher</span>
+          <span className="hidden sm:inline">Rechercher un dossier : immat., réf., client…</span>
+          <span className="sm:hidden">Rechercher un dossier</span>
         </span>
-        <kbd className="ml-auto hidden rounded border bg-background px-1.5 font-mono text-[0.65rem] sm:inline">⌘K</kbd>
       </button>
-      <CommandDialog open={open} onOpenChange={setOpen} title="Rechercher un dossier" description="Immatriculation, référence, client, expert, gestionnaire">
-        <CommandInput placeholder="Immatriculation, réf. sinistre, réf. dossier, client, expert…" />
-        <CommandList>
-          <CommandEmpty>Aucun dossier trouvé.</CommandEmpty>
-          <CommandGroup heading="Dossiers">
-            {list.map((d) => (
-              <CommandItem
-                key={d.id}
-                value={[
-                  d.ref,
-                  d.vehicule.immat,
-                  d.refs.sinistre,
-                  d.client.firstName,
-                  d.client.lastName,
-                  fullName(getUser(d.intervenants.expert)),
-                  fullName(getUser(d.intervenants.gestionnaire)),
-                ].join(" ")}
-                onSelect={() => {
-                  setOpen(false)
-                  router.push(href(`dossiers/${d.id}`))
-                }}
-              >
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="font-medium">
-                    {d.client.firstName} {d.client.lastName}{" "}
-                    <span className="font-normal text-muted-foreground">· {d.vehicule.immat}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {d.ref}
-                    {d.refs.sinistre ? ` · ${d.refs.sinistre}` : ""}
-                  </span>
-                </div>
-                <StatusBadge status={d.status} />
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
+      <CommandDialog open={open} onOpenChange={setOpen} className="sm:max-w-xl" title="Rechercher un dossier" description="Immatriculation, référence, client, expert, gestionnaire">
+        <Command>
+          <CommandInput autoFocus placeholder="Immatriculation, réf. sinistre, réf. dossier, client, expert…" />
+          <CommandList>
+            <CommandEmpty>Aucun dossier trouvé.</CommandEmpty>
+            <CommandGroup heading="Dossiers">
+              {list.map((d) => (
+                <CommandItem
+                  key={d.id}
+                  value={[
+                    d.ref,
+                    d.refs.sinistre,
+                    d.refs.interne,
+                    d.refs.expert,
+                    d.vehicule.immat,
+                    d.vehicule.immat.replace(/-/g, ""),
+                    d.client.firstName,
+                    d.client.lastName,
+                    d.compagnie?.nom,
+                    fullName(getUser(d.intervenants.expert)),
+                    fullName(getUser(d.intervenants.gestionnaire)),
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onSelect={() => {
+                    setOpen(false)
+                    router.push(href(`dossiers/${d.id}`))
+                  }}
+                >
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-medium">
+                      {d.client.firstName} {d.client.lastName}{" "}
+                      <span className="font-normal text-muted-foreground">· {d.vehicule.immat}</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {d.ref}
+                      {d.refs.sinistre ? ` · ${d.refs.sinistre}` : ""}
+                    </span>
+                  </div>
+                  <StatusBadge status={d.status} />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </CommandDialog>
     </>
   )
@@ -126,7 +134,7 @@ function Notifications() {
       <PopoverTrigger render={<Button variant="ghost" size="icon" className="relative" aria-label="Notifications" />}>
         <Bell />
         {unread > 0 && (
-          <span className="absolute top-1.5 right-1.5 grid size-4 place-items-center rounded-full bg-destructive text-[0.6rem] font-semibold text-white">
+          <span className="pointer-events-none absolute -top-0.5 -right-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[0.65rem] leading-none font-semibold text-white tabular-nums ring-2 ring-background">
             {unread}
           </span>
         )}
