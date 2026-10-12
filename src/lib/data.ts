@@ -178,6 +178,8 @@ export type User = {
   phone: string
   structure: string
   fonction: string
+  /** Adresse postale (affichée sur les fiches des personnes convoquées à l'expertise) */
+  address?: string
   region?: string
   /** Charge actuelle (nb dossiers actifs) — utile pour l'assignation */
   load?: number
@@ -259,7 +261,7 @@ export type Dossier = {
   status: StatusId
   createdAt: string
   updatedAt: string
-  client: { firstName: string; lastName: string; phone: string; email: string; userId?: string }
+  client: { firstName: string; lastName: string; phone: string; email: string; address?: string; userId?: string }
   vehicule: { marque: string; modele: string; immat: string; vin?: string }
   compagnie?: { nom: string; email?: string; reference?: string }
   tiers?: { nom: string; phone?: string; email?: string }[]
@@ -411,26 +413,26 @@ export const USERS: User[] = [
   { id: "u-admin", role: "admin", firstName: "Sophie", lastName: "Marchand", email: "sophie.marchand@nereids.fr", phone: "06 12 34 56 78", structure: "Nereids", fonction: "Responsable des opérations" },
   { id: "u-admin2", role: "admin", firstName: "Antoine", lastName: "Roux", email: "antoine.roux@nereids.fr", phone: "06 22 34 56 78", structure: "Nereids", fonction: "Chargé de pilotage" },
 
-  { id: "u-gest", role: "gestionnaire", firstName: "Julie", lastName: "Perrin", email: "julie.perrin@helpyou.fr", phone: "06 45 67 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", region: "Auvergne-Rhône-Alpes", load: 14 },
-  { id: "u-gest2", role: "gestionnaire", firstName: "Nicolas", lastName: "Fabre", email: "nicolas.fabre@helpyou.fr", phone: "06 45 67 00 12", structure: "Help You", fonction: "Gestionnaire de dossiers", region: "Auvergne-Rhône-Alpes", load: 9 },
-  { id: "u-gest3", role: "gestionnaire", firstName: "Inès", lastName: "Haddad", email: "ines.haddad@helpyou.fr", phone: "06 45 11 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", region: "Provence-Alpes-Côte d'Azur", load: 17 },
+  { id: "u-gest", role: "gestionnaire", firstName: "Julie", lastName: "Perrin", email: "julie.perrin@helpyou.fr", phone: "06 45 67 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 14 },
+  { id: "u-gest2", role: "gestionnaire", firstName: "Nicolas", lastName: "Fabre", email: "nicolas.fabre@helpyou.fr", phone: "06 45 67 00 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 9 },
+  { id: "u-gest3", role: "gestionnaire", firstName: "Inès", lastName: "Haddad", email: "ines.haddad@helpyou.fr", phone: "06 45 11 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "42 boulevard Longchamp, 13001 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 17 },
 
-  { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", email: "m.delorme@cabinet-delorme.fr", phone: "06 78 90 12 34", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", region: "Auvergne-Rhône-Alpes", load: 11 },
-  { id: "u-expert2", role: "expert", firstName: "Hélène", lastName: "Garnier", email: "h.garnier@expertises-garnier.fr", phone: "06 78 11 12 34", structure: "Garnier Expertises", fonction: "Experte automobile", region: "Auvergne-Rhône-Alpes", load: 6 },
-  { id: "u-expert3", role: "expert", firstName: "Yanis", lastName: "Meunier", email: "y.meunier@sudexpert.fr", phone: "06 78 22 12 34", structure: "Sud Expert", fonction: "Expert automobile", region: "Provence-Alpes-Côte d'Azur", load: 15 },
+  { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", email: "m.delorme@cabinet-delorme.fr", phone: "06 78 90 12 34", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", address: "7 place du Breuil, 43000 Le Puy-en-Velay", region: "Auvergne-Rhône-Alpes", load: 11 },
+  { id: "u-expert2", role: "expert", firstName: "Hélène", lastName: "Garnier", email: "h.garnier@expertises-garnier.fr", phone: "06 78 11 12 34", structure: "Garnier Expertises", fonction: "Experte automobile", address: "25 rue Michelet, 42000 Saint-Étienne", region: "Auvergne-Rhône-Alpes", load: 6 },
+  { id: "u-expert3", role: "expert", firstName: "Yanis", lastName: "Meunier", email: "y.meunier@sudexpert.fr", phone: "06 78 22 12 34", structure: "Sud Expert", fonction: "Expert automobile", address: "110 avenue du Prado, 13008 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 15 },
 
-  { id: "u-rep", role: "reparateur", firstName: "Karim", lastName: "Benali", email: "contact@garage-benali.fr", phone: "04 71 22 33 44", structure: "Garage Benali Carrosserie", fonction: "Gérant", region: "Auvergne-Rhône-Alpes", load: 7 },
-  { id: "u-rep2", role: "reparateur", firstName: "Laura", lastName: "Chevalier", email: "atelier@carrosserie-chevalier.fr", phone: "04 77 22 33 44", structure: "Carrosserie Chevalier", fonction: "Cheffe d'atelier", region: "Auvergne-Rhône-Alpes", load: 4 },
+  { id: "u-rep", role: "reparateur", firstName: "Karim", lastName: "Benali", email: "contact@garage-benali.fr", phone: "04 71 22 33 44", structure: "Garage Benali Carrosserie", fonction: "Gérant", address: "12 rue des Forges, 43200 Yssingeaux", region: "Auvergne-Rhône-Alpes", load: 7 },
+  { id: "u-rep2", role: "reparateur", firstName: "Laura", lastName: "Chevalier", email: "atelier@carrosserie-chevalier.fr", phone: "04 77 22 33 44", structure: "Carrosserie Chevalier", fonction: "Cheffe d'atelier", address: "233 rue de la Rive, 42320 La Grand-Croix", region: "Auvergne-Rhône-Alpes", load: 4 },
 
-  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste" },
-  { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat" },
+  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste", address: "9 rue de Châteaudun, 75009 Paris" },
+  { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat", address: "4 quai Jules Courmont, 69002 Lyon" },
 
   // Autres clients des dossiers de démo (sans compte actif dans le proto)
-  { id: "u-c-lefevre", role: "client", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", phone: "06 98 76 54 32", structure: "Particulier", fonction: "" },
-  { id: "u-c-morel", role: "client", firstName: "Sandrine", lastName: "Morel", email: "s.morel@mail.fr", phone: "06 33 21 45 67", structure: "Particulier", fonction: "" },
-  { id: "u-c-fontaine", role: "client", firstName: "Aurélie", lastName: "Fontaine", email: "a.fontaine@mail.fr", phone: "06 87 65 43 21", structure: "Particulier", fonction: "" },
-  { id: "u-c-caron", role: "client", firstName: "Romain", lastName: "Caron", email: "r.caron@mail.fr", phone: "06 19 28 37 46", structure: "Particulier", fonction: "" },
-  { id: "u-client", role: "client", firstName: "Mehdi", lastName: "Saïdi", email: "mehdi.saidi@mail.fr", phone: "06 55 44 33 22", structure: "Particulier", fonction: "" },
+  { id: "u-c-lefevre", role: "client", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", phone: "06 98 76 54 32", structure: "Particulier", fonction: "", address: "38 rue Gambetta, 43200 Yssingeaux" },
+  { id: "u-c-morel", role: "client", firstName: "Sandrine", lastName: "Morel", email: "s.morel@mail.fr", phone: "06 33 21 45 67", structure: "Particulier", fonction: "", address: "5 chemin des Prés, 43400 Le Chambon-sur-Lignon" },
+  { id: "u-c-fontaine", role: "client", firstName: "Aurélie", lastName: "Fontaine", email: "a.fontaine@mail.fr", phone: "06 87 65 43 21", structure: "Particulier", fonction: "", address: "14 allée des Tilleuls, 42100 Saint-Étienne" },
+  { id: "u-c-caron", role: "client", firstName: "Romain", lastName: "Caron", email: "r.caron@mail.fr", phone: "06 19 28 37 46", structure: "Particulier", fonction: "", address: "3 rue Victor Hugo, 42400 Saint-Chamond" },
+  { id: "u-client", role: "client", firstName: "Mehdi", lastName: "Saïdi", email: "mehdi.saidi@mail.fr", phone: "06 55 44 33 22", structure: "Particulier", fonction: "", address: "21 avenue de la Libération, 43000 Le Puy-en-Velay" },
 ]
 
 /** Comptes créés pendant la démo (ex. suiveur créé depuis une demande client) */
@@ -506,7 +508,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_expertise",
       createdAt: daysFromNow(-12),
       updatedAt: daysFromNow(-1),
-      client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr" },
+      client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr", address: "38 rue Gambetta, 43200 Yssingeaux" },
       vehicule: { marque: "Peugeot", modele: "308 SW", immat: "GH-482-KL", vin: "VF3LBYHZPKS123456" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-77812-S" },
       refs: { sinistre: "SIN-2026-55481", interne: "HY-3381", expert: "DEL-26-118" },
@@ -556,7 +558,7 @@ export function seedDossiers(): Dossier[] {
       status: "nouveau",
       createdAt: daysFromNow(-1, 16),
       updatedAt: daysFromNow(-1, 16),
-      client: { firstName: "Camille", lastName: "Bertin", phone: "06 11 22 33 44", email: "camille.bertin@mail.fr" },
+      client: { firstName: "Camille", lastName: "Bertin", phone: "06 11 22 33 44", email: "camille.bertin@mail.fr", address: "6 rue des Écoles, 43120 Monistrol-sur-Loire" },
       vehicule: { marque: "Renault", modele: "Clio V", immat: "FX-219-AB" },
       compagnie: { nom: "Mutuelle du Centre", email: "litiges@mutuelle-centre.fr", reference: "MDC-2026-0087" },
       refs: { sinistre: "MDC-SIN-44120" },
@@ -587,7 +589,7 @@ export function seedDossiers(): Dossier[] {
       status: "nouveau",
       createdAt: daysFromNow(-2, 11),
       updatedAt: daysFromNow(-2, 11),
-      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", userId: "u-client" },
+      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", address: "21 avenue de la Libération, 43000 Le Puy-en-Velay", userId: "u-client" },
       vehicule: { marque: "Volkswagen", modele: "Golf 8", immat: "GA-773-RT" },
       compagnie: { nom: "Garantia Assurances", email: "recours@garantia.fr" },
       refs: {},
@@ -615,7 +617,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_client",
       createdAt: daysFromNow(-34),
       updatedAt: daysFromNow(-3),
-      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", userId: "u-client" },
+      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", address: "21 avenue de la Libération, 43000 Le Puy-en-Velay", userId: "u-client" },
       vehicule: { marque: "Peugeot", modele: "208", immat: "FX-219-PB", vin: "VR3UPHNKSLT204417" },
       compagnie: { nom: "Auto Sélection Lyon", email: "sav@autoselection-lyon.fr" },
       refs: { interne: "HY-3290", expert: "GAR-26-051" },
@@ -654,7 +656,7 @@ export function seedDossiers(): Dossier[] {
       status: "cloture",
       createdAt: daysFromNow(-260),
       updatedAt: daysFromNow(-150),
-      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", userId: "u-client" },
+      client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", address: "21 avenue de la Libération, 43000 Le Puy-en-Velay", userId: "u-client" },
       vehicule: { marque: "Peugeot", modele: "208", immat: "FX-219-PB" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-61204-S" },
       tiers: [{ nom: "M. Laurent Petit (assuré chez Assurances Atlantique)" }],
@@ -690,7 +692,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_rapport",
       createdAt: daysFromNow(-24),
       updatedAt: daysFromNow(-6),
-      client: { firstName: "Sandrine", lastName: "Morel", phone: "06 33 21 45 67", email: "s.morel@mail.fr" },
+      client: { firstName: "Sandrine", lastName: "Morel", phone: "06 33 21 45 67", email: "s.morel@mail.fr", address: "5 chemin des Prés, 43400 Le Chambon-sur-Lignon" },
       vehicule: { marque: "Citroën", modele: "C4 Picasso", immat: "DJ-085-XN" },
       compagnie: { nom: "Protec Juris", email: "dossiers@protecjuris.fr", reference: "PJ-55-2026-1209" },
       tiers: [{ nom: "Garage du Lignon (réparateur mis en cause)", phone: "04 71 00 11 22" }],
@@ -729,7 +731,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_reparation",
       createdAt: daysFromNow(-35),
       updatedAt: daysFromNow(-9),
-      client: { firstName: "Julien", lastName: "Arnaud", phone: "06 71 82 93 04", email: "julien.arnaud@mail.fr" },
+      client: { firstName: "Julien", lastName: "Arnaud", phone: "06 71 82 93 04", email: "julien.arnaud@mail.fr", address: "17 rue Paul Bert, 42000 Saint-Étienne" },
       vehicule: { marque: "Toyota", modele: "Yaris Hybride", immat: "FN-512-QS" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-76201-S" },
       refs: { sinistre: "SIN-2026-51209", expert: "GAR-26-044" },
@@ -758,7 +760,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_retour",
       createdAt: daysFromNow(-48),
       updatedAt: daysFromNow(-10),
-      client: { firstName: "Nathalie", lastName: "Giraud", phone: "06 40 50 60 70", email: "n.giraud@mail.fr" },
+      client: { firstName: "Nathalie", lastName: "Giraud", phone: "06 40 50 60 70", email: "n.giraud@mail.fr", address: "2 place de l'Église, 42500 Le Chambon-Feugerolles" },
       vehicule: { marque: "Dacia", modele: "Duster", immat: "EZ-904-LM" },
       compagnie: { nom: "Garantia Assurances", email: "reclamations@garantia.fr", reference: "GA-2026-11873" },
       refs: { sinistre: "GA-SIN-90311", expert: "DEL-26-071" },
@@ -789,7 +791,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_paiement",
       createdAt: daysFromNow(-70),
       updatedAt: daysFromNow(-4),
-      client: { firstName: "Hugo", lastName: "Leroy", phone: "06 12 98 34 76", email: "hugo.leroy@mail.fr" },
+      client: { firstName: "Hugo", lastName: "Leroy", phone: "06 12 98 34 76", email: "hugo.leroy@mail.fr", address: "48 cours Fauriel, 42100 Saint-Étienne" },
       vehicule: { marque: "Peugeot", modele: "2008", immat: "GB-311-DF" },
       compagnie: { nom: "Mutuelle du Centre", email: "recours@mutuelle-centre.fr", reference: "MDC-REC-3381" },
       refs: { sinistre: "MDC-SIN-41007", expert: "MEU-26-022" },
@@ -814,7 +816,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_client",
       createdAt: daysFromNow(-30),
       updatedAt: daysFromNow(-8),
-      client: { firstName: "Aurélie", lastName: "Fontaine", phone: "06 87 65 43 21", email: "a.fontaine@mail.fr" },
+      client: { firstName: "Aurélie", lastName: "Fontaine", phone: "06 87 65 43 21", email: "a.fontaine@mail.fr", address: "14 allée des Tilleuls, 42100 Saint-Étienne" },
       vehicule: { marque: "BMW", modele: "Série 1", immat: "FT-640-PR" },
       compagnie: { nom: "Assurances Atlantique", email: "litiges@atlantique-assur.fr" },
       refs: { sinistre: "AT-SIN-12093" },
@@ -839,7 +841,7 @@ export function seedDossiers(): Dossier[] {
       status: "attente_pv",
       createdAt: daysFromNow(-20),
       updatedAt: daysFromNow(-2),
-      client: { firstName: "Léa", lastName: "Dupuis", phone: "06 23 45 67 89", email: "lea.dupuis@mail.fr" },
+      client: { firstName: "Léa", lastName: "Dupuis", phone: "06 23 45 67 89", email: "lea.dupuis@mail.fr", address: "9 rue de la Gare, 43600 Sainte-Sigolène" },
       vehicule: { marque: "Fiat", modele: "500", immat: "GD-118-VC" },
       compagnie: { nom: "Garantia Assurances", email: "recours@garantia.fr", reference: "GA-REC-7720" },
       refs: { sinistre: "GA-SIN-88120", expert: "GAR-26-051" },
@@ -863,7 +865,7 @@ export function seedDossiers(): Dossier[] {
       status: "en_etude",
       createdAt: daysFromNow(-6),
       updatedAt: daysFromNow(-5),
-      client: { firstName: "Romain", lastName: "Caron", phone: "06 19 28 37 46", email: "r.caron@mail.fr" },
+      client: { firstName: "Romain", lastName: "Caron", phone: "06 19 28 37 46", email: "r.caron@mail.fr", address: "3 rue Victor Hugo, 42400 Saint-Chamond" },
       vehicule: { marque: "Audi", modele: "A3 Sportback", immat: "EH-337-GN" },
       compagnie: { nom: "Cabinet Lambert (avocat)", email: "p.lambert@avocat-lambert.fr" },
       tiers: [{ nom: "AutoPlus Occasions (vendeur)" }],
@@ -889,7 +891,7 @@ export function seedDossiers(): Dossier[] {
       status: "cloture",
       createdAt: daysFromNow(-120),
       updatedAt: daysFromNow(-15),
-      client: { firstName: "Martine", lastName: "Blanc", phone: "06 01 02 03 04", email: "m.blanc@mail.fr" },
+      client: { firstName: "Martine", lastName: "Blanc", phone: "06 01 02 03 04", email: "m.blanc@mail.fr", address: "27 boulevard Carnot, 43000 Le Puy-en-Velay" },
       vehicule: { marque: "Renault", modele: "Captur", immat: "FA-220-HJ" },
       compagnie: { nom: "Assurances Atlantique", reference: "AT-70011-S" },
       refs: { sinistre: "SIN-2026-40102" },
@@ -910,7 +912,7 @@ export function seedDossiers(): Dossier[] {
       status: "archive",
       createdAt: daysFromNow(-200),
       updatedAt: daysFromNow(-60),
-      client: { firstName: "Patrick", lastName: "Vidal", phone: "06 09 08 07 06", email: "p.vidal@mail.fr" },
+      client: { firstName: "Patrick", lastName: "Vidal", phone: "06 09 08 07 06", email: "p.vidal@mail.fr", address: "11 rue du Commerce, 42700 Firminy" },
       vehicule: { marque: "Skoda", modele: "Octavia", immat: "EK-551-TY" },
       compagnie: { nom: "Mutuelle du Centre" },
       refs: {},

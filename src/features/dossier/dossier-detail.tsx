@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  ACTOR_LABELS,
   CLOSING_REASONS,
   DOC_CATEGORIES,
   DOSSIER_TYPES,
@@ -73,6 +72,7 @@ import { AddDocDialog, AssignDialog, CloseDialog, RelanceDialog, StatusDialog } 
 import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditSection, type Values } from "./dossier-edit"
 import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
+import { ConvoquesCard } from "./expertise-convoques"
 
 type DialogId = "status" | "close" | "assign" | "relance" | "doc" | null
 
@@ -1030,27 +1030,29 @@ function ExpertiseTab({ dossier: d, onEdit }: { dossier: Dossier; onEdit?: () =>
     )
   }
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <InfoCard
-        title="Rendez-vous"
-        rows={[
-          ["Date", <span key="d" className="first-letter:uppercase">{formatLongDate(d.expertise.date)}</span>],
-          ["Lieu", d.expertise.lieu],
-          ["Statut", d.expertise.realisee ? "Réalisée" : `Prévue ${relativeDays(d.expertise.date)}`],
-        ]}
-        onEdit={onEdit}
-      />
-      <InfoCard title="Personnes convoquées" rows={d.expertise.convoques.map((id) => [ACTOR_LABELS[getUser(id)?.role ?? "client"], fullName(getUser(id))])} />
-      <InfoCard
-        title="Livrables de l'expert"
-        rows={[
-          ["PV d'expertise", <DocSlot key="p" doc={pv} category="pv" />],
-          ...(d.type === "litige_auto"
-            ? [["Pré-rapport", <DocSlot key="pr" doc={preRapport} category="pre_rapport" />] as [string, React.ReactNode]]
-            : []),
-          [d.type === "litige_auto" ? "Rapport final" : "Rapport", <DocSlot key="r" doc={rapport} category="rapport" />],
-        ]}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <InfoCard
+          title="Rendez-vous"
+          rows={[
+            ["Date", <span key="d" className="first-letter:uppercase">{formatLongDate(d.expertise.date)}</span>],
+            ["Lieu", d.expertise.lieu],
+            ["Statut", d.expertise.realisee ? "Réalisée" : `Prévue ${relativeDays(d.expertise.date)}`],
+          ]}
+          onEdit={onEdit}
+        />
+        <InfoCard
+          title="Livrables de l'expert"
+          rows={[
+            ["PV d'expertise", <DocSlot key="p" doc={pv} category="pv" />],
+            ...(d.type === "litige_auto"
+              ? [["Pré-rapport", <DocSlot key="pr" doc={preRapport} category="pre_rapport" />] as [string, React.ReactNode]]
+              : []),
+            [d.type === "litige_auto" ? "Rapport final" : "Rapport", <DocSlot key="r" doc={rapport} category="rapport" />],
+          ]}
+        />
+      </div>
+      <ConvoquesCard dossier={d} />
     </div>
   )
 }

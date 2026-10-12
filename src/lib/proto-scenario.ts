@@ -165,7 +165,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
         const date = past ? at(i + 1, 9) : daysFromNow(2, 9)
         expertise.date = date
         expertise.lieu = reparateur
-          ? `${getUser(reparateur)?.structure}, 12 rue des Forges, 43200 Yssingeaux`
+          ? `${getUser(reparateur)?.structure}, ${getUser(reparateur)?.address}`
           : `${getUser(expert)?.structure}, 8 avenue Foch, 69006 Lyon`
         expertise.convoques = [clientId, reparateur, expert].filter((u): u is string => !!u)
         expertise.realisee = past
