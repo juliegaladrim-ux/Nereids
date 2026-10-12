@@ -17,6 +17,8 @@ import {
   expectedDocs,
   getUser,
   fullName,
+  withConsultations,
+  demoDocDate,
   type DocCategory,
   type DocumentItem,
   type Dossier,
@@ -109,7 +111,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
   const offset = (i: number) => path.slice(i, -1).reduce((sum, x) => sum + gapAfter(x), 0)
   const at = (i: number, hour = 10, plus = 0) => daysFromNow(-offset(i) - 2 + plus, hour)
   const addDoc = (name: string, category: DocCategory, by: string, when: string, size = "240 Ko") =>
-    documents.push({ id: `${d.id}-g${++n}`, name, category, addedBy: by, addedAt: when, size })
+    documents.push({ id: `${d.id}-g${++n}`, name, category, addedBy: by, addedAt: when, docDate: demoDocDate(category, when), size })
   const addEv = (when: string, kind: TimelineEvent["kind"], author: string, title: string, body?: string, recipients?: TimelineEvent["recipients"]) =>
     timeline.push({ id: `${d.id}-e${++n}`, at: when, kind, author, title, body, recipients })
   const statusEv = (when: string, x: StatusId, author = "system", body?: string) =>
@@ -239,7 +241,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
       ? { invitedAt: createdAt, activatedAt: createdAt, submittedAt: createdAt }
       : d.clientAccess
 
-  return {
+  return withConsultations({
     ...d,
     type: s.type,
     sinistreType: s.type === "sinistre" ? s.sinistreType : undefined,
@@ -260,5 +262,5 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
     cloture,
     horsPerimetre: hors || undefined,
     clientAccess,
-  }
+  })
 }

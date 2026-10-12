@@ -6,7 +6,10 @@ import {
   ArrowRightLeft,
   BellRing,
   CalendarCheck,
+  Check,
   CircleDashed,
+  CornerDownRight,
+  Eye,
   FilePlus2,
   FolderPlus,
   MessageSquare,
@@ -25,7 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
-import { ACTOR_LABELS, fullName, getUser, type Dossier, type TimelineKind } from "@/lib/data"
+import { ACTOR_LABELS, fullName, getUser, type Dossier, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -40,14 +43,15 @@ const KIND_ICONS: Record<TimelineKind, LucideIcon> = {
   relance: BellRing,
   expertise: CalendarCheck,
   system: Settings2,
+  consultation: Eye,
 }
 
-type Filter = "tout" | "messages" | "documents" | "etapes"
-const FILTERS: { id: Filter; label: string; kinds?: TimelineKind[] }[] = [
-  { id: "tout", label: "Tout" },
+type Filter = "messages" | "documents" | "etapes" | "consultations"
+const FILTERS: { id: Filter; label: string; kinds: TimelineKind[]; adminOnly?: boolean }[] = [
   { id: "messages", label: "Messages", kinds: ["message", "relance"] },
   { id: "documents", label: "Documents", kinds: ["document"] },
   { id: "etapes", label: "Étapes & statuts", kinds: ["status", "creation", "assignation", "expertise", "system"] },
+  { id: "consultations", label: "Consultations", kinds: ["consultation"], adminOnly: true },
 ]
 
 const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants"] }[] = [
@@ -62,33 +66,42 @@ const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants
 export function DossierSuivi({ dossier }: { dossier: Dossier }) {
   const { role, user } = useRole()
   const rights = dossierRights(role.id, user.id)
-  const [filter, setFilter] = React.useState<Filter>("tout")
-  const kinds = FILTERS.find((f) => f.id === filter)!.kinds
+  const filters = FILTERS.filter((f) => !f.adminOnly || role.id === "admin")
+  // Filtres cumulables : aucune sélection = « Tout »
+  const [selected, setSelected] = React.useState<Filter[]>([])
+  const kinds = selected.length ? filters.filter((f) => selected.includes(f.id)).flatMap((f) => f.kinds) : undefined
   const closed = dossier.status === "cloture" || dossier.status === "archive"
-  // Prochaine étape attendue, en tête du fil (vue « Tout » et « Étapes & statuts »)
-  const showNext = !closed && (filter === "tout" || filter === "etapes")
+  // Prochaine étape attendue, en tête du fil (vue « Tout » ou avec « Étapes & statuts »)
+  const showNext = !closed && (!selected.length || selected.includes("etapes"))
+
+  function toggle(id: Filter) {
+    setSelected((cur) => {
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+      // Tout coché revient à « Tout »
+      return next.length === filters.length ? [] : next
+    })
+  }
   const { quiDoitAgir } = dossier.pilotage
   const yourTurn = quiDoitAgir === role.id || (role.id === "admin" && quiDoitAgir === "nereids")
   const events = [...dossier.timeline]
     .filter(rights.canSeeEvent)
-    .filter((e) => !kinds || kinds.includes(e.kind)).sort((a, b) => b.at.localeCompare(a.at))
+    .filter((e) => !kinds || kinds.includes(e.kind))
+    // Un message qui reçoit une réponse remonte en tête du fil
+    .sort((a, b) => (b.reply?.at ?? b.at).localeCompare(a.reply?.at ?? a.at))
 
   return (
     <div className="flex flex-col gap-4">
       <Composer dossier={dossier} pickRecipients={rights.pickRecipients} />
 
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setFilter(f.id)}
-            className={cn(
-              "h-7 rounded-full border px-3 text-xs font-medium transition-colors",
-              filter === f.id ? "border-foreground bg-foreground text-background" : "bg-background text-muted-foreground hover:text-foreground",
-            )}
-          >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <FilterChip active={!selected.length} onClick={() => setSelected([])}>
+          Tout
+        </FilterChip>
+        <span className="mx-0.5 h-4 w-px bg-border" />
+        {filters.map((f) => (
+          <FilterChip key={f.id} active={selected.includes(f.id)} onClick={() => toggle(f.id)} check>
             {f.label}
-          </button>
+          </FilterChip>
         ))}
       </div>
 
@@ -115,9 +128,29 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
           const Icon = KIND_ICONS[e.kind]
           const author = e.author === "system" ? undefined : getUser(e.author)
           const isMsg = e.kind === "message"
+          const line = i < events.length - 1 && <span className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />
+          // Consultation : ligne discrète, sans contenu
+          if (e.kind === "consultation")
+            return (
+              <li key={e.id} className={cn("relative flex items-center gap-3", events[i + 1]?.kind === "consultation" ? "pb-2" : "pb-5")}>
+                {line}
+                <span className="z-10 grid size-8 shrink-0 place-items-center">
+                  <span className="grid size-6 place-items-center rounded-full border border-dashed bg-background">
+                    <Icon className="size-3 text-muted-foreground" />
+                  </span>
+                </span>
+                <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                  <span>
+                    <span className="font-medium text-foreground">{fullName(author)}</span> a consulté le dossier
+                  </span>
+                  {author && <span>· {ACTOR_LABELS[author.role]}</span>}
+                  <span className="ml-auto whitespace-nowrap">{formatDateTime(e.at)}</span>
+                </p>
+              </li>
+            )
           return (
             <li key={e.id} className="relative flex gap-3 pb-5">
-              {i < events.length - 1 && <span className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />}
+              {line}
               {isMsg && author ? (
                 <UserAvatar user={author} className="size-8" />
               ) : (
@@ -143,10 +176,12 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
                     <p className="mt-0.5 text-sm text-muted-foreground">{e.body}</p>
                   ))}
                 {e.recipients && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    → {e.recipients.map((r) => ACTOR_LABELS[r]).join(", ")}
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Send className="size-3 shrink-0" />
+                    <span>Envoyé à {e.recipients.map((r) => ACTOR_LABELS[r]).join(", ")}</span>
                   </p>
                 )}
+                {isMsg && <Reply dossier={dossier} event={e} />}
               </div>
             </li>
           )
@@ -154,6 +189,97 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
         {events.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun élément.</p>}
       </ol>
     </div>
+  )
+}
+
+/** Réponse unique à un message : un destinataire (ou Nereids) répond une fois, sans ouvrir de discussion */
+function Reply({ dossier, event }: { dossier: Dossier; event: TimelineEvent }) {
+  const { role, user } = useRole()
+  const { replyToMessage } = useStore()
+  const [open, setOpen] = React.useState(false)
+  const [text, setText] = React.useState("")
+
+  if (event.reply) {
+    const author = getUser(event.reply.author)
+    const toMe = event.author === user.id
+    return (
+      <div className="mt-3 ml-4 flex gap-2.5">
+        <UserAvatar user={author} className="size-7" />
+        <div className="min-w-0 flex-1 pt-0.5">
+          <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+            <span className="font-medium">{author?.role === "admin" ? `${fullName(author)} (Nereids)` : fullName(author)}</span>
+            <span className="text-xs text-muted-foreground">{toMe ? "vous a répondu" : "a répondu"}</span>
+            <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(event.reply.at)}</span>
+          </p>
+          <div className="mt-1.5 rounded-lg rounded-tl-none border border-brand/25 bg-brand/5 px-3 py-2 text-sm">{event.reply.body}</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Peut répondre : un destinataire du message, ou Nereids (qui voit tout) — jamais l'auteur lui-même
+  const recipient = role.id === "admin" || !!event.recipients?.some((r) => r === role.id || r === "all")
+  if (event.author === user.id || !recipient || dossier.status === "archive") return null
+
+  if (!open)
+    return (
+      <Button variant="ghost" size="xs" className="mt-1 -ml-2 text-muted-foreground" onClick={() => setOpen(true)}>
+        <CornerDownRight /> Répondre
+      </Button>
+    )
+
+  function send() {
+    if (!text.trim()) return
+    replyToMessage(dossier.id, event.id, user.id, text.trim())
+    toast.success("Réponse envoyée", { description: `Notification envoyée à ${fullName(getUser(event.author))} (plateforme + e-mail).` })
+    setOpen(false)
+  }
+
+  return (
+    <div className="mt-3 ml-4 flex flex-col gap-2">
+      <Textarea
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={2}
+        placeholder={`Répondre à ${fullName(getUser(event.author))}…`}
+        className="resize-none"
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Une seule réponse possible par message.</p>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setOpen(false)
+              setText("")
+            }}
+          >
+            Annuler
+          </Button>
+          <Button size="sm" onClick={send} disabled={!text.trim()}>
+            <Send /> Répondre
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FilterChip({ active, check, onClick, children }: { active: boolean; check?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex h-7 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors",
+        active ? "border-foreground bg-foreground text-background" : "bg-background text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {check && active && <Check className="-ml-0.5 size-3" />}
+      {children}
+    </button>
   )
 }
 

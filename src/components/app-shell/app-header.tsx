@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Bell, FileText, MessageSquare, RefreshCw, Search, UserPlus } from "lucide-react"
+import { Bell, CornerDownRight, FileText, MessageSquare, RefreshCw, Search, UserPlus } from "lucide-react"
 
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
@@ -178,10 +178,17 @@ function Notifications() {
           )
           .sort((a, b) => b.at.localeCompare(a.at))
       : []
-  const notifs: Notif[] =
-    role.id === "suiveur"
-      ? suiveurNotifs(dossiers, user.id)
-      : [...requests, ...NOTIFS.map(({ days, ...n }) => ({ ...n, at: daysFromNow(days) }))]
+  // Tous les rôles : réponses reçues à ses propres messages
+  const replies: Notif[] = visibleDossiers(dossiers, role.id, user.id)
+    .flatMap((d) =>
+      d.timeline
+        .filter((e) => e.author === user.id && e.reply)
+        .map((e) => ({ icon: CornerDownRight, title: `${fullName(getUser(e.reply!.author))} a répondu à votre message`, dossier: d.id, at: e.reply!.at, unread: e.reply!.at > daysFromNow(-3, 0) })),
+    )
+  const notifs: Notif[] = [
+    ...replies,
+    ...(role.id === "suiveur" ? suiveurNotifs(dossiers, user.id) : [...requests, ...NOTIFS.map(({ days, ...n }) => ({ ...n, at: daysFromNow(days) }))]),
+  ].sort((a, b) => Number(!!b.toDo) - Number(!!a.toDo) || b.at.localeCompare(a.at))
   const unread = read ? requests.length : notifs.filter((n) => n.unread).length
 
   return (

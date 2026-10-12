@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AssignFields, type AssignValue } from "@/features/admin/create-dossier"
@@ -33,6 +34,7 @@ import {
   type StatusId,
 } from "@/lib/data"
 import { useStore } from "@/lib/store"
+import { fromDateInput, toDateInput } from "./dossier-edit"
 
 type DialogProps = { dossier: Dossier; open: boolean; onOpenChange: (o: boolean) => void }
 
@@ -286,10 +288,14 @@ export function AddDocDialog({
   const [cat, setCat] = React.useState<string | null>(defaultCategory ?? null)
   const [file, setFile] = React.useState<string | null>(null)
   const [notify, setNotify] = React.useState(true)
+  // Date figurant sur la pièce : sert au classement des documents (aujourd'hui par défaut)
+  const [date, setDate] = React.useState("")
 
   React.useEffect(() => {
+    if (!open) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- pré-remplissage à l'ouverture
-    if (open) setCat(defaultCategory ?? null)
+    setCat(defaultCategory ?? null)
+    setDate(toDateInput(new Date().toISOString()))
   }, [open, defaultCategory])
 
   function save() {
@@ -297,7 +303,7 @@ export function AddDocDialog({
     const now = new Date().toISOString()
     updateDossier(dossier.id, (d) => ({
       ...d,
-      documents: [...d.documents, { id: `d${Date.now()}`, name: file, category: cat as DocCategory, addedBy: user.id, addedAt: now, size: "1,4 Mo" }],
+      documents: [...d.documents, { id: `d${Date.now()}`, name: file, category: cat as DocCategory, addedBy: user.id, addedAt: now, docDate: fromDateInput(date) ?? now, size: "1,4 Mo" }],
     }))
     addEvent(dossier.id, { kind: "document", author: user.id, title: `Document ajouté — ${DOC_CATEGORIES[cat as DocCategory]}`, body: file })
     toast.success("Document ajouté", { description: notify ? "Les intervenants concernés ont été notifiés." : undefined })
@@ -330,6 +336,10 @@ export function AddDocDialog({
           <Field>
             <FieldLabel>Catégorie *</FieldLabel>
             <SimpleSelect placeholder="Choisir une catégorie" value={cat} onChange={setCat} options={(categories ?? (Object.keys(DOC_CATEGORIES) as DocCategory[])).map((value) => ({ value, label: DOC_CATEGORIES[value] }))} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="doc-date">Date du document</FieldLabel>
+            <Input id="doc-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <div className="flex items-center gap-2">
             <Checkbox id="notify" checked={notify} onCheckedChange={(c) => setNotify(!!c)} />

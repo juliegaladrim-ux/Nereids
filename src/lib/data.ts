@@ -196,10 +196,32 @@ export type DocumentItem = {
   category: DocCategory
   addedBy: string // userId
   addedAt: string // ISO
+  /** Date figurant sur la pièce (ex. date du certificat d'immatriculation) — ISO ; à défaut, la date d'ajout */
+  docDate?: string
   size: string
 }
 
-export type TimelineKind = "creation" | "status" | "document" | "message" | "assignation" | "relance" | "expertise" | "system"
+/** Date du document, utilisée pour le classement par défaut de l'onglet Documents */
+export const docDate = (doc: DocumentItem) => doc.docDate ?? doc.addedAt
+
+/** Ancienneté typique d'une pièce au moment de son dépôt (jours) — données de démo */
+const DOC_AGE: Partial<Record<DocCategory, number>> = {
+  carte_grise: 820,
+  facture_achat: 540,
+  controle_technique: 300,
+  entretien: 120,
+  rapport_compagnie: 12,
+  recherche_marche: 2,
+  constat: 1,
+  photos: 1,
+}
+export function demoDocDate(category: DocCategory, addedAt: string): string {
+  const t = new Date(addedAt)
+  t.setDate(t.getDate() - (DOC_AGE[category] ?? 0))
+  return t.toISOString()
+}
+
+export type TimelineKind = "creation" | "status" | "document" | "message" | "assignation" | "relance" | "expertise" | "system" | "consultation"
 
 export type TimelineEvent = {
   id: string
@@ -210,7 +232,14 @@ export type TimelineEvent = {
   body?: string
   /** Pour les messages : rôles destinataires */
   recipients?: (RoleId | "all")[]
+  /** Réponse unique à un message (pas de fil de discussion) */
+  reply?: MessageReply
 }
+
+export type MessageReply = { author: string; at: string; body: string }
+
+/** Note interne Nereids : visible uniquement par les admins */
+export type InternalNote = { id: string; at: string; author: string; body: string }
 
 export type Expertise = {
   date?: string // ISO
@@ -259,6 +288,8 @@ export type Dossier = {
   suiveurRequests?: SuiveurRequest[]
   /** Référence de chaque intervenant suiveur dans son propre outil (réf. PJ, réf. cabinet), par userId */
   suiveurRefs?: Record<string, string>
+  /** Notes internes Nereids (onglet « Notes internes », admin uniquement) */
+  notes?: InternalNote[]
   /** Validation client (mission / devis / règlement) — alimentée par les automatisations ; absente = déduite du statut */
   validation?: ClientValidation
 }
@@ -335,6 +366,24 @@ export function daysFromNow(d: number, hour = 10): string {
   const t = new Date(Date.now() + d * DAY)
   t.setHours(hour, 0, 0, 0)
   return t.toISOString()
+}
+
+/** Consultations fictives : deux intervenants sont passés sur le dossier après la dernière activité (visibles par Nereids uniquement) */
+export function withConsultations(d: Dossier): Dossier {
+  // On remplace les exemples déjà générés, sans toucher aux vraies consultations tracées pendant la démo
+  const seeded = (e: TimelineEvent) => e.kind === "consultation" && e.id.startsWith(`${d.id}-c`)
+  const timeline = d.timeline.filter((e) => !seeded(e))
+  const last = timeline.reduce((m, e) => (e.kind !== "consultation" && e.at > m ? e.at : m), d.createdAt)
+  const { gestionnaire, expert, reparateur, suiveurs } = d.intervenants
+  const visitors = [d.client.userId, gestionnaire, expert, reparateur, ...(suiveurs ?? [])].filter((u): u is string => !!u).slice(0, 2)
+  const now = Date.now()
+  const visits = visitors.flatMap((u, i) => {
+    // Décalage déterministe : 1h20 puis 3h05 après la dernière activité
+    const at = new Date(new Date(last).getTime() + (80 + i * 105) * 60_000)
+    if (at.getTime() > now) return []
+    return [{ id: `${d.id}-c${i}`, at: at.toISOString(), kind: "consultation" as const, author: u, title: "A consulté le dossier" }]
+  })
+  return { ...d, timeline: [...timeline, ...visits] }
 }
 
 export function isLate(d: Dossier): boolean {
@@ -439,6 +488,7 @@ const doc = (name: string, category: DocCategory, addedBy: string, at: string, s
   category,
   addedBy,
   addedAt: at,
+  docDate: demoDocDate(category, at),
   size,
 })
 
@@ -447,7 +497,7 @@ export const CLIENT_ACTIVATION_DOSSIER = "NER-2026-0149"
 
 export function seedDossiers(): Dossier[] {
   seq = 0
-  return [
+  const all: Dossier[] = [
     {
       id: "NER-2026-0142",
       ref: "NER-2026-0142",
@@ -484,12 +534,18 @@ export function seedDossiers(): Dossier[] {
         ev(daysFromNow(-11, 14), "assignation", "u-admin", "Intervenants assignés", "Gestionnaire : Julie Perrin · Expert : Marc Delorme"),
         ev(daysFromNow(-11, 14), "status", "system", "Statut → En étude"),
         ev(daysFromNow(-9, 11), "status", "u-expert", "Statut → Recours validé", "Responsabilité du tiers établie par le constat (cas 10)."),
-        ev(daysFromNow(-9, 11), "message", "u-gest", "Message", "Bonjour M. Lefèvre, pouvez-vous nous indiquer le garage qui réalisera les réparations ?", ["client"]),
-        ev(daysFromNow(-8, 18), "message", "u-c-lefevre", "Message", "Bonjour, ce sera le Garage Benali à Yssingeaux.", ["gestionnaire"]),
+        {
+          ...ev(daysFromNow(-9, 11), "message", "u-gest", "Message", "Bonjour M. Lefèvre, pouvez-vous nous indiquer le garage qui réalisera les réparations ?", ["client"]),
+          reply: { author: "u-c-lefevre", at: daysFromNow(-8, 18), body: "Bonjour, ce sera le Garage Benali à Yssingeaux." },
+        },
         ev(daysFromNow(-6, 10), "document", "u-rep", "Devis déposé", "Devis réparation n°D-2291 — 3 480,00 € TTC"),
         ev(daysFromNow(-3, 15), "expertise", "u-gest", "Convocation envoyée", "Expertise prévue sur site, client, réparateur et expert convoqués."),
         ev(daysFromNow(-3, 15), "status", "system", "Statut → En attente expertise"),
         ev(daysFromNow(-1, 9), "message", "u-suiveur", "Message", "Merci de nous transmettre le PV dès réception.", ["gestionnaire", "expert"]),
+      ],
+      notes: [
+        { id: "n-0142-1", at: daysFromNow(-11, 14), author: "u-admin", body: "Client très réactif. Le tiers est assuré chez Atlantique aussi : voir si on peut accélérer le recours en direct avec leur service sinistres." },
+        { id: "n-0142-2", at: daysFromNow(-2, 17), author: "u-admin2", body: "Appelé Marc Delorme : l'expertise est confirmée pour jeudi 9 h. Penser à relancer le garage pour le devis définitif après l'expertise." },
       ],
     },
     {
@@ -867,6 +923,7 @@ export function seedDossiers(): Dossier[] {
       cloture: { motif: "Accord trouvé", at: daysFromNow(-70) },
     },
   ]
+  return all.map(withConsultations)
 }
 
 /** Étapes du workflow par type — utilisé pour la frise de progression */

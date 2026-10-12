@@ -81,9 +81,10 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
       docCategories: CLIENT_DOC_CATEGORIES,
       canManageDoc: (doc) => doc.addedBy === userId,
       canSeeEvent: (e) =>
-        (e.kind !== "message" && e.kind !== "relance") ||
-        e.author === userId ||
-        !!e.recipients?.some((r) => r === "client" || r === "all"),
+        e.kind !== "consultation" &&
+        ((e.kind !== "message" && e.kind !== "relance") ||
+          e.author === userId ||
+          !!e.recipients?.some((r) => r === "client" || r === "all")),
       pickRecipients: false,
       ownRef: false,
     }
@@ -96,9 +97,10 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
       docCategories: CLIENT_DOC_CATEGORIES,
       canManageDoc: (doc) => doc.addedBy === userId,
       canSeeEvent: (e) =>
-        (e.kind !== "message" && e.kind !== "relance") ||
-        e.author === userId ||
-        !!e.recipients?.some((r) => r === "suiveur" || r === "all"),
+        e.kind !== "consultation" &&
+        ((e.kind !== "message" && e.kind !== "relance") ||
+          e.author === userId ||
+          !!e.recipients?.some((r) => r === "suiveur" || r === "all")),
       pickRecipients: true,
       ownRef: true,
     }
@@ -108,7 +110,8 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
     canEdit: () => true,
     docCategories: Object.keys(DOC_CATEGORIES) as DocCategory[],
     canManageDoc: () => true,
-    canSeeEvent: () => true,
+    // Les consultations du dossier ne sont visibles que par Nereids
+    canSeeEvent: (e) => e.kind !== "consultation" || role === "admin",
     pickRecipients: true,
     ownRef: false,
   }

@@ -13,6 +13,9 @@ import {
   Download,
   FileText,
   Flag,
+  Image as ImageIcon,
+  LayoutGrid,
+  List,
   Mail,
   MoreHorizontal,
   Pencil,
@@ -49,6 +52,7 @@ import {
   WORKFLOW_STEPS,
   clientValidation,
   compagnieLabel,
+  docDate,
   expectedDocs,
   fullName,
   getUser,
@@ -67,6 +71,7 @@ import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { AddDocDialog, AssignDialog, CloseDialog, RelanceDialog, StatusDialog } from "./dossier-dialogs"
 import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditSection, type Values } from "./dossier-edit"
+import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 
 type DialogId = "status" | "close" | "assign" | "relance" | "doc" | null
@@ -78,7 +83,7 @@ const opts = <T extends string>(rec: Record<T, string | { label: string }>) =>
 
 export function DossierDetail({ id }: { id: string }) {
   const { href, user, role } = useRole()
-  const { getDossier, updateDossier, addEvent } = useStore()
+  const { getDossier, updateDossier, addEvent, logConsultation } = useStore()
   const rights = dossierRights(role.id, user.id)
   const isClient = role.id === "client"
   const listLabel = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
@@ -89,6 +94,12 @@ export function DossierDetail({ id }: { id: string }) {
   const [docCategory, setDocCategory] = React.useState<DocCategory | undefined>()
   const [tab, setTab] = React.useState("suivi")
   const [edit, setEdit] = React.useState<EditSection | null>(null)
+  // Les visites des intervenants et du client sont tracées dans le suivi (visibles par Nereids, qui n'est pas tracé)
+  const trackVisit = !!d && role.id !== "admin"
+
+  React.useEffect(() => {
+    if (trackVisit) logConsultation(id, user.id)
+  }, [trackVisit, id, user.id, logConsultation])
 
   if (!d) {
     return (
@@ -274,12 +285,13 @@ export function DossierDetail({ id }: { id: string }) {
       fields: [
         { key: "name", label: "Nom du fichier", full: true },
         { key: "category", label: "Catégorie", type: "select", options: opts(DOC_CATEGORIES), full: true },
+        { key: "docDate", label: "Date du document", type: "date" },
       ],
-      initial: { name: doc.name, category: doc.category },
+      initial: { name: doc.name, category: doc.category, docDate: toDateInput(docDate(doc)) },
       onSave: (v) =>
         apply("Document", (x) => ({
           ...x,
-          documents: x.documents.map((y) => (y.id === docId ? { ...y, name: v.name || y.name, category: (v.category || y.category) as DocCategory } : y)),
+          documents: x.documents.map((y) => (y.id === docId ? { ...y, name: v.name || y.name, category: (v.category || y.category) as DocCategory, docDate: fromDateInput(v.docDate) ?? y.docDate } : y)),
         })),
     })
   }
@@ -444,12 +456,17 @@ export function DossierDetail({ id }: { id: string }) {
         <Tabs value={tab} onValueChange={(v) => setTab(v as string)} className="min-w-0">
           <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <TabsList variant="line" className="mb-2">
-              <TabsTrigger value="suivi">Suivi <Count n={d.timeline.filter(rights.canSeeEvent).length} /></TabsTrigger>
+              <TabsTrigger value="suivi">Suivi <Count n={d.timeline.filter((e) => rights.canSeeEvent(e) && e.kind !== "consultation").length} /></TabsTrigger>
               <TabsTrigger value="general">Général</TabsTrigger>
               <TabsTrigger value="documents">Documents <Count n={d.documents.length} /></TabsTrigger>
               <TabsTrigger value="expertise">Expertise</TabsTrigger>
               {d.type === "litige_assurantiel" && <TabsTrigger value="tierce">Tierce expertise</TabsTrigger>}
               <TabsTrigger value="resolution">Résolution</TabsTrigger>
+              {role.id === "admin" && (
+                <TabsTrigger value="notes">
+                  Notes internes {!!d.notes?.length && <Count n={d.notes.length} />}
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -478,6 +495,11 @@ export function DossierDetail({ id }: { id: string }) {
           <TabsContent value="resolution">
             <Resolution dossier={d} onClose={rights.pilot ? () => setDialog("close") : undefined} onEdit={editable("cloture")} />
           </TabsContent>
+          {role.id === "admin" && (
+            <TabsContent value="notes">
+              <DossierNotes dossier={d} />
+            </TabsContent>
+          )}
         </Tabs>
 
         <aside className="flex flex-col gap-4">
@@ -533,7 +555,11 @@ export function DossierDetail({ id }: { id: string }) {
 }
 
 function Count({ n }: { n: number }) {
-  return <span className="text-xs text-muted-foreground tabular-nums">{n}</span>
+  return (
+    <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-foreground/10 px-1.5 text-[0.7rem] leading-none font-semibold text-foreground tabular-nums">
+      {n}
+    </span>
+  )
 }
 
 /**
@@ -848,17 +874,61 @@ function Documents({
 }) {
   const expected = expectedDocs(d.type, d.litigeType)
   const missing = expected.filter((c) => !d.documents.some((doc) => doc.category === c))
-  const byCat = Object.entries(
-    d.documents.reduce<Record<string, Dossier["documents"]>>((acc, doc) => {
-      ;(acc[doc.category] ??= []).push(doc)
-      return acc
-    }, {}),
-  )
+  // Classement : date du document, de la plus ancienne à la plus récente (ex. carte grise 11/06 avant facture d'entretien 15/06)
+  const sorted = [...d.documents].sort((a, b) => docDate(a).localeCompare(docDate(b)))
+  const [view, setView] = React.useState<"liste" | "galerie">("liste")
+
+  function actions(doc: Dossier["documents"][number], className?: string) {
+    return (
+      <div className={cn("flex shrink-0", className)}>
+        <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
+          <Download />
+        </Button>
+        {canManage(doc) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Actions sur le document" />}>
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => onEditDoc(doc.id)}>
+                <Pencil /> Modifier
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={() => onDeleteDoc(doc.id)}>
+                <Trash2 /> Supprimer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{d.documents.length} document(s)</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">{d.documents.length} document(s)</p>
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Affichage">
+            {(
+              [
+                ["liste", List, "Liste"],
+                ["galerie", LayoutGrid, "Galerie"],
+              ] as const
+            ).map(([id, Icon, label]) => (
+              <Button
+                key={id}
+                variant="ghost"
+                size="icon-xs"
+                aria-label={label}
+                aria-pressed={view === id}
+                onClick={() => setView(id)}
+                className={cn(view === id ? "bg-foreground text-background hover:bg-foreground hover:text-background" : "text-muted-foreground")}
+              >
+                <Icon />
+              </Button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => toast.info("Téléchargement groupé (ZIP) — simulation")}>
             <Download /> Tout télécharger
@@ -886,49 +956,53 @@ function Documents({
         </Card>
       )}
 
-      {byCat.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun document pour le moment.</p>}
+      {d.documents.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun document pour le moment.</p>}
 
-      {byCat.map(([cat, docs]) => (
-        <div key={cat}>
-          <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{DOC_CATEGORIES[cat as DocCategory]}</p>
-          <ul className="divide-y rounded-xl border bg-card">
-            {docs.map((doc) => {
-              const author = getUser(doc.addedBy)
-              return (
-                <li key={doc.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
-                    <FileText className="size-4 text-muted-foreground" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{doc.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {fullName(author)} · {formatDateTime(doc.addedAt)} · {doc.size}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
-                    <Download />
-                  </Button>
-                  {canManage(doc) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Actions sur le document" />}>
-                      <MoreHorizontal />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => onEditDoc(doc.id)}>
-                        <Pencil /> Renommer
-                      </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onClick={() => onDeleteDoc(doc.id)}>
-                        <Trash2 /> Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
+      {d.documents.length > 0 && view === "liste" && (
+        <ul className="divide-y rounded-xl border bg-card">
+          {sorted.map((doc) => {
+            const author = getUser(doc.addedBy)
+            return (
+              <li key={doc.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
+                  <FileText className="size-4 text-muted-foreground" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{doc.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {DOC_CATEGORIES[doc.category]} · <span className="text-foreground">Document du {formatDate(docDate(doc))}</span> · ajouté par{" "}
+                    {fullName(author)} le {formatDateTime(doc.addedAt)} · {doc.size}
+                  </p>
+                </div>
+                {actions(doc)}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {d.documents.length > 0 && view === "galerie" && (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {sorted.map((doc) => {
+            const Icon = doc.category === "photos" ? ImageIcon : FileText
+            return (
+              <li key={doc.id} className="flex flex-col overflow-hidden rounded-xl border bg-card">
+                <div className="relative grid aspect-[4/3] place-items-center bg-muted">
+                  <Icon className="size-8 text-muted-foreground" />
+                  {actions(doc, "absolute top-1.5 right-1.5 rounded-lg bg-background/90 shadow-xs")}
+                </div>
+                <div className="min-w-0 p-3">
+                  <p className="truncate text-sm font-medium" title={doc.name}>
+                    {doc.name}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{DOC_CATEGORIES[doc.category]}</p>
+                  <p className="text-xs">Document du {formatDate(docDate(doc))}</p>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
@@ -970,11 +1044,11 @@ function ExpertiseTab({ dossier: d, onEdit }: { dossier: Dossier; onEdit?: () =>
       <InfoCard
         title="Livrables de l'expert"
         rows={[
-          ["PV d'expertise", pv ? pv.name : <span key="p" className="text-muted-foreground">En attente</span>],
+          ["PV d'expertise", <DocSlot key="p" doc={pv} category="pv" />],
           ...(d.type === "litige_auto"
-            ? [["Pré-rapport", preRapport ? preRapport.name : <span key="pr" className="text-muted-foreground">En attente</span>] as [string, React.ReactNode]]
+            ? [["Pré-rapport", <DocSlot key="pr" doc={preRapport} category="pre_rapport" />] as [string, React.ReactNode]]
             : []),
-          [d.type === "litige_auto" ? "Rapport final" : "Rapport", rapport ? rapport.name : <span key="r" className="text-muted-foreground">En attente</span>],
+          [d.type === "litige_auto" ? "Rapport final" : "Rapport", <DocSlot key="r" doc={rapport} category="rapport" />],
         ]}
       />
     </div>

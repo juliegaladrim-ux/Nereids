@@ -8,6 +8,8 @@ import {
   seedAccounts,
   seedDossiers,
   suiveurFromRequest,
+  withConsultations,
+  demoDocDate,
   type Account,
   type Dossier,
   type TimelineEvent,
@@ -28,6 +30,13 @@ type Store = {
   createDossier: (d: Dossier) => void
   updateDossier: (id: string, patch: (d: Dossier) => Dossier) => void
   addEvent: (id: string, e: Omit<TimelineEvent, "id" | "at"> & { at?: string }) => void
+  /** Trace l'ouverture d'un dossier (sans changer sa date de dernière activité) */
+  logConsultation: (id: string, userId: string) => void
+  /** Réponse unique à un message du suivi (ignorée si le message a déjà une réponse) */
+  replyToMessage: (id: string, eventId: string, author: string, body: string) => void
+  /** Notes internes Nereids — n'affectent pas la date de dernière activité (invisible des autres rôles) */
+  addNote: (id: string, author: string, body: string) => void
+  deleteNote: (id: string, noteId: string) => void
   /** Comptes intervenants invités par e-mail (activation, coordonnées vérifiées) */
   accounts: Record<string, Account>
   updateAccount: (userId: string, patch: (a: Account | undefined) => Account) => void
@@ -48,7 +57,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let initialAccounts: Record<string, Account> | null = null
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (raw) initial = JSON.parse(raw)
+      // Données déjà sauvegardées : on y ajoute les consultations fictives et les notes internes d'exemple si elles n'existent pas encore
+      if (raw) {
+        const seed = seedDossiers()
+        initial = (JSON.parse(raw) as Dossier[]).map((d) =>
+          withConsultations({
+            ...d,
+            notes: d.notes ?? seed.find((x) => x.id === d.id)?.notes,
+            // Date du document : estimée pour les pièces déjà enregistrées
+            documents: d.documents.map((doc) => (doc.docDate ? doc : { ...doc, docDate: demoDocDate(doc.category, doc.addedAt) })),
+          }),
+        )
+      }
       const rawAccounts = window.localStorage.getItem(ACCOUNTS_KEY)
       if (rawAccounts) initialAccounts = JSON.parse(rawAccounts)
     } catch {}
@@ -103,6 +123,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               : d,
           ),
         ),
+      logConsultation: (id, userId) =>
+        setDossiers((all) => {
+          const d = all?.find((x) => x.id === id)
+          // Une seule trace par personne et par demi-heure (état inchangé sinon, pour ne pas reboucler)
+          const since = new Date(Date.now() - 30 * 60_000).toISOString()
+          if (!all || !d || d.timeline.some((e) => e.kind === "consultation" && e.author === userId && e.at > since)) return all
+          const e: TimelineEvent = { id: `c${Date.now()}`, at: new Date().toISOString(), kind: "consultation", author: userId, title: "A consulté le dossier" }
+          return all.map((x) => (x.id === id ? { ...x, timeline: [...x.timeline, e] } : x))
+        }),
+      replyToMessage: (id, eventId, author, body) =>
+        setDossiers((all) =>
+          (all ?? []).map((d) =>
+            d.id === id
+              ? {
+                  ...d,
+                  updatedAt: new Date().toISOString(),
+                  timeline: d.timeline.map((e) => (e.id === eventId && !e.reply ? { ...e, reply: { author, body, at: new Date().toISOString() } } : e)),
+                }
+              : d,
+          ),
+        ),
+      addNote: (id, author, body) =>
+        setDossiers((all) =>
+          (all ?? []).map((d) =>
+            d.id === id ? { ...d, notes: [...(d.notes ?? []), { id: `n${Date.now()}`, at: new Date().toISOString(), author, body }] } : d,
+          ),
+        ),
+      deleteNote: (id, noteId) =>
+        setDossiers((all) => (all ?? []).map((d) => (d.id === id ? { ...d, notes: d.notes?.filter((n) => n.id !== noteId) } : d))),
       accounts,
       updateAccount: (userId, patch) => setAccounts((all) => ({ ...all, [userId]: patch(all[userId]) })),
       resetAccount: (userId) =>
