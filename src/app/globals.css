@@ -72,11 +72,8 @@
 :root {
   /*
    * DA Nereids (charte) — bleu #749BA9, noir #1D1D1B, blanc.
-   * Deux versions testables (sélecteur dans la barre proto, ou ?da=bleu / ?da=noir) :
-   *   - « bleu » (défaut) : boutons bleus
-   *   - « noir »          : boutons noirs, détails bleus
-   * Les détails (liens, icônes, étapes, cases cochées, onglets actifs…) utilisent
-   * toujours --brand / --brand-ink ; seuls les boutons principaux (--primary) changent.
+   * Boutons principaux noirs (--primary), détails bleus (--brand / --brand-ink) :
+   * liens, icônes, étapes, cases cochées, onglets actifs, focus…
    */
   --brand: #749ba9;
   --brand-ink: #456c7a; /* bleu foncé pour le texte : contraste AA sur blanc */
@@ -88,8 +85,8 @@
   --card-foreground: #1d1d1b;
   --popover: #ffffff;
   --popover-foreground: #1d1d1b;
-  --primary: #749ba9;
-  --primary-hover: #5f8796;
+  --primary: #1d1d1b;
+  --primary-hover: #3a3a37;
   --primary-soft: var(--brand-soft);
   --primary-foreground: #ffffff;
   --secondary: #ecedee;
@@ -131,13 +128,6 @@
   --tone-done-bg: #e2f6ec;
   --tone-muted: #5a5d5f;
   --tone-muted-bg: #ecedee;
-}
-
-/* Version « boutons noirs, détails bleus » */
-:root[data-da="noir"] {
-  --primary: #1d1d1b;
-  --primary-hover: #3a3a37;
-  --sidebar-primary: #1d1d1b;
 }
 
 .dark {

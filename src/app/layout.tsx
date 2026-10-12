@@ -3,7 +3,6 @@ import { Figtree } from "next/font/google"
 
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { DA_INIT_SCRIPT } from "@/lib/da"
 import { StoreProvider } from "@/lib/store"
 import "./globals.css"
 
@@ -20,10 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="fr" className={`${figtree.variable} h-full antialiased`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: DA_INIT_SCRIPT }} />
-      </head>
+    <html lang="fr" className={`${figtree.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <StoreProvider>
           <TooltipProvider>{children}</TooltipProvider>

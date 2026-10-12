@@ -29,7 +29,6 @@ import {
   type SinistreType,
   type StatusId,
 } from "@/lib/data"
-import { DA_VERSIONS, useDaVersion, type DaVersion } from "@/lib/da"
 import { ROLES } from "@/lib/roles"
 import { applyScenario, isHorsRecours } from "@/lib/proto-scenario"
 import { useStore } from "@/lib/store"
@@ -44,7 +43,6 @@ export function ProtoBar() {
   const { reset } = useStore()
   const replayActivation = useReplayActivation()
   const replaySuiveurActivation = useReplaySuiveurActivation()
-  const [da, setDa] = useDaVersion()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -79,17 +77,6 @@ export function ProtoBar() {
                 {ROLES.map((r) => (
                   <DropdownMenuRadioItem key={r.id} value={r.id}>
                     {r.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Version de DA</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={da} onValueChange={(v) => setDa(v as DaVersion)}>
-                {DA_VERSIONS.map((v) => (
-                  <DropdownMenuRadioItem key={v.id} value={v.id}>
-                    {v.label}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
