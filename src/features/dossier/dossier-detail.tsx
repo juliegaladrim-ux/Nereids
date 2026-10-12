@@ -364,10 +364,10 @@ export function DossierDetail({ id }: { id: string }) {
                 <>
                   <span className="mx-1 h-4 w-px bg-border" aria-hidden />
                   <ValidationPills validation={clientValidation(d)} />
+                  <ExpertiseBadge dossier={d} className="max-w-md min-w-56 flex-1" />
                 </>
               )}
             </div>
-            {rights.pilot && <ExpertiseBadge dossier={d} className="mt-2 max-w-xl" />}
           </div>
 
           {!rights.pilot ? (

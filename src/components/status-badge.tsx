@@ -34,7 +34,7 @@ export function StatusBadge({ status, className }: { status: StatusId; className
         className,
       )}
     >
-      <span className={cn("size-1.5 rounded-full", DOT_CLASSES[s.tone])} />
+      <span className={cn("size-2 shrink-0 rounded-full", DOT_CLASSES[s.tone])} />
       {s.label}
     </span>
   )
@@ -117,7 +117,10 @@ export function ExpertiseBadge({ dossier: d, className }: { dossier: Dossier; cl
           <span className="text-muted-foreground">Expertise non programmée</span>
         )}
       </TooltipTrigger>
-      <TooltipContent>{state}</TooltipContent>
+      <TooltipContent>
+        {lieu && <p>{lieu}</p>}
+        <p>{state}</p>
+      </TooltipContent>
     </Tooltip>
   )
 }
