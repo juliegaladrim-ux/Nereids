@@ -34,7 +34,7 @@ export function StatusBadge({ status, className }: { status: StatusId; className
         className,
       )}
     >
-      <span className={cn("size-2 shrink-0 rounded-full", DOT_CLASSES[s.tone])} />
+      <span className={cn("size-1.5 shrink-0 rounded-full", DOT_CLASSES[s.tone])} />
       {s.label}
     </span>
   )
@@ -76,7 +76,7 @@ export function ValidationPills({ validation, className }: { validation: ClientV
                 />
               }
             >
-              <span className={cn("size-2 rounded-full", VALIDATION_DOT[state])} />
+              <span className={cn("size-1.5 rounded-full", VALIDATION_DOT[state])} />
               {it.letter}
             </TooltipTrigger>
             <TooltipContent>{text}</TooltipContent>
@@ -104,7 +104,7 @@ export function ExpertiseBadge({ dossier: d, className }: { dossier: Dossier; cl
           />
         }
       >
-        <span className={cn("size-2 shrink-0 rounded-full", sent && date ? "bg-tone-done" : "bg-muted-foreground/40")} />
+        <span className={cn("size-1.5 shrink-0 rounded-full", sent && date ? "bg-tone-done" : "bg-muted-foreground/40")} />
         <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" />
         {date ? (
           <>
