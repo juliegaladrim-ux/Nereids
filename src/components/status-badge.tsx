@@ -70,8 +70,8 @@ export function ValidationPills({ validation, className }: { validation: ClientV
                 <span
                   aria-label={text}
                   className={cn(
-                    "inline-grid size-6 cursor-default place-items-center rounded-full text-xs font-bold",
-                    TONE_CLASSES[VALIDATION_TONE[state]],
+                    "inline-grid size-7 cursor-default place-items-center rounded-full text-sm font-bold text-background",
+                    DOT_CLASSES[VALIDATION_TONE[state]],
                   )}
                 />
               }
