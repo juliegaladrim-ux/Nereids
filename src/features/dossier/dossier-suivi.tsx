@@ -9,6 +9,7 @@ import {
   Check,
   CircleDashed,
   CornerDownRight,
+  Download,
   Eye,
   FilePlus2,
   FolderPlus,
@@ -175,6 +176,7 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
                   ) : (
                     <p className="mt-0.5 text-sm text-muted-foreground">{e.body}</p>
                   ))}
+                {isMsg && <Attachments dossier={dossier} event={e} />}
                 {e.recipients && (
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <Send className="size-3 shrink-0" />
@@ -188,6 +190,28 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
         })}
         {events.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun élément.</p>}
       </ol>
+    </div>
+  )
+}
+
+/** Pièces jointes d'un message (les documents restent aussi dans l'onglet Documents) */
+function Attachments({ dossier, event }: { dossier: Dossier; event: TimelineEvent }) {
+  const docs = (event.docIds ?? []).map((id) => dossier.documents.find((d) => d.id === id)).filter((d) => !!d)
+  if (!docs.length) return null
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {docs.map((doc) => (
+        <button
+          key={doc.id}
+          onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs transition-colors hover:bg-muted"
+        >
+          <Paperclip className="size-3 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{doc.name}</span>
+          <span className="shrink-0 text-muted-foreground">{doc.size}</span>
+          <Download className="size-3 shrink-0 text-muted-foreground" />
+        </button>
+      ))}
     </div>
   )
 }

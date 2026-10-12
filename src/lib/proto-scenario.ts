@@ -110,10 +110,13 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
   const gapAfter = (x: StatusId) => (s.type === "litige_auto" && x === "attente_rapport" ? 20 : STEP_DAYS)
   const offset = (i: number) => path.slice(i, -1).reduce((sum, x) => sum + gapAfter(x), 0)
   const at = (i: number, hour = 10, plus = 0) => daysFromNow(-offset(i) - 2 + plus, hour)
-  const addDoc = (name: string, category: DocCategory, by: string, when: string, size = "240 Ko") =>
-    documents.push({ id: `${d.id}-g${++n}`, name, category, addedBy: by, addedAt: when, docDate: demoDocDate(category, when), size })
-  const addEv = (when: string, kind: TimelineEvent["kind"], author: string, title: string, body?: string, recipients?: TimelineEvent["recipients"]) =>
-    timeline.push({ id: `${d.id}-e${++n}`, at: when, kind, author, title, body, recipients })
+  const addDoc = (name: string, category: DocCategory, by: string, when: string, size = "240 Ko") => {
+    const item = { id: `${d.id}-g${++n}`, name, category, addedBy: by, addedAt: when, docDate: demoDocDate(category, when), size }
+    documents.push(item)
+    return item
+  }
+  const addEv = (when: string, kind: TimelineEvent["kind"], author: string, title: string, body?: string, recipients?: TimelineEvent["recipients"], docIds?: string[]) =>
+    timeline.push({ id: `${d.id}-e${++n}`, at: when, kind, author, title, body, recipients, docIds })
   const statusEv = (when: string, x: StatusId, author = "system", body?: string) =>
     addEv(when, "status", author, `Statut → ${STATUSES[x].label}`, body)
 
@@ -131,6 +134,13 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
           initial.forEach((c) => addDoc(DOC_FILES[c]?.[0] ?? `${DOC_CATEGORIES[c]}.pdf`, c, depositor, t, DOC_FILES[c]?.[1]))
           addEv(t, "document", depositor, `${initial.length} documents ajoutés`, initial.map((c) => DOC_CATEGORIES[c]).join(", "))
         }
+        // Exemples de messages : un avec pièce jointe, un sans
+        const name = `${d.client.firstName} ${d.client.lastName}`
+        const lettre = addDoc("Lettre de mission.pdf", "courrier", "u-admin", at(i, 11), "140 Ko")
+        addEv(at(i, 11), "message", "u-admin", "Message", `Bonjour ${name}, bienvenue chez Nereids. Vous trouverez ci-joint la lettre de mission à signer : elle nous permet de démarrer votre dossier.`, ["client"], [lettre.id])
+        // Le client invité n'écrit qu'une fois son compte activé
+        if (clientId && status !== "nouveau") addEv(at(i, 17), "message", clientId, "Message", "Bonjour, merci. Je reste disponible si vous avez besoin d'autres informations.", ["admin"])
+        else addEv(at(i, 17), "message", "u-admin", "Message", `Bonjour ${name}, nous vous tiendrons informé(e) ici et par e-mail de chaque étape de votre dossier.`, ["client"])
         break
       }
       case "en_etude":

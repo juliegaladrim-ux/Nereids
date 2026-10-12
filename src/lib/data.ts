@@ -236,6 +236,8 @@ export type TimelineEvent = {
   recipients?: (RoleId | "all")[]
   /** Réponse unique à un message (pas de fil de discussion) */
   reply?: MessageReply
+  /** Pièces jointes d'un message : documents du dossier (classés aussi dans l'onglet Documents) */
+  docIds?: string[]
 }
 
 export type MessageReply = { author: string; at: string; body: string }
@@ -501,6 +503,20 @@ const doc = (name: string, category: DocCategory, addedBy: string, at: string, s
   docDate: demoDocDate(category, at),
   size,
 })
+/** Message de démo, avec ou sans pièces jointes (rangées dans les documents du dossier par `withAttachments`) */
+type SeedEvent = TimelineEvent & { files?: DocumentItem[] }
+const msg = (at: string, author: string, body: string, recipients: TimelineEvent["recipients"], ...files: DocumentItem[]): SeedEvent => ({
+  ...ev(at, "message", author, "Message", body, recipients),
+  ...(files.length && { files }),
+})
+function withAttachments(d: Dossier): Dossier {
+  const timeline = d.timeline as SeedEvent[]
+  return {
+    ...d,
+    documents: [...d.documents, ...timeline.flatMap((e) => e.files ?? [])],
+    timeline: timeline.map(({ files, ...e }) => (files ? { ...e, docIds: files.map((f) => f.id) } : e)),
+  }
+}
 
 /** Dossier de démo du parcours d'activation client (invitation e-mail) */
 export const CLIENT_ACTIVATION_DOSSIER = "NER-2026-0149"
@@ -536,7 +552,6 @@ export function seedDossiers(): Dossier[] {
         doc("Carte grise recto-verso.pdf", "carte_grise", "u-c-lefevre", daysFromNow(-12), "1,1 Mo"),
         doc("Photos avant droit (6).zip", "photos", "u-c-lefevre", daysFromNow(-12), "14,3 Mo"),
         doc("Devis réparation n°D-2291.pdf", "devis", "u-rep", daysFromNow(-6), "240 Ko"),
-        doc("Convocation expertise.pdf", "courrier", "u-gest", daysFromNow(-3), "95 Ko"),
       ],
       timeline: [
         ev(daysFromNow(-12, 9), "creation", "u-c-lefevre", "Dossier créé", "Sinistre non responsable avec tiers — recours direct."),
@@ -550,6 +565,7 @@ export function seedDossiers(): Dossier[] {
         },
         ev(daysFromNow(-6, 10), "document", "u-rep", "Devis déposé", "Devis réparation n°D-2291 — 3 480,00 € TTC"),
         ev(daysFromNow(-3, 15), "expertise", "u-gest", "Convocation envoyée", "Expertise prévue sur site, client, réparateur et expert convoqués."),
+        msg(daysFromNow(-3, 16), "u-gest", "Bonjour à tous, vous trouverez ci-joint la convocation à l'expertise sur site, au Garage Benali Carrosserie. Merci de confirmer votre présence.", ["client", "reparateur", "expert"], doc("Convocation expertise.pdf", "courrier", "u-gest", daysFromNow(-3, 16), "95 Ko")),
         ev(daysFromNow(-3, 15), "status", "system", "Statut → En attente expertise"),
         ev(daysFromNow(-1, 9), "message", "u-suiveur", "Message", "Merci de nous transmettre le PV dès réception.", ["gestionnaire", "expert"]),
       ],
@@ -587,6 +603,8 @@ export function seedDossiers(): Dossier[] {
       ],
       timeline: [
         ev(daysFromNow(-1, 16), "creation", "u-gest", "Dossier créé", "Litige assurantiel — valeur contestée (VRADE proposée : 9 800 €)."),
+        msg(daysFromNow(-1, 17), "u-gest", "Dossier transmis : la cliente conteste la VRADE de 9 800 €, les annonces qu'elle a trouvées tournent autour de 11 500 €.", ["admin"]),
+        msg(daysFromNow(-1, 18), "u-admin", "Bonjour Mme Bertin, nous avons bien reçu votre dossier. Vous trouverez ci-joint la lettre de mission à nous retourner signée.", ["client"], doc("Lettre de mission.pdf", "courrier", "u-admin", daysFromNow(-1, 18), "140 Ko")),
       ],
     },
     {
@@ -615,6 +633,8 @@ export function seedDossiers(): Dossier[] {
       timeline: [
         ev(daysFromNow(-2, 11), "creation", "u-admin", "Dossier créé", "Sinistre non responsable avec tiers — recours direct."),
         ev(daysFromNow(-2, 11), "system", "system", "Invitation envoyée au client", "E-mail de création de compte envoyé à mehdi.saidi@mail.fr"),
+        msg(daysFromNow(-2, 12), "u-admin", "Bonjour M. Saïdi, bienvenue chez Nereids. Vous trouverez ci-joint la lettre de mission à signer : elle nous permet de démarrer votre recours.", ["client"], doc("Lettre de mission.pdf", "courrier", "u-admin", daysFromNow(-2, 12), "140 Ko")),
+        msg(daysFromNow(-1, 10), "u-gest2", "Bonjour, je prends le dossier. Pouvez-vous assigner un expert en Haute-Loire ? M. Delorme serait le plus proche.", ["admin"]),
       ],
       clientAccess: { invitedAt: daysFromNow(-2, 11) },
     },
@@ -651,6 +671,7 @@ export function seedDossiers(): Dossier[] {
         ev(daysFromNow(-32, 15), "assignation", "u-admin", "Intervenants assignés", "Gestionnaire : Julie Perrin · Expert : Hélène Garnier"),
         ev(daysFromNow(-32, 15), "status", "system", "Statut → En étude"),
         ev(daysFromNow(-20, 11), "message", "u-expert2", "Message", "Le vendeur conteste : merci de récupérer son rapport de reprise.", ["gestionnaire"]),
+        msg(daysFromNow(-18, 15), "u-gest", "Voici le rapport de reprise transmis par Auto Sélection Lyon : il ne mentionne aucun défaut sur la boîte de vitesses.", ["expert"], doc("Rapport de reprise Auto Sélection.pdf", "courrier", "u-gest", daysFromNow(-18, 15), "520 Ko")),
         ev(daysFromNow(-3, 9), "status", "u-expert2", "Statut → En attente client"),
         ev(daysFromNow(-3, 9), "message", "u-gest", "Message", "Bonjour M. Saïdi, pour avancer, pouvez-vous déposer les factures d'entretien de la 208 (carnet ou factures garage) ?", ["client"]),
       ],
@@ -687,6 +708,7 @@ export function seedDossiers(): Dossier[] {
         ev(daysFromNow(-230, 9), "expertise", "u-expert", "Expertise réalisée"),
         ev(daysFromNow(-222, 16), "document", "u-expert", "Rapport déposé"),
         ev(daysFromNow(-200, 10), "status", "u-admin", "Statut → Réclamation envoyée"),
+        msg(daysFromNow(-200, 11), "u-admin", "Bonjour M. Saïdi, la réclamation est partie chez Assurances Atlantique. Vous en trouverez la copie ci-jointe.", ["client"], doc("Courrier réclamation Atlantique.pdf", "courrier", "u-admin", daysFromNow(-200, 11), "120 Ko")),
         ev(daysFromNow(-150, 11), "message", "u-admin", "Message", "Bonne nouvelle : l'indemnisation de 2 140 € a été versée. Votre dossier est clôturé.", ["client"]),
         ev(daysFromNow(-150, 11), "status", "u-admin", "Statut → Clôturé", "Motif : Paiement reçu"),
       ],
@@ -725,10 +747,12 @@ export function seedDossiers(): Dossier[] {
         ev(daysFromNow(-24), "creation", "u-gest", "Dossier créé", "Litige suite à réparation — boîte de vitesses."),
         ev(daysFromNow(-21), "status", "u-expert", "Statut → Recours validé", "Le dossier est recevable."),
         ev(daysFromNow(-14), "expertise", "u-gest", "Convocation envoyée"),
+        msg(daysFromNow(-14, 11), "u-gest", "Bonjour, vous trouverez ci-joint la convocation à l'expertise contradictoire au Garage du Lignon.", ["client", "suiveur", "expert"], doc("Convocation expertise contradictoire.pdf", "courrier", "u-gest", daysFromNow(-14, 11), "98 Ko")),
         ev(daysFromNow(-7, 14), "expertise", "u-expert", "Expertise réalisée"),
         ev(daysFromNow(-6), "document", "u-expert", "PV déposé"),
         ev(daysFromNow(-6), "status", "system", "Statut → En attente rapport"),
         ev(daysFromNow(-2), "relance", "system", "Relance automatique envoyée à l'expert", "Pré-rapport non transmis à +96 h.", ["expert"]),
+        msg(daysFromNow(-1, 14), "u-suiveur", "Bonjour, avez-vous une date pour le pré-rapport ? Notre assurée souhaite engager la discussion avec le garage rapidement.", ["admin", "expert"]),
       ],
     },
     {
@@ -758,6 +782,8 @@ export function seedDossiers(): Dossier[] {
         ev(daysFromNow(-35), "creation", "u-gest2", "Dossier créé"),
         ev(daysFromNow(-12), "expertise", "u-expert2", "Expertise réalisée"),
         ev(daysFromNow(-11), "status", "system", "Statut → En attente réparation"),
+        msg(daysFromNow(-9, 16), "u-rep2", "Démontage effectué : photos des pièces endommagées ci-jointes. Rien de plus que ce qui figure au PV.", ["gestionnaire", "expert"], doc("Photos démontage (8).zip", "photos", "u-rep2", daysFromNow(-9, 16), "18,6 Mo")),
+        msg(daysFromNow(-4, 9), "u-gest2", "Bonjour Mme Chevalier, où en sont les réparations de la Yaris ? Nous attendons la facture proforma.", ["reparateur"]),
       ],
     },
     {
@@ -783,9 +809,10 @@ export function seedDossiers(): Dossier[] {
         echeance: daysFromNow(5),
       },
       expertise: { convoques: [] },
-      documents: [doc("Rapport Nereids.pdf", "rapport", "u-expert", daysFromNow(-12)), doc("Courrier réclamation.pdf", "courrier", "u-admin", daysFromNow(-10))],
+      documents: [doc("Courrier réclamation.pdf", "courrier", "u-admin", daysFromNow(-10))],
       timeline: [
         ev(daysFromNow(-48), "creation", "u-gest", "Dossier créé"),
+        msg(daysFromNow(-12, 15), "u-expert", "Rapport finalisé : l'écart avec le rapport de la compagnie est de 1 870 €. Il peut partir en réclamation.", ["admin", "gestionnaire"], doc("Rapport Nereids.pdf", "rapport", "u-expert", daysFromNow(-12, 15))),
         ev(daysFromNow(-10), "status", "u-admin", "Statut → Réclamation envoyée"),
         ev(daysFromNow(-10), "status", "system", "Statut → En attente retour"),
         ev(daysFromNow(-9, 11), "message", "u-admin", "Message", "Bonjour Mme Vasseur, la réclamation est partie chez Garantia. Nous vous tenons informée de leur retour.", ["suiveur"]),
@@ -814,7 +841,12 @@ export function seedDossiers(): Dossier[] {
       },
       expertise: { date: daysFromNow(-40), convoques: [], realisee: true },
       documents: [],
-      timeline: [ev(daysFromNow(-70), "creation", "u-gest3", "Dossier créé"), ev(daysFromNow(-4), "status", "u-admin", "Statut → En attente paiement")],
+      timeline: [
+        ev(daysFromNow(-70), "creation", "u-gest3", "Dossier créé"),
+        msg(daysFromNow(-5, 16), "u-gest3", "Accord écrit de la Mutuelle du Centre reçu, ci-joint.", ["admin"], doc("Accord Mutuelle du Centre.pdf", "courrier", "u-gest3", daysFromNow(-5, 16), "160 Ko")),
+        ev(daysFromNow(-4), "status", "u-admin", "Statut → En attente paiement"),
+        msg(daysFromNow(-4, 11), "u-admin", "Bonjour M. Leroy, la Mutuelle du Centre a donné son accord : le paiement est annoncé sous 15 jours.", ["client"]),
+      ],
     },
     {
       id: "NER-2026-0097",
@@ -839,7 +871,12 @@ export function seedDossiers(): Dossier[] {
       },
       expertise: { convoques: [] },
       documents: [doc("Photo portière.jpg", "photos", "u-c-fontaine", daysFromNow(-30), "3,0 Mo")],
-      timeline: [ev(daysFromNow(-30), "creation", "u-gest3", "Dossier créé"), ev(daysFromNow(-8), "status", "u-expert3", "Statut → En attente client", "Il manque au moins 2 photos.")],
+      timeline: [
+        ev(daysFromNow(-30), "creation", "u-gest3", "Dossier créé"),
+        msg(daysFromNow(-25, 14), "u-suiveur2", "Bonjour, je représente Mme Fontaine dans ce litige. Vous trouverez ci-joint notre mandat.", ["admin", "gestionnaire"], doc("Mandat Cabinet Lambert.pdf", "courrier", "u-suiveur2", daysFromNow(-25, 14), "210 Ko")),
+        ev(daysFromNow(-8), "status", "u-expert3", "Statut → En attente client", "Il manque au moins 2 photos."),
+        msg(daysFromNow(-4, 10), "u-gest3", "Bonjour Mme Fontaine, il nous manque encore au moins 2 photos de la portière (vue d'ensemble et gros plan) pour que l'expert puisse avancer.", ["client"]),
+      ],
     },
     {
       id: "NER-2026-0088",
@@ -864,7 +901,13 @@ export function seedDossiers(): Dossier[] {
       },
       expertise: { date: daysFromNow(-2, 10), lieu: "Carrosserie Chevalier, Saint-Étienne", convoques: ["u-expert2", "u-rep2"], realisee: true },
       documents: [],
-      timeline: [ev(daysFromNow(-20), "creation", "u-gest2", "Dossier créé"), ev(daysFromNow(-2), "expertise", "u-expert2", "Expertise réalisée"), ev(daysFromNow(-2), "status", "system", "Statut → En attente PV")],
+      timeline: [
+        ev(daysFromNow(-20), "creation", "u-gest2", "Dossier créé"),
+        msg(daysFromNow(-5, 11), "u-rep2", "Ci-joint le devis de réparation de la Fiat 500, pour l'expertise.", ["gestionnaire", "expert"], doc("Devis réparation n°C-0418.pdf", "devis", "u-rep2", daysFromNow(-5, 11), "230 Ko")),
+        ev(daysFromNow(-2), "expertise", "u-expert2", "Expertise réalisée"),
+        ev(daysFromNow(-2), "status", "system", "Statut → En attente PV"),
+        msg(daysFromNow(-1, 14), "u-gest2", "Bonjour Mme Garnier, pouvez-vous déposer le PV d'expertise ? Le délai de 24 h est dépassé.", ["expert"]),
+      ],
     },
     {
       id: "NER-2026-0076",
@@ -889,7 +932,11 @@ export function seedDossiers(): Dossier[] {
       },
       expertise: { convoques: [] },
       documents: [doc("Facture d'achat.pdf", "facture_achat", "u-c-caron", daysFromNow(-6))],
-      timeline: [ev(daysFromNow(-6), "creation", "u-gest", "Dossier créé", "Vice caché suspecté après achat d'occasion.")],
+      timeline: [
+        ev(daysFromNow(-6), "creation", "u-gest", "Dossier créé", "Vice caché suspecté après achat d'occasion."),
+        msg(daysFromNow(-5, 15), "u-suiveur2", "Bonjour, ci-joint l'annonce de vente d'AutoPlus Occasions : elle indiquait « aucun frais à prévoir ».", ["admin", "expert"], doc("Annonce de vente AutoPlus.pdf", "autre", "u-suiveur2", daysFromNow(-5, 15), "680 Ko")),
+        msg(daysFromNow(-2, 10), "u-expert2", "Premier examen : le vice caché est plausible. J'attends le contrôle technique avant de valider le dossier.", ["gestionnaire", "suiveur"]),
+      ],
     },
     {
       id: "NER-2026-0064",
@@ -909,7 +956,12 @@ export function seedDossiers(): Dossier[] {
       pilotage: { ouEnEst: "Dossier clôturé.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" },
       expertise: { convoques: [], realisee: true },
       documents: [],
-      timeline: [ev(daysFromNow(-120), "creation", "u-gest", "Dossier créé"), ev(daysFromNow(-15), "status", "u-admin", "Statut → Clôturé", "Motif : Paiement reçu")],
+      timeline: [
+        ev(daysFromNow(-120), "creation", "u-gest", "Dossier créé"),
+        ev(daysFromNow(-15), "status", "u-admin", "Statut → Clôturé", "Motif : Paiement reçu"),
+        msg(daysFromNow(-15, 11), "u-admin", "Le paiement de 1 960 € a été reçu, le dossier est clôturé. Vous trouverez ci-joint le justificatif de règlement.", ["client", "suiveur"], doc("Justificatif de paiement.pdf", "courrier", "u-admin", daysFromNow(-15, 11), "85 Ko")),
+        msg(daysFromNow(-14, 10), "u-suiveur", "Merci pour votre accompagnement, nous clôturons également le dossier de notre côté.", ["admin"]),
+      ],
       cloture: { motif: "Paiement reçu", at: daysFromNow(-15) },
     },
     {
@@ -929,11 +981,16 @@ export function seedDossiers(): Dossier[] {
       pilotage: { ouEnEst: "Dossier archivé.", attente: "—", prochaineAction: "—", quiDoitAgir: "nereids" },
       expertise: { convoques: [] },
       documents: [],
-      timeline: [ev(daysFromNow(-200), "creation", "u-gest2", "Dossier créé"), ev(daysFromNow(-60), "status", "u-admin", "Statut → Archivé")],
+      timeline: [
+        ev(daysFromNow(-200), "creation", "u-gest2", "Dossier créé"),
+        msg(daysFromNow(-80, 15), "u-expert", "Rapport de valeur finalisé : VRADE réévaluée à 14 200 €.", ["admin", "gestionnaire"], doc("Rapport de valeur.pdf", "rapport", "u-expert", daysFromNow(-80, 15), "1,4 Mo")),
+        msg(daysFromNow(-70, 10), "u-admin", "Bonjour M. Vidal, un accord a été trouvé avec la Mutuelle du Centre. Votre dossier est clôturé.", ["client"]),
+        ev(daysFromNow(-60), "status", "u-admin", "Statut → Archivé"),
+      ],
       cloture: { motif: "Accord trouvé", at: daysFromNow(-70) },
     },
   ]
-  return all.map(withConsultations)
+  return all.map(withAttachments).map(withConsultations)
 }
 
 /** Étapes du workflow par type — utilisé pour la frise de progression */

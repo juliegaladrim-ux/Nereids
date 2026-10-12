@@ -2,19 +2,17 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { AlertTriangle, Archive, ArrowRight, CalendarClock, ChevronRight, FolderOpen, Users, Zap, UserPlus, X } from "lucide-react"
+import { AlertTriangle, ArrowRight, CalendarClock, ChevronRight, FolderOpen, Zap, UserPlus, X } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
 import { LateBadge, StatusBadge } from "@/components/status-badge"
-import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ACTOR_LABELS,
   DOSSIER_TYPES,
-  USERS,
   fullName,
   getUser,
   hasUpcomingExpertise,
@@ -37,7 +35,6 @@ export function AdminDashboard() {
   const upcoming = active
     .filter((d) => hasUpcomingExpertise(d, 7))
     .sort((a, b) => a.expertise.date!.localeCompare(b.expertise.date!))
-  const toClose = dossiers.filter((d) => d.status === "cloture")
 
   // Priorités : à assigner d'abord, puis retards
   const priorities: Dossier[] = [...toAssign, ...late.filter((d) => !needsAssignment(d))]
@@ -53,11 +50,6 @@ export function AdminDashboard() {
   }
   const view = filter ? views[filter] : null
   const list = view ? view.list : priorities
-
-  const gestionnaires = USERS.filter((u) => u.role === "gestionnaire").map((g) => {
-    const mine = active.filter((d) => d.intervenants.gestionnaire === g.id)
-    return { g, total: mine.length, late: mine.filter(isLate).length }
-  })
 
   return (
     <>
@@ -186,49 +178,6 @@ export function AdminDashboard() {
               )}
             </CardContent>
           </Card>
-
-          {/* Charge par gestionnaire */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <Users />
-                Charge par gestionnaire
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-3">
-                {gestionnaires.map(({ g, total, late }) => (
-                  <li key={g.id} className="flex items-center gap-3 text-sm">
-                    <UserAvatar user={g} />
-                    <span className="flex-1 truncate">{fullName(g)}</span>
-                    {late > 0 && (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">
-                        <AlertTriangle className="size-3.5" />
-                        {late}
-                      </span>
-                    )}
-                    <span className="w-6 text-right font-bold tabular-nums">{total}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-
-          {toClose.length > 0 && (
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>
-                  <Archive />
-                  {toClose.length} à archiver
-                </CardTitle>
-                <CardAction>
-                  <Button size="sm" variant="outline" render={<Link href={href("dossiers?vue=clotures")} />} nativeButton={false}>
-                    Voir
-                  </Button>
-                </CardAction>
-              </CardHeader>
-            </Card>
-          )}
         </div>
       </div>
     </>
