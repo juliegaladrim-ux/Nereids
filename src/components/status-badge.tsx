@@ -54,7 +54,8 @@ export function LateBadge({ days, className }: { days: number; className?: strin
   )
 }
 
-const VALIDATION_TONE: Record<ValidationState, StatusTone> = { ok: "done", en_attente: "waiting", a_faire: "alert" }
+// Orange plus vif que celui des statuts « En attente » : sur une simple pastille, il tirait sur le marron
+const VALIDATION_DOT: Record<ValidationState, string> = { ok: "bg-tone-done", en_attente: "bg-orange-500", a_faire: "bg-tone-alert" }
 
 /** Voyants M / D / R : mission signée, devis signé, règlement reçu */
 export function ValidationPills({ validation, className }: { validation: ClientValidation; className?: string }) {
@@ -75,7 +76,7 @@ export function ValidationPills({ validation, className }: { validation: ClientV
                 />
               }
             >
-              <span className={cn("size-2 rounded-full", DOT_CLASSES[VALIDATION_TONE[state]])} />
+              <span className={cn("size-2 rounded-full", VALIDATION_DOT[state])} />
               {it.letter}
             </TooltipTrigger>
             <TooltipContent>{text}</TooltipContent>
