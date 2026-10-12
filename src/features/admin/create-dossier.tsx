@@ -589,7 +589,7 @@ export function CreateDossier() {
               </ul>
 
               <Button size="lg" className="w-full" onClick={submit}>
-                {horsRecours ? "Enregistrer hors périmètre" : "Créer le dossier"}
+                {horsRecours ? "Enregistrer" : "Créer le dossier"}
               </Button>
             </CardContent>
           </Card>

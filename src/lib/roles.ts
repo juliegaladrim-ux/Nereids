@@ -48,7 +48,7 @@ export const ROLES: Role[] = [
     home: "tableau-de-bord",
     nav: [
       { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
-      { label: "Dossiers", path: "dossiers", icon: FolderOpen },
+      { label: "Dossiers en cours", path: "dossiers", icon: FolderOpen },
       { label: "Archives", path: "archives", icon: Archive },
       { label: "Utilisateurs", path: "utilisateurs", icon: Users },
     ],
