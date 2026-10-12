@@ -147,30 +147,31 @@ export function AdminDashboard() {
             <CardHeader>
               <CardTitle>
                 <CalendarClock />
-                Expertises · 7 jours
+                Prochaines expertises
               </CardTitle>
             </CardHeader>
             <CardContent>
               {upcoming.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucune expertise programmée.</p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-1">
                   {upcoming.map((d) => (
                     <li key={d.id}>
-                      <Link href={href(`dossiers/${d.id}`)} className="group flex gap-3">
+                      <Link href={href(`dossiers/${d.id}`)} className="group flex items-center gap-3 rounded-lg -mx-2 p-2 transition-colors hover:bg-muted/60">
                         <div className="grid w-12 shrink-0 place-items-center rounded-lg bg-brand-soft py-1.5 text-brand-ink text-center leading-tight">
                           <span className="text-[0.65rem] font-semibold uppercase">
                             {new Date(d.expertise.date!).toLocaleDateString("fr-FR", { month: "short" })}
                           </span>
                           <span className="text-lg font-bold">{new Date(d.expertise.date!).getDate()}</span>
                         </div>
-                        <div className="min-w-0 text-sm">
+                        <div className="min-w-0 flex-1 text-sm">
                           <p className="font-semibold group-hover:text-brand-ink">
                             {d.client.firstName} {d.client.lastName}
                           </p>
                           <p className="text-muted-foreground first-letter:uppercase">{formatLongDate(d.expertise.date)}</p>
                           <p className="truncate text-muted-foreground">{fullName(getUser(d.intervenants.expert))}</p>
                         </div>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                       </Link>
                     </li>
                   ))}

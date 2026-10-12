@@ -869,7 +869,7 @@ export function seedDossiers(): Dossier[] {
         quiDoitAgir: "client",
         echeance: daysFromNow(-4),
       },
-      expertise: { convoques: [] },
+      expertise: { date: daysFromNow(3, 10), lieu: "14 allée des Tilleuls, 42100 Saint-Étienne", convoques: ["u-c-fontaine", "u-expert3"] },
       documents: [doc("Photo portière.jpg", "photos", "u-c-fontaine", daysFromNow(-30), "3,0 Mo")],
       timeline: [
         ev(daysFromNow(-30), "creation", "u-gest3", "Dossier créé"),
@@ -930,7 +930,7 @@ export function seedDossiers(): Dossier[] {
         quiDoitAgir: "expert",
         echeance: daysFromNow(3),
       },
-      expertise: { convoques: [] },
+      expertise: { date: daysFromNow(4, 14), lieu: "Carrosserie Chevalier, 233 rue de la Rive, 42320 La Grand-Croix", convoques: ["u-c-caron", "u-expert2", "u-rep2"] },
       documents: [doc("Facture d'achat.pdf", "facture_achat", "u-c-caron", daysFromNow(-6))],
       timeline: [
         ev(daysFromNow(-6), "creation", "u-gest", "Dossier créé", "Vice caché suspecté après achat d'occasion."),

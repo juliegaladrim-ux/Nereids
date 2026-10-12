@@ -12,7 +12,9 @@ import {
   Download,
   Eye,
   FilePlus2,
+  FileText,
   FolderPlus,
+  ImageIcon,
   MessageSquare,
   Paperclip,
   Send,
@@ -29,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
-import { ACTOR_LABELS, fullName, getUser, type Dossier, type TimelineEvent, type TimelineKind } from "@/lib/data"
+import { ACTOR_LABELS, DOC_CATEGORIES, fullName, getUser, type Dossier, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -199,18 +201,23 @@ function Attachments({ dossier, event }: { dossier: Dossier; event: TimelineEven
   const docs = (event.docIds ?? []).map((id) => dossier.documents.find((d) => d.id === id)).filter((d) => !!d)
   if (!docs.length) return null
   return (
-    <div className="mt-1.5 flex flex-wrap gap-1.5">
+    <div className="mt-2 flex flex-wrap gap-2">
       {docs.map((doc) => (
-        <button
-          key={doc.id}
-          onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}
-          className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs transition-colors hover:bg-muted"
-        >
-          <Paperclip className="size-3 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium">{doc.name}</span>
-          <span className="shrink-0 text-muted-foreground">{doc.size}</span>
-          <Download className="size-3 shrink-0 text-muted-foreground" />
-        </button>
+        <div key={doc.id} className="flex max-w-full min-w-0 items-center gap-3 rounded-xl border bg-card py-2 pr-2 pl-2.5 sm:max-w-sm">
+          {/* Même aspect que les lignes de l'onglet Documents */}
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
+            {doc.category === "photos" ? <ImageIcon className="size-4 text-muted-foreground" /> : <FileText className="size-4 text-muted-foreground" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{doc.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {DOC_CATEGORIES[doc.category]} · {doc.size}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
+            <Download />
+          </Button>
+        </div>
       ))}
     </div>
   )
