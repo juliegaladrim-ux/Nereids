@@ -407,16 +407,16 @@ export function DossierDetail({ id }: { id: string }) {
       {isClient && !d.clientAccess?.submittedAt && d.clientAccess && (
         <Link
           href={`/activation/${d.id}${d.clientAccess.activatedAt ? "?etape=infos" : ""}`}
-          className="mb-6 flex items-center gap-4 rounded-xl border border-primary/30 bg-primary-soft p-4 transition-colors hover:border-primary"
+          className="mb-6 flex items-center gap-4 rounded-xl border border-brand/30 bg-brand-soft p-4 transition-colors hover:border-brand"
         >
-          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground [&_svg]:size-5">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-primary-foreground [&_svg]:size-5">
             <Mail />
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-semibold">Complétez votre dossier</p>
             <p className="text-sm text-muted-foreground">Vérifiez vos informations et envoyez vos documents.</p>
           </div>
-          <span className="text-sm font-semibold text-primary">Compléter</span>
+          <span className="text-sm font-semibold text-brand-ink">Compléter</span>
         </Link>
       )}
 
@@ -553,15 +553,15 @@ function Progress({ dossier }: { dossier: Dossier }) {
       <div className="relative mx-2.5" style={{ minWidth: steps.length * 80 }}>
         <div className="relative h-3">
           <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-2 border-dotted border-border" />
-          <span className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 bg-primary" style={{ width: at(current) }} />
+          <span className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 bg-brand" style={{ width: at(current) }} />
           {steps.map((s, i) => (
             <span
               key={s.label}
               className={cn(
                 "absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full",
                 i === current && !done
-                  ? "size-3 border-2 border-primary bg-card ring-4 ring-primary/15"
-                  : cn("size-2", i <= current ? "bg-primary" : "bg-border"),
+                  ? "size-3 border-2 border-brand bg-card ring-4 ring-brand/15"
+                  : cn("size-2", i <= current ? "bg-brand" : "bg-border"),
               )}
               style={{ left: at(i) }}
             />
@@ -688,8 +688,8 @@ function Intervenants({
 function SuiveurRequestBanner({ request: r, onCreate, onRefuse }: { request: SuiveurRequest; onCreate: () => void; onRefuse: () => void }) {
   const author = getUser(r.requestedBy)
   return (
-    <div className="mb-6 flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft p-4 sm:flex-row sm:items-center sm:gap-4">
-      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground [&_svg]:size-5">
+    <div className="mb-6 flex flex-col gap-3 rounded-xl border border-brand/30 bg-brand-soft p-4 sm:flex-row sm:items-center sm:gap-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-primary-foreground [&_svg]:size-5">
         <UserPlus />
       </span>
       <div className="min-w-0 flex-1">
@@ -764,7 +764,7 @@ function General({
     <span className="flex flex-wrap items-center gap-x-2">
       <span className="text-muted-foreground">Pas de compte</span>
       {onInviteClient && (
-        <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={onInviteClient}>
+        <button type="button" className="font-medium text-brand-ink underline-offset-2 hover:underline" onClick={onInviteClient}>
           Inviter le client
         </button>
       )}

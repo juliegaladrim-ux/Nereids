@@ -215,7 +215,7 @@ function Notifications() {
                     {n.dossier} · {relativeDays(n.at)}
                   </p>
                 </div>
-                {n.unread && (!read || n.toDo) && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />}
+                {n.unread && (!read || n.toDo) && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" />}
               </button>
             </li>
           ))}

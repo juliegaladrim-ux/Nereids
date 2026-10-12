@@ -106,7 +106,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
               {VIEWS.map((v) => (
                 <TabsTrigger key={v.id} value={v.id} className="px-3">
                   {v.label}
-                  <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-primary">
+                  <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-brand-ink">
                     {counts[v.id]}
                   </span>
                 </TabsTrigger>
@@ -221,7 +221,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                     <StatusBadge status={d.status as StatusId} />
                     {isLate(d) && <LateBadge days={lateDays(d)} />}
                     {needsAssignment(d) && (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary"><UserPlus className="size-3.5" />À assigner</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-ink"><UserPlus className="size-3.5" />À assigner</span>
                     )}
                   </div>
                 </TableCell>

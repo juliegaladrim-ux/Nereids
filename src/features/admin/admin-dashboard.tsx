@@ -119,7 +119,7 @@ export function AdminDashboard() {
                           <span className="text-sm text-muted-foreground">{DOSSIER_TYPES[d.type].short}</span>
                         </div>
                         <p className="mt-1.5 flex items-center gap-1.5 text-sm">
-                          <ArrowRight className="size-3.5 shrink-0 text-primary" />
+                          <ArrowRight className="size-3.5 shrink-0 text-brand-ink" />
                           <span className="font-medium">{d.pilotage.prochaineAction}</span>
                           <span className="text-muted-foreground">· {ACTOR_LABELS[d.pilotage.quiDoitAgir]}</span>
                         </p>
@@ -132,7 +132,7 @@ export function AdminDashboard() {
                           </span>
                         )}
                         {needsAssignment(d) ? (
-                          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-primary-soft px-2.5 text-xs font-semibold text-primary">
+                          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-brand-soft px-2.5 text-xs font-semibold text-brand-ink">
                             <UserPlus className="size-3.5" />
                             À assigner
                           </span>
@@ -166,14 +166,14 @@ export function AdminDashboard() {
                   {upcoming.map((d) => (
                     <li key={d.id}>
                       <Link href={href(`dossiers/${d.id}`)} className="group flex gap-3">
-                        <div className="grid w-12 shrink-0 place-items-center rounded-lg bg-primary-soft py-1.5 text-primary text-center leading-tight">
+                        <div className="grid w-12 shrink-0 place-items-center rounded-lg bg-brand-soft py-1.5 text-brand-ink text-center leading-tight">
                           <span className="text-[0.65rem] font-semibold uppercase">
                             {new Date(d.expertise.date!).toLocaleDateString("fr-FR", { month: "short" })}
                           </span>
                           <span className="text-lg font-bold">{new Date(d.expertise.date!).getDate()}</span>
                         </div>
                         <div className="min-w-0 text-sm">
-                          <p className="font-semibold group-hover:text-primary">
+                          <p className="font-semibold group-hover:text-brand-ink">
                             {d.client.firstName} {d.client.lastName}
                           </p>
                           <p className="text-muted-foreground first-letter:uppercase">{formatLongDate(d.expertise.date)}</p>
@@ -260,7 +260,7 @@ function Kpi({
       className={cn(
         "group flex cursor-pointer items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-foreground/30",
         tone === "danger" && "border-destructive/40",
-        tone === "primary" && "border-primary/40",
+        tone === "primary" && "border-brand/40",
         selected && "border-foreground ring-1 ring-foreground hover:border-foreground",
       )}
     >
@@ -268,7 +268,7 @@ function Kpi({
         className={cn(
           "grid size-11 shrink-0 place-items-center rounded-full bg-muted text-foreground",
           tone === "danger" && "bg-destructive/10 text-destructive",
-          tone === "primary" && "bg-primary-soft text-primary",
+          tone === "primary" && "bg-brand-soft text-brand-ink",
         )}
       >
         <Icon className="size-5" />
@@ -278,7 +278,7 @@ function Kpi({
           className={cn(
             "block text-3xl leading-none font-bold tabular-nums",
             tone === "danger" && "text-destructive",
-            tone === "primary" && "text-primary",
+            tone === "primary" && "text-brand-ink",
           )}
         >
           {value}

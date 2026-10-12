@@ -11,7 +11,7 @@ export function UserAvatar({
 }) {
   return (
     <Avatar className={cn("size-7", className)}>
-      <AvatarFallback className="bg-primary/10 text-[0.7rem] font-medium text-primary">
+      <AvatarFallback className="bg-brand/10 text-[0.7rem] font-medium text-brand-ink">
         {user ? initials(user.firstName, user.lastName) : "?"}
       </AvatarFallback>
     </Avatar>

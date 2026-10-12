@@ -73,7 +73,7 @@ export function SuiveurDossiers() {
             ).map(([id, label]) => (
               <TabsTrigger key={id} value={id} className="px-3">
                 {label}
-                <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-primary">
+                <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-brand-ink">
                   {counts[id]}
                 </span>
               </TabsTrigger>
@@ -151,7 +151,7 @@ export function SuiveurDossiers() {
           const last = lastActivity(d)
           return (
             <li key={d.id}>
-              <Link href={href(`dossiers/${d.id}`)} className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50">
+              <Link href={href(`dossiers/${d.id}`)} className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-brand/50">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <p className="font-semibold">

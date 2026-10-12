@@ -40,12 +40,12 @@ export default function Home() {
             <div key={role.id} className="flex flex-col overflow-hidden rounded-xl border bg-card">
               <Link
                 href={`/${role.id}/${role.home}`}
-                className="group flex items-center justify-between gap-3 p-5 transition-colors hover:bg-primary/[0.03]"
+                className="group flex items-center justify-between gap-3 p-5 transition-colors hover:bg-brand/[0.03]"
               >
                 <span className="font-medium">{role.label}</span>
                 <div className="flex items-center gap-3">
                   {role.ready ? <Badge>Espace disponible</Badge> : <Badge variant="secondary">Espace vide</Badge>}
-                  <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                  <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand-ink" />
                 </div>
               </Link>
               {/* Parcours propres à ce profil, rangés avec lui */}
@@ -53,15 +53,15 @@ export default function Home() {
                 <ul className="border-t px-2 py-2">
                   {parcours.map((p) => (
                     <li key={p.href}>
-                      <Link href={p.href} className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-primary/[0.04]">
-                        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary-soft text-primary">
+                      <Link href={p.href} className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-brand/[0.04]">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-brand-soft text-brand-ink">
                           <p.icon className="size-4" />
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium">{p.title}</p>
                           <p className="text-xs text-muted-foreground">{p.description}</p>
                         </div>
-                        <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                        <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand-ink" />
                       </Link>
                     </li>
                   ))}

@@ -72,8 +72,8 @@ function DossierCard({ d }: { d: Dossier }) {
     <Link
       href={href(`dossiers/${d.id}`)}
       className={cn(
-        "group flex items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 sm:p-5",
-        todo && "border-primary/30",
+        "group flex items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-brand/50 sm:p-5",
+        todo && "border-brand/30",
       )}
     >
       <div className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ function DossierCard({ d }: { d: Dossier }) {
         <div className="mt-3 flex items-center gap-3">
           <div className="flex gap-1" aria-hidden>
             {CLIENT_STEPS.map((s, i) => (
-              <span key={s.label} className={cn("h-1.5 w-6 rounded-full sm:w-8", i <= stepIndex ? "bg-primary" : "bg-border")} />
+              <span key={s.label} className={cn("h-1.5 w-6 rounded-full sm:w-8", i <= stepIndex ? "bg-brand" : "bg-border")} />
             ))}
           </div>
           <span className="text-sm font-medium">
@@ -100,14 +100,14 @@ function DossierCard({ d }: { d: Dossier }) {
         </div>
 
         {todo ? (
-          <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-primary-soft px-2.5 py-1 text-sm font-semibold text-primary">
-            <span className="size-1.5 rounded-full bg-primary" />À faire : {todo}
+          <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-brand-soft px-2.5 py-1 text-sm font-semibold text-brand-ink">
+            <span className="size-1.5 rounded-full bg-brand" />À faire : {todo}
           </p>
         ) : (
           !closed && <p className="mt-3 text-sm text-muted-foreground">Rien à faire de votre côté · mis à jour le {formatDate(d.updatedAt)}</p>
         )}
       </div>
-      <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+      <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand-ink" />
     </Link>
   )
 }

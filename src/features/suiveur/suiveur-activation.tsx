@@ -95,7 +95,7 @@ function Flow({ user, activated, initialStep }: { user: User; activated: boolean
             </span>
             <div className="flex gap-1">
               {NUMBERED.map((s, i) => (
-                <span key={s} className={cn("h-1.5 w-6 rounded-full", i <= index ? "bg-primary" : "bg-border")} />
+                <span key={s} className={cn("h-1.5 w-6 rounded-full", i <= index ? "bg-brand" : "bg-border")} />
               ))}
             </div>
           </div>

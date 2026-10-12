@@ -9,7 +9,7 @@ export function Immat({ value, className }: { value: string; className?: string 
         className,
       )}
     >
-      <span className="grid w-3 place-items-center bg-primary text-[0.5rem] leading-none font-bold text-primary-foreground">F</span>
+      <span className="grid w-3 place-items-center bg-brand text-[0.5rem] leading-none font-bold text-primary-foreground">F</span>
       <span className="flex items-center px-1.5 uppercase tabular-nums">{value}</span>
     </span>
   )

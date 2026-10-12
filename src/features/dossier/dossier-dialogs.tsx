@@ -316,7 +316,7 @@ export function AddDocDialog({
           <button
             type="button"
             onClick={() => setFile(cat ? `${DOC_CATEGORIES[cat as DocCategory]} — ${dossier.vehicule.immat}.pdf` : "Document.pdf")}
-            className="flex flex-col items-center gap-1 rounded-lg border border-dashed px-4 py-8 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-primary/[0.03]"
+            className="flex flex-col items-center gap-1 rounded-lg border border-dashed px-4 py-8 text-sm text-muted-foreground transition-colors hover:border-brand hover:bg-brand/[0.03]"
           >
             {file ? (
               <span className="font-medium text-foreground">{file}</span>

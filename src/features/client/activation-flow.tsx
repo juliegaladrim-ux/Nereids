@@ -151,7 +151,7 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
               </span>
               <div className="flex gap-1">
                 {NUMBERED.map((s, i) => (
-                  <span key={s} className={cn("h-1.5 w-6 rounded-full", i <= index ? "bg-primary" : "bg-border")} />
+                  <span key={s} className={cn("h-1.5 w-6 rounded-full", i <= index ? "bg-brand" : "bg-border")} />
                 ))}
               </div>
             </div>
@@ -324,7 +324,7 @@ export function InfoBlock({
   return (
     <section className="rounded-xl border bg-card">
       <div className="flex items-center gap-3 border-b px-4 py-3">
-        <span className="text-primary [&_svg]:size-5">{icon}</span>
+        <span className="text-brand-ink [&_svg]:size-5">{icon}</span>
         <h2 className="font-semibold">{title}</h2>
         <Button variant={editing ? "secondary" : "ghost"} size="sm" className="ml-auto" onClick={onEdit}>
           {editing ? <Check /> : <Pencil />}
@@ -615,7 +615,7 @@ export function StepLayout({
 }) {
   return (
     <>
-      <span className="grid size-11 place-items-center rounded-xl bg-primary-soft text-primary [&_svg]:size-5">{icon}</span>
+      <span className="grid size-11 place-items-center rounded-xl bg-brand-soft text-brand-ink [&_svg]:size-5">{icon}</span>
       <h1 className="mt-4 text-2xl font-bold tracking-tight">{title}</h1>
       {subtitle && <p className="mt-1 text-[15px] text-muted-foreground">{subtitle}</p>}
       <div className="mt-6">{children}</div>

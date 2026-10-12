@@ -268,7 +268,7 @@ export function CreateDossier() {
   }
 
   const sectionNum = (n: number) => (
-    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{n}</span>
+    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand/10 text-xs font-semibold text-brand-ink">{n}</span>
   )
 
   return (
@@ -622,10 +622,10 @@ function ChoiceCard({
       className={cn(
         "flex flex-col items-start gap-1 rounded-lg border bg-background text-left transition-colors hover:border-foreground/30",
         compact ? "p-3" : "p-4",
-        selected && "border-primary bg-primary/[0.04] ring-1 ring-primary hover:border-primary",
+        selected && "border-brand bg-brand/[0.04] ring-1 ring-brand hover:border-brand",
       )}
     >
-      {icon && <span className={cn("mb-1 text-muted-foreground", selected && "text-primary")}>{icon}</span>}
+      {icon && <span className={cn("mb-1 text-muted-foreground", selected && "text-brand-ink")}>{icon}</span>}
       <span className="text-sm font-medium">{title}</span>
       {description && <span className="text-xs text-muted-foreground">{description}</span>}
     </button>

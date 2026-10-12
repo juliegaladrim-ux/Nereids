@@ -96,14 +96,14 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
         {showNext && (
           <li className="relative flex gap-3 pb-5">
             {events.length > 0 && <span className="absolute top-8 bottom-0 left-[15px] border-l border-dashed" />}
-            <span className="z-10 grid size-8 shrink-0 place-items-center rounded-full border border-dashed border-primary/50 bg-background">
-              <CircleDashed className="size-3.5 text-primary" />
+            <span className="z-10 grid size-8 shrink-0 place-items-center rounded-full border border-dashed border-brand/50 bg-background">
+              <CircleDashed className="size-3.5 text-brand-ink" />
             </span>
             <div className="min-w-0 flex-1 pt-1 text-sm">
               <p>
                 <span className="font-medium">À venir : {dossier.pilotage.prochaineAction}</span>{" "}
                 {yourTurn ? (
-                  <span className="font-semibold text-primary">· À vous d&apos;agir</span>
+                  <span className="font-semibold text-brand-ink">· À vous d&apos;agir</span>
                 ) : (
                   <span className="text-muted-foreground">· {ACTOR_LABELS[quiDoitAgir]}</span>
                 )}

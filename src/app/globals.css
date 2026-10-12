@@ -37,6 +37,9 @@
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -67,44 +70,55 @@
 }
 
 :root {
-  /* DA Nereids v1 — Figtree, primaire #0033ff, contraste élevé */
-  --background: #f3f4f7;
-  --foreground: #0e1324;
-  --card: #ffffff;
-  --card-foreground: #0e1324;
-  --popover: #ffffff;
-  --popover-foreground: #0e1324;
-  --primary: #0033ff;
-  --primary-hover: #0029cc;
-  --primary-soft: #e8edff;
-  --primary-foreground: #ffffff;
-  --secondary: #eceef3;
-  --secondary-foreground: #0e1324;
-  --muted: #f0f1f5;
-  --muted-foreground: #535a6b;
-  --accent: #eceef3;
-  --accent-foreground: #0e1324;
-  --destructive: #d92d20;
-  --border: #dde0e7;
-  --input: #c4c9d4;
-  --ring: #0033ff;
-  --chart-1: #0033ff;
-  --chart-2: #5c7cff;
-  --chart-3: #a3b5ff;
-  --chart-4: #535a6b;
-  --chart-5: #c4c9d4;
-  --radius: 0.5rem;
-  --sidebar: #f3f4f7;
-  --sidebar-foreground: #0e1324;
-  --sidebar-primary: #0033ff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e6e8ee;
-  --sidebar-accent-foreground: #0e1324;
-  --sidebar-border: #dde0e7;
-  --sidebar-ring: #0033ff;
+  /*
+   * DA Nereids (charte) — bleu #749BA9, noir #1D1D1B, blanc.
+   * Deux versions testables (sélecteur dans la barre proto, ou ?da=bleu / ?da=noir) :
+   *   - « bleu » (défaut) : boutons bleus
+   *   - « noir »          : boutons noirs, détails bleus
+   * Les détails (liens, icônes, étapes, cases cochées, onglets actifs…) utilisent
+   * toujours --brand / --brand-ink ; seuls les boutons principaux (--primary) changent.
+   */
+  --brand: #749ba9;
+  --brand-ink: #456c7a; /* bleu foncé pour le texte : contraste AA sur blanc */
+  --brand-soft: #ebf1f3;
 
-  --tone-new: #0033ff;
-  --tone-new-bg: #e8edff;
+  --background: #f4f5f5;
+  --foreground: #1d1d1b;
+  --card: #ffffff;
+  --card-foreground: #1d1d1b;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1b;
+  --primary: #749ba9;
+  --primary-hover: #5f8796;
+  --primary-soft: var(--brand-soft);
+  --primary-foreground: #ffffff;
+  --secondary: #ecedee;
+  --secondary-foreground: #1d1d1b;
+  --muted: #f0f1f1;
+  --muted-foreground: #5a5d5f;
+  --accent: #ecedee;
+  --accent-foreground: #1d1d1b;
+  --destructive: #d92d20;
+  --border: #dee0e1;
+  --input: #c5c9cb;
+  --ring: var(--brand);
+  --chart-1: #456c7a;
+  --chart-2: #749ba9;
+  --chart-3: #b4cad2;
+  --chart-4: #5a5d5f;
+  --chart-5: #c5c9cb;
+  --radius: 0.5rem;
+  --sidebar: #f4f5f5;
+  --sidebar-foreground: #1d1d1b;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8eaeb;
+  --sidebar-accent-foreground: #1d1d1b;
+  --sidebar-border: #dee0e1;
+  --sidebar-ring: var(--brand);
+
+  --tone-new: #456c7a;
+  --tone-new-bg: #ebf1f3;
   --tone-progress: #0b6e8a;
   --tone-progress-bg: #e0f4f8;
   --tone-waiting: #9a5b00;
@@ -115,8 +129,15 @@
   --tone-final-bg: #f1e9ff;
   --tone-done: #08784a;
   --tone-done-bg: #e2f6ec;
-  --tone-muted: #535a6b;
-  --tone-muted-bg: #eceef3;
+  --tone-muted: #5a5d5f;
+  --tone-muted-bg: #ecedee;
+}
+
+/* Version « boutons noirs, détails bleus » */
+:root[data-da="noir"] {
+  --primary: #1d1d1b;
+  --primary-hover: #3a3a37;
+  --sidebar-primary: #1d1d1b;
 }
 
 .dark {
@@ -126,9 +147,12 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #5c7cff;
-  --primary-hover: #7a94ff;
-  --primary-soft: oklch(0.3 0.08 265);
+  --brand: #8fb1bd;
+  --brand-ink: #a9c4cd;
+  --brand-soft: oklch(0.3 0.03 220);
+  --primary: #749ba9;
+  --primary-hover: #8fb1bd;
+  --primary-soft: var(--brand-soft);
   --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
