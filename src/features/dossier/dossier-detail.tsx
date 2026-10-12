@@ -25,7 +25,7 @@ import {
 
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
-import { LateBadge, StatusBadge } from "@/components/status-badge"
+import { LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,6 +47,7 @@ import {
   SINISTRE_TYPES,
   SUIVEUR_QUALITES,
   WORKFLOW_STEPS,
+  clientValidation,
   compagnieLabel,
   expectedDocs,
   fullName,
@@ -345,6 +346,12 @@ export function DossierDetail({ id }: { id: string }) {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge status={d.status} />
               {late && showDeadline && <LateBadge days={lateDays(d)} />}
+              {rights.pilot && (
+                <>
+                  <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+                  <ValidationPills validation={clientValidation(d)} />
+                </>
+              )}
             </div>
           </div>
 
@@ -908,7 +915,7 @@ function Documents({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuItem onClick={() => onEditDoc(doc.id)}>
-                        <Pencil /> Renommer / reclasser
+                        <Pencil /> Renommer
                       </DropdownMenuItem>
                       <DropdownMenuItem variant="destructive" onClick={() => onDeleteDoc(doc.id)}>
                         <Trash2 /> Supprimer

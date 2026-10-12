@@ -259,6 +259,26 @@ export type Dossier = {
   suiveurRequests?: SuiveurRequest[]
   /** Référence de chaque intervenant suiveur dans son propre outil (réf. PJ, réf. cabinet), par userId */
   suiveurRefs?: Record<string, string>
+  /** Validation client (mission / devis / règlement) — alimentée par les automatisations ; absente = déduite du statut */
+  validation?: ClientValidation
+}
+
+/** rouge = rien d'envoyé · orange = envoyé, en attente · vert = signé / reçu */
+export type ValidationState = "a_faire" | "en_attente" | "ok"
+export type ClientValidation = { mission: ValidationState; devis: ValidationState; reglement: ValidationState }
+
+export const VALIDATION_ITEMS = [
+  { key: "mission", letter: "M", label: "Mission", done: "signée", pending: "envoyée, en attente de signature", todo: "non envoyée" },
+  { key: "devis", letter: "D", label: "Devis", done: "signé", pending: "envoyé, en attente de signature", todo: "non envoyé" },
+  { key: "reglement", letter: "R", label: "Règlement", done: "reçu", pending: "en attente", todo: "non demandé" },
+] as const
+
+export function clientValidation(d: Dossier): ClientValidation {
+  if (d.validation) return d.validation
+  // Par défaut : un dossier nouveau attend la signature de mission, les autres sont validés
+  return d.status === "nouveau"
+    ? { mission: "en_attente", devis: "a_faire", reglement: "a_faire" }
+    : { mission: "ok", devis: "ok", reglement: "ok" }
 }
 
 export const SUIVEUR_QUALITES = ["Avocat", "Protection juridique", "Autre"] as const
@@ -532,6 +552,7 @@ export function seedDossiers(): Dossier[] {
       refs: { interne: "HY-3290", expert: "GAR-26-051" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert2", suiveurs: [] },
+      validation: { mission: "ok", devis: "ok", reglement: "en_attente" },
       pilotage: {
         ouEnEst: "L'expert a étudié le dossier : il manque l'historique d'entretien.",
         attente: "Factures d'entretien du véhicule",
@@ -609,6 +630,8 @@ export function seedDossiers(): Dossier[] {
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", suiveurs: ["u-suiveur"] },
       suiveurRefs: { "u-suiveur": "PJ-55-2026-1209" },
+      // Expertise complémentaire nécessaire : nouveau devis envoyé, règlement pas encore demandé
+      validation: { mission: "ok", devis: "en_attente", reglement: "a_faire" },
       pilotage: {
         ouEnEst: "Expertise contradictoire réalisée, PV déposé.",
         attente: "Pré-rapport de l'expert (attendu à +48 h)",
