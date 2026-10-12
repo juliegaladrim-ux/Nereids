@@ -70,12 +70,12 @@ export function ValidationPills({ validation, className }: { validation: ClientV
                 <span
                   aria-label={text}
                   className={cn(
-                    "inline-grid size-7 cursor-default place-items-center rounded-full text-sm font-bold text-background",
-                    DOT_CLASSES[VALIDATION_TONE[state]],
+                    "inline-flex h-6 cursor-default items-center gap-1.5 rounded-full border bg-card px-2 text-xs font-semibold",
                   )}
                 />
               }
             >
+              <span className={cn("size-2 rounded-full", DOT_CLASSES[VALIDATION_TONE[state]])} />
               {it.letter}
             </TooltipTrigger>
             <TooltipContent>{text}</TooltipContent>
