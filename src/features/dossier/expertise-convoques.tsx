@@ -7,7 +7,7 @@ import { Building2, Copy, Hash, Mail, MapPin, Phone, UserRound } from "lucide-re
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { fullName, getUser, type Dossier, type User } from "@/lib/data"
+import { convocationSent, defaultConvoques, fullName, getUser, type Dossier, type User } from "@/lib/data"
 
 /** Ordre d'affichage : le client d'abord, puis ceux qui représentent ou accueillent */
 const ORDER: Record<string, number> = { client: 0, expert: 1, reparateur: 2, suiveur: 3, gestionnaire: 4, admin: 5 }
@@ -23,6 +23,7 @@ function roleLabel(u: User): string {
 
 /** Fiches des personnes convoquées à l'expertise : identité, rôle, coordonnées complètes */
 export function ConvoquesCard({ dossier: d }: { dossier: Dossier }) {
+  const sent = convocationSent(d)
   // Le client est toujours convoqué, qu'il ait un compte ou non : ses coordonnées viennent du dossier
   const clientUser = getUser(d.client.userId)
   const client: User = {
@@ -35,7 +36,7 @@ export function ConvoquesCard({ dossier: d }: { dossier: Dossier }) {
   }
   const people = [
     client,
-    ...d.expertise.convoques
+    ...(sent ? d.expertise.convoques : defaultConvoques(d))
       .map((id) => getUser(id))
       .filter((u): u is User => !!u && u.role !== "client")
       .sort((a, b) => ORDER[a.role] - ORDER[b.role]),
@@ -45,7 +46,7 @@ export function ConvoquesCard({ dossier: d }: { dossier: Dossier }) {
     <Card size="sm">
       <CardHeader>
         <CardTitle>
-          Personnes convoquées <span className="font-normal text-muted-foreground">· {people.length}</span>
+          {sent ? "Personnes convoquées" : "Personnes à convoquer"} <span className="font-normal text-muted-foreground">· {people.length}</span>
         </CardTitle>
       </CardHeader>
       <CardContent>

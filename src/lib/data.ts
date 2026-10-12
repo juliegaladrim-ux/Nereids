@@ -246,6 +246,7 @@ export type InternalNote = { id: string; at: string; author: string; body: strin
 export type Expertise = {
   date?: string // ISO
   lieu?: string
+  /** Personnes à qui la convocation a été envoyée — vide = convocation pas encore faite */
   convoques: string[]
   pvDocId?: string
   rapportDocId?: string
@@ -387,6 +388,13 @@ export function withConsultations(d: Dossier): Dossier {
   })
   return { ...d, timeline: [...timeline, ...visits] }
 }
+
+/** Convocation à l'expertise envoyée aux parties */
+export const convocationSent = (d: Dossier) => d.expertise.convoques.length > 0
+
+/** Personnes convoquées par défaut : client (s'il a un compte), réparateur, expert */
+export const defaultConvoques = (d: Dossier) =>
+  [d.client.userId, d.intervenants.reparateur, d.intervenants.expert].filter((u): u is string => !!u)
 
 export function isLate(d: Dossier): boolean {
   if (d.status === "cloture" || d.status === "archive") return false

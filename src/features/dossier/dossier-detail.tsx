@@ -28,7 +28,7 @@ import {
 
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
-import { LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
+import { ExpertiseBadge, LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,6 +51,8 @@ import {
   WORKFLOW_STEPS,
   clientValidation,
   compagnieLabel,
+  convocationSent,
+  defaultConvoques,
   docDate,
   expectedDocs,
   fullName,
@@ -365,6 +367,7 @@ export function DossierDetail({ id }: { id: string }) {
                 </>
               )}
             </div>
+            {rights.pilot && <ExpertiseBadge dossier={d} className="mt-2 max-w-xl" />}
           </div>
 
           {!rights.pilot ? (
@@ -1038,6 +1041,13 @@ function ExpertiseTab({ dossier: d, onEdit }: { dossier: Dossier; onEdit?: () =>
             ["Date", <span key="d" className="first-letter:uppercase">{formatLongDate(d.expertise.date)}</span>],
             ["Lieu", d.expertise.lieu],
             ["Statut", d.expertise.realisee ? "Réalisée" : `Prévue ${relativeDays(d.expertise.date)}`],
+            [
+              "Convocation",
+              <span key="c" className="inline-flex items-center gap-1.5">
+                <span className={cn("size-2 rounded-full", convocationSent(d) ? "bg-tone-done" : "bg-muted-foreground/40")} />
+                {convocationSent(d) ? "Envoyée" : "Pas encore envoyée"}
+              </span>,
+            ],
           ]}
           onEdit={onEdit}
         />
@@ -1303,11 +1313,23 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
           { key: "date", label: "Date et heure", type: "datetime" },
           { key: "realisee", label: "Statut", type: "select", options: [{ value: "non", label: "Prévue" }, { value: "oui", label: "Réalisée" }] },
           { key: "lieu", label: "Lieu", full: true },
+          { key: "convocation", label: "Convocation", type: "select", options: [{ value: "non", label: "Pas encore envoyée" }, { value: "oui", label: "Envoyée" }] },
         ],
-        initial: { date: toDateTimeInput(d.expertise.date), lieu: d.expertise.lieu ?? "", realisee: d.expertise.realisee ? "oui" : "non" },
+        initial: {
+          date: toDateTimeInput(d.expertise.date),
+          lieu: d.expertise.lieu ?? "",
+          realisee: d.expertise.realisee ? "oui" : "non",
+          convocation: convocationSent(d) ? "oui" : "non",
+        },
         onSave: save("Expertise", (x, v) => ({
           ...x,
-          expertise: { ...x.expertise, date: fromDateInput(v.date), lieu: opt(v.lieu), realisee: v.realisee === "oui" },
+          expertise: {
+            ...x.expertise,
+            date: fromDateInput(v.date),
+            lieu: opt(v.lieu),
+            realisee: v.realisee === "oui",
+            convoques: v.convocation === "oui" ? (convocationSent(x) ? x.expertise.convoques : defaultConvoques(x)) : [],
+          },
         })),
       }
     case "cloture":

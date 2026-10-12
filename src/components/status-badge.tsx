@@ -1,8 +1,8 @@
-import { Clock } from "lucide-react"
+import { CalendarDays, Clock } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { STATUSES, VALIDATION_ITEMS, type ClientValidation, type StatusId, type StatusTone, type ValidationState } from "@/lib/data"
+import { STATUSES, VALIDATION_ITEMS, convocationSent, type ClientValidation, type Dossier, type StatusId, type StatusTone, type ValidationState } from "@/lib/data"
 
 const TONE_CLASSES: Record<StatusTone, string> = {
   new: "bg-tone-new-bg text-tone-new",
@@ -84,5 +84,40 @@ export function ValidationPills({ validation, className }: { validation: ClientV
         )
       })}
     </span>
+  )
+}
+
+/** Rendez-vous d'expertise dans l'en-tête : point vert = convocation faite, gris = pas encore */
+export function ExpertiseBadge({ dossier: d, className }: { dossier: Dossier; className?: string }) {
+  const { date, lieu } = d.expertise
+  const sent = convocationSent(d)
+  const day = date ? new Date(date).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }) : null
+  const time = date ? new Date(date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null
+  const state = !date ? "Expertise non programmée" : sent ? "Convocation envoyée" : "Convocation pas encore envoyée"
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            aria-label={`Expertise — ${state}`}
+            className={cn("inline-flex h-6 max-w-full min-w-0 cursor-default items-center gap-1.5 rounded-md border bg-card px-2 text-xs", className)}
+          />
+        }
+      >
+        <span className={cn("size-2 shrink-0 rounded-full", sent && date ? "bg-tone-done" : "bg-muted-foreground/40")} />
+        <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" />
+        {date ? (
+          <>
+            <span className="shrink-0 font-semibold first-letter:uppercase">
+              {day} · {time}
+            </span>
+            {lieu && <span className="truncate text-muted-foreground">{lieu}</span>}
+          </>
+        ) : (
+          <span className="text-muted-foreground">Expertise non programmée</span>
+        )}
+      </TooltipTrigger>
+      <TooltipContent>{state}</TooltipContent>
+    </Tooltip>
   )
 }
