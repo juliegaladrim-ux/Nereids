@@ -21,7 +21,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AssignFields, type AssignValue } from "@/features/admin/create-dossier"
 import {
-  ACTIVE_STATUSES,
   CLOSING_REASONS,
   DOC_CATEGORIES,
   STATUSES,
@@ -53,6 +52,8 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
       ...d,
       status: s,
       pilotage: { ...p, echeance: p.delayDays ? daysFromNow(p.delayDays) : undefined },
+      // Réouverture : la clôture précédente ne s'applique plus
+      cloture: s === "cloture" || s === "archive" ? d.cloture : undefined,
     }))
     addEvent(dossier.id, { kind: "status", author: user.id, title: `Statut → ${STATUSES[s].label}`, body: obs || undefined })
     toast.success("Statut mis à jour", { description: "Les intervenants concernés ont été notifiés." })
@@ -78,7 +79,7 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
             <SimpleSelect
               value={status}
               onChange={setStatus}
-              options={ACTIVE_STATUSES.map((s) => ({ value: s, label: STATUSES[s].label }))}
+              options={(Object.keys(STATUSES) as StatusId[]).map((s) => ({ value: s, label: STATUSES[s].label }))}
             />
           </Field>
           <Field>
@@ -195,7 +196,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Assigner les intervenants</DialogTitle>
           <DialogDescription>
@@ -273,7 +274,13 @@ export function RelanceDialog({ dossier, open, onOpenChange }: DialogProps) {
 
 // ─── Ajouter un document ─────────────────────────────────────────────────────
 
-export function AddDocDialog({ dossier, open, onOpenChange, defaultCategory }: DialogProps & { defaultCategory?: DocCategory }) {
+export function AddDocDialog({
+  dossier,
+  open,
+  onOpenChange,
+  defaultCategory,
+  categories,
+}: DialogProps & { defaultCategory?: DocCategory; categories?: DocCategory[] }) {
   const { user } = useRole()
   const { updateDossier, addEvent } = useStore()
   const [cat, setCat] = React.useState<string | null>(defaultCategory ?? null)
@@ -322,7 +329,7 @@ export function AddDocDialog({ dossier, open, onOpenChange, defaultCategory }: D
           </button>
           <Field>
             <FieldLabel>Catégorie *</FieldLabel>
-            <SimpleSelect placeholder="Choisir une catégorie" value={cat} onChange={setCat} options={Object.entries(DOC_CATEGORIES).map(([value, label]) => ({ value, label }))} />
+            <SimpleSelect placeholder="Choisir une catégorie" value={cat} onChange={setCat} options={(categories ?? (Object.keys(DOC_CATEGORIES) as DocCategory[])).map((value) => ({ value, label: DOC_CATEGORIES[value] }))} />
           </Field>
           <div className="flex items-center gap-2">
             <Checkbox id="notify" checked={notify} onCheckedChange={(c) => setNotify(!!c)} />

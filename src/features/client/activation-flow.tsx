@@ -9,14 +9,14 @@ import {
   Car,
   Check,
   CircleAlert,
+  CircleDashed,
   Eye,
   EyeOff,
   Lock,
-  Mail,
+  Paperclip,
   Pencil,
   Upload,
   UserRound,
-  X,
 } from "lucide-react"
 
 import { Immat } from "@/components/immat"
@@ -35,16 +35,16 @@ import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { CLIENT_DOC_COPY, clientTypeLabel } from "./client-docs"
 
-export type ActivationStep = "mail" | "password" | "infos" | "pieces" | "recap"
+export type ActivationStep = "password" | "infos" | "pieces" | "recap"
 
-/** Étapes numérotées vues par le client (le mail et l'écran final n'en font pas partie) */
+/** Étapes numérotées vues par le client */
 const NUMBERED: ActivationStep[] = ["password", "infos", "pieces", "recap"]
 
 type Infos = {
   client: { firstName: string; lastName: string; phone: string; email: string }
   vehicule: { marque: string; modele: string; immat: string; vin: string }
 }
-type Upload = { name: string; preview?: string }
+type Upload = { name: string }
 
 export function ActivationFlow({ id, initialStep }: { id: string; initialStep?: ActivationStep }) {
   const { getDossier } = useStore()
@@ -58,7 +58,7 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
   const router = useRouter()
 
   const [step, setStep] = React.useState<ActivationStep>(
-    initialStep ?? (d.clientAccess?.activatedAt ? "infos" : "mail"),
+    initialStep ?? (d.clientAccess?.activatedAt ? "infos" : "password"),
   )
   const [infos, setInfos] = React.useState<Infos>({
     client: { firstName: d.client.firstName, lastName: d.client.lastName, phone: d.client.phone, email: d.client.email },
@@ -128,41 +128,38 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
     toast.success(`Bienvenue dans votre espace, ${infos.client.firstName}`, {
       description: missing.length ? "Vous pourrez ajouter les documents manquants ici." : "Votre dossier est transmis à Nereids.",
     })
-    router.push("/client/tableau-de-bord")
+    router.push("/client/dossiers")
   }
 
   const index = NUMBERED.indexOf(step)
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
-      {step !== "mail" && (
-        <header className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur">
-          <div className="mx-auto flex h-14 w-full max-w-xl items-center gap-3 px-4">
-            {index > 0 ? (
-              <Button variant="ghost" size="icon-sm" aria-label="Retour" onClick={() => go(NUMBERED[index - 1])}>
-                <ArrowLeft />
-              </Button>
-            ) : (
-              <Logo />
-            )}
-            {index >= 0 && (
-              <div className="ml-auto flex items-center gap-3">
-                <span className="text-sm font-medium text-muted-foreground tabular-nums">
-                  Étape {index + 1} sur {NUMBERED.length}
-                </span>
-                <div className="flex gap-1">
-                  {NUMBERED.map((s, i) => (
-                    <span key={s} className={cn("h-1.5 w-6 rounded-full", i <= index ? "bg-primary" : "bg-border")} />
-                  ))}
-                </div>
+      <header className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur">
+        <div className="mx-auto flex h-14 w-full max-w-xl items-center gap-3 px-4">
+          {index > 0 ? (
+            <Button variant="ghost" size="icon-sm" aria-label="Retour" onClick={() => go(NUMBERED[index - 1])}>
+              <ArrowLeft />
+            </Button>
+          ) : (
+            <Logo />
+          )}
+          {index >= 0 && (
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground tabular-nums">
+                Étape {index + 1} sur {NUMBERED.length}
+              </span>
+              <div className="flex gap-1">
+                {NUMBERED.map((s, i) => (
+                  <span key={s} className={cn("h-1.5 w-6 rounded-full", i <= index ? "bg-primary" : "bg-border")} />
+                ))}
               </div>
-            )}
-          </div>
-        </header>
-      )}
+            </div>
+          )}
+        </div>
+      </header>
 
       <main className="mx-auto flex w-full max-w-xl flex-1 flex-col px-4 pt-6 pb-44 sm:pb-24">
-        {step === "mail" && <MailStep d={d} onOpen={() => go("password")} />}
         {step === "password" && <PasswordStep client={d.client} onDone={activate} />}
         {step === "infos" && <InfosStep infos={infos} setInfos={setInfos} onNext={() => go("pieces")} />}
         {step === "pieces" && (
@@ -176,49 +173,17 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
   )
 }
 
-// ─── 1. E-mail reçu ──────────────────────────────────────────────────────────
-
-function MailStep({ d, onOpen }: { d: Dossier; onOpen: () => void }) {
-  return (
-    <>
-      <p className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Mail className="size-4" /> E-mail reçu par le client
-      </p>
-      <article className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="border-b px-5 py-4">
-          <p className="text-lg font-semibold">Votre dossier Nereids est ouvert</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Nereids</span> &lt;ne-pas-repondre@nereids.fr&gt; · à {d.client.email}
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 px-5 py-6 text-[15px] leading-relaxed">
-          <Logo />
-          <p>Bonjour {d.client.firstName},</p>
-          <p>
-            Nereids a ouvert un dossier pour votre véhicule <strong>{d.vehicule.marque} {d.vehicule.modele}</strong>.
-            Créez votre compte pour envoyer vos documents et suivre l&apos;avancement.
-          </p>
-          <ul className="flex flex-col gap-2 rounded-lg bg-muted p-4 text-sm">
-            <li className="flex items-center gap-2"><Lock className="size-4 text-primary" /> Créer votre mot de passe</li>
-            <li className="flex items-center gap-2"><UserRound className="size-4 text-primary" /> Vérifier vos informations</li>
-            <li className="flex items-center gap-2"><Camera className="size-4 text-primary" /> Envoyer constat, carte grise et photos</li>
-          </ul>
-          <p className="text-sm text-muted-foreground">Cela prend environ 5 minutes.</p>
-          <Button size="lg" className="w-full sm:w-auto sm:self-start" onClick={onOpen}>
-            Créer mon compte
-          </Button>
-          <p className="border-t pt-4 text-xs text-muted-foreground">
-            Dossier {d.ref} · Ce lien est valable 7 jours.
-          </p>
-        </div>
-      </article>
-    </>
-  )
-}
-
 // ─── 2. Mot de passe ─────────────────────────────────────────────────────────
 
-function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: () => void }) {
+export function PasswordStep({
+  client,
+  subtitle = "Créez votre mot de passe pour accéder à votre dossier.",
+  onDone,
+}: {
+  client: { firstName: string; lastName: string; email: string }
+  subtitle?: string
+  onDone: () => void
+}) {
   const [pwd, setPwd] = React.useState("")
   const [show, setShow] = React.useState(false)
 
@@ -226,7 +191,7 @@ function PasswordStep({ client, onDone }: { client: Dossier["client"]; onDone: (
     <StepLayout
       icon={<Lock />}
       title={`Bienvenue ${client.firstName}`}
-      subtitle="Créez votre mot de passe pour accéder à votre dossier."
+      subtitle={subtitle}
       footer={
         <Button size="lg" className="w-full" onClick={onDone}>
           Créer mon compte
@@ -341,7 +306,7 @@ function InfosStep({ infos, setInfos, onNext }: { infos: Infos; setInfos: React.
   )
 }
 
-function InfoBlock({
+export function InfoBlock({
   icon,
   title,
   rows,
@@ -384,7 +349,7 @@ function InfoBlock({
   )
 }
 
-function TextField({
+export function TextField({
   id,
   label,
   value,
@@ -487,71 +452,51 @@ function DocSlot({
   onAdd: (f: Upload[]) => void
   onRemove: (i: number) => void
 }) {
-  const cameraRef = React.useRef<HTMLInputElement>(null)
   const fileRef = React.useRef<HTMLInputElement>(null)
-  const copy = CLIENT_DOC_COPY[category] ?? { label: DOC_CATEGORIES[category], hint: "", icon: Upload }
-  const Icon = copy.icon
+  const copy = CLIENT_DOC_COPY[category] ?? { label: DOC_CATEGORIES[category], hint: "" }
   const done = files.length + existing.length > 0
 
-  // Sur mobile : vraie caméra / galerie. Sur ordinateur (démo) : fichier fictif ajouté directement.
-  function pick(ref: React.RefObject<HTMLInputElement | null>) {
-    if (window.matchMedia("(pointer: coarse)").matches) return ref.current?.click()
+  // Sur mobile : sélecteur natif (appareil photo, galerie, fichiers). Sur ordinateur (démo) : fichier fictif ajouté directement.
+  function pick() {
+    if (window.matchMedia("(pointer: coarse)").matches) return fileRef.current?.click()
     const n = files.length + existing.length + 1
     onAdd([{ name: category === "photos" ? `Photo ${n}.jpg` : (FAKE_NAMES[category] ?? `${DOC_CATEGORIES[category]}.pdf`) }])
   }
   function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const list = Array.from(e.target.files ?? [])
-    onAdd(list.map((f) => ({ name: f.name, preview: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined })))
+    onAdd(Array.from(e.target.files ?? []).map((f) => ({ name: f.name })))
     e.target.value = ""
   }
 
   return (
-    <section className={cn("rounded-xl border bg-card p-4 transition-colors", done && "border-tone-done/40")}>
-      <div className="flex items-start gap-3">
-        <span className={cn("grid size-10 shrink-0 place-items-center rounded-lg", done ? "bg-tone-done-bg text-tone-done" : "bg-primary-soft text-primary")}>
-          {done ? <Check className="size-5" /> : <Icon className="size-5" />}
-        </span>
+    <section className="rounded-lg border bg-card p-3">
+      <div className="flex items-center gap-3">
+        {done ? <Check className="size-4 shrink-0 text-tone-done" /> : <CircleDashed className="size-4 shrink-0 text-muted-foreground" />}
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold">{copy.label}</h3>
-          <p className="text-sm text-muted-foreground">{copy.hint}</p>
+          <p className="text-sm font-medium">{copy.label}</p>
+          {copy.hint && <p className="text-xs text-muted-foreground">{copy.hint}</p>}
         </div>
+        <Button size="sm" variant="outline" onClick={pick}>
+          <Upload /> Ajouter
+        </Button>
       </div>
 
       {(existing.length > 0 || files.length > 0) && (
-        <ul className="mt-3 flex flex-wrap gap-2">
+        <ul className="mt-2 flex flex-wrap gap-1.5 pl-7">
           {existing.map((name) => (
-            <li key={name} className="flex h-9 items-center gap-2 rounded-md bg-muted px-3 text-sm">
-              <Check className="size-4 text-tone-done" /> {name}
+            <li key={name} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+              <Paperclip className="size-3" /> {name}
             </li>
           ))}
           {files.map((f, i) => (
-            <li key={i} className="flex h-9 items-center gap-2 rounded-md bg-muted pr-1 pl-1 text-sm">
-              {f.preview ? (
-                // eslint-disable-next-line @next/next/no-img-element -- aperçu local (blob)
-                <img src={f.preview} alt="" className="size-7 rounded object-cover" />
-              ) : (
-                <span className="grid size-7 place-items-center rounded bg-card"><Icon className="size-4 text-muted-foreground" /></span>
-              )}
-              <span className="max-w-40 truncate">{f.name}</span>
-              <Button variant="ghost" size="icon-xs" aria-label={`Retirer ${f.name}`} onClick={() => onRemove(i)}>
-                <X />
-              </Button>
+            <li key={i} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+              <Paperclip className="size-3" /> <span className="max-w-40 truncate">{f.name}</span>
+              <button className="ml-1 text-muted-foreground hover:text-foreground" onClick={() => onRemove(i)} aria-label={`Retirer ${f.name}`}>
+                ×
+              </button>
             </li>
           ))}
         </ul>
       )}
-
-      {(!done || multiple) && (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button variant={done ? "outline" : "soft"} className="h-11" onClick={() => pick(cameraRef)}>
-            <Camera /> {done ? "Ajouter" : "Prendre en photo"}
-          </Button>
-          <Button variant="outline" className="h-11" onClick={() => pick(fileRef)}>
-            <Upload /> Importer
-          </Button>
-        </div>
-      )}
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" multiple={multiple} hidden onChange={onFiles} />
       <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple={multiple} hidden onChange={onFiles} />
     </section>
   )
@@ -655,7 +600,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 
 // ─── Mise en page commune ────────────────────────────────────────────────────
 
-function StepLayout({
+export function StepLayout({
   icon,
   title,
   subtitle,

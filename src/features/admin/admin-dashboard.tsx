@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { AlertTriangle, Archive, ArrowRight, CalendarClock, ChevronRight, FolderOpen, Users, Zap, UserPlus } from "lucide-react"
+import { useState } from "react"
+import { AlertTriangle, Archive, ArrowRight, CalendarClock, ChevronRight, FolderOpen, Users, Zap, UserPlus, X } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
@@ -39,10 +40,19 @@ export function AdminDashboard() {
   const toClose = dossiers.filter((d) => d.status === "cloture")
 
   // Priorités : à assigner d'abord, puis retards
-  const priorities: { d: Dossier; reason: "assign" | "late" }[] = [
-    ...toAssign.map((d) => ({ d, reason: "assign" as const })),
-    ...late.filter((d) => !needsAssignment(d)).map((d) => ({ d, reason: "late" as const })),
-  ]
+  const priorities: Dossier[] = [...toAssign, ...late.filter((d) => !needsAssignment(d))]
+
+  // Les KPI filtrent la liste principale (re-clic = retour aux priorités)
+  const [filter, setFilter] = useState<Filter | null>(null)
+  const toggle = (f: Filter) => setFilter((cur) => (cur === f ? null : f))
+  const views: Record<Filter, { title: string; list: Dossier[]; vue: string; empty: string }> = {
+    active: { title: "Dossiers en cours", list: active, vue: "", empty: "Aucun dossier en cours." },
+    assign: { title: "À assigner", list: toAssign, vue: "a-assigner", empty: "Tous les dossiers sont assignés." },
+    late: { title: "En retard", list: late, vue: "en-retard", empty: "Aucun dossier en retard." },
+    upcoming: { title: "Expertises à 7 jours", list: upcoming, vue: "expertises", empty: "Aucune expertise programmée." },
+  }
+  const view = filter ? views[filter] : null
+  const list = view ? view.list : priorities
 
   const gestionnaires = USERS.filter((u) => u.role === "gestionnaire").map((g) => {
     const mine = active.filter((d) => d.intervenants.gestionnaire === g.id)
@@ -63,10 +73,10 @@ export function AdminDashboard() {
 
       {/* Indicateurs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Dossiers en cours" value={active.length} icon={FolderOpen} href={href("dossiers")} />
-        <Kpi label="À assigner" value={toAssign.length} icon={UserPlus} href={href("dossiers?vue=a-assigner")} tone={toAssign.length ? "primary" : undefined} />
-        <Kpi label="En retard" value={late.length} icon={AlertTriangle} href={href("dossiers?vue=en-retard")} tone={late.length ? "danger" : undefined} />
-        <Kpi label="Expertises à 7 j" value={upcoming.length} icon={CalendarClock} href={href("dossiers?vue=expertises")} />
+        <Kpi label="Dossiers en cours" value={active.length} icon={FolderOpen} selected={filter === "active"} onClick={() => toggle("active")} />
+        <Kpi label="À assigner" value={toAssign.length} icon={UserPlus} selected={filter === "assign"} onClick={() => toggle("assign")} tone={toAssign.length ? "primary" : undefined} />
+        <Kpi label="En retard" value={late.length} icon={AlertTriangle} selected={filter === "late"} onClick={() => toggle("late")} tone={late.length ? "danger" : undefined} />
+        <Kpi label="Expertises à 7 j" value={upcoming.length} icon={CalendarClock} selected={filter === "upcoming"} onClick={() => toggle("upcoming")} />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -75,18 +85,26 @@ export function AdminDashboard() {
           <CardHeader>
             <CardTitle>
               <Zap />
-              À traiter en priorité
+              {view ? view.title : "À traiter en priorité"}
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums">{list.length}</span>
             </CardTitle>
-            <CardAction>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums">{priorities.length}</span>
-            </CardAction>
+            {view && (
+              <CardAction className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setFilter(null)}>
+                  <X /> Retirer le filtre
+                </Button>
+                <Button size="sm" variant="outline" render={<Link href={href(view.vue ? `dossiers?vue=${view.vue}` : "dossiers")} />} nativeButton={false}>
+                  Ouvrir dans Dossiers
+                </Button>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent className="px-0">
-            {priorities.length === 0 ? (
-              <p className="px-5 text-sm text-muted-foreground">Rien d&apos;urgent, tout est à jour. 🎉</p>
+            {list.length === 0 ? (
+              <p className="px-5 text-sm text-muted-foreground">{view ? view.empty : "Rien d'urgent, tout est à jour. 🎉"}</p>
             ) : (
               <ul className="divide-y">
-                {priorities.map(({ d, reason }) => (
+                {list.map((d) => (
                   <li key={d.id}>
                     <Link
                       href={href(`dossiers/${d.id}`)}
@@ -107,7 +125,13 @@ export function AdminDashboard() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {reason === "assign" ? (
+                        {filter === "upcoming" && d.expertise.date && (
+                          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-semibold first-letter:uppercase">
+                            <CalendarClock className="size-3.5" />
+                            {formatLongDate(d.expertise.date)}
+                          </span>
+                        )}
+                        {needsAssignment(d) ? (
                           <span className="inline-flex h-6 items-center gap-1 rounded-full bg-primary-soft px-2.5 text-xs font-semibold text-primary">
                             <UserPlus className="size-3.5" />
                             À assigner
@@ -211,26 +235,33 @@ export function AdminDashboard() {
   )
 }
 
+type Filter = "active" | "assign" | "late" | "upcoming"
+
 function Kpi({
   label,
   value,
   icon: Icon,
-  href,
+  selected,
+  onClick,
   tone,
 }: {
   label: string
   value: number
   icon: React.ComponentType<{ className?: string }>
-  href: string
+  selected: boolean
+  onClick: () => void
   tone?: "danger" | "primary"
 }) {
   return (
-    <Link
-      href={href}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
       className={cn(
-        "group flex items-center gap-4 rounded-xl border bg-card p-5 transition-colors hover:border-foreground/30",
+        "group flex cursor-pointer items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-foreground/30",
         tone === "danger" && "border-destructive/40",
         tone === "primary" && "border-primary/40",
+        selected && "border-foreground ring-1 ring-foreground hover:border-foreground",
       )}
     >
       <span
@@ -254,6 +285,6 @@ function Kpi({
         </span>
         <span className="mt-1.5 block truncate text-sm font-medium text-muted-foreground">{label}</span>
       </span>
-    </Link>
+    </button>
   )
 }

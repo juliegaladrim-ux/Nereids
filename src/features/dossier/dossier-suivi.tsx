@@ -6,6 +6,7 @@ import {
   ArrowRightLeft,
   BellRing,
   CalendarCheck,
+  CircleDashed,
   FilePlus2,
   FolderPlus,
   MessageSquare,
@@ -23,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { dossierRights } from "@/lib/access"
 import { ACTOR_LABELS, fullName, getUser, type Dossier, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
@@ -58,13 +60,22 @@ const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants
 ]
 
 export function DossierSuivi({ dossier }: { dossier: Dossier }) {
+  const { role, user } = useRole()
+  const rights = dossierRights(role.id, user.id)
   const [filter, setFilter] = React.useState<Filter>("tout")
   const kinds = FILTERS.find((f) => f.id === filter)!.kinds
-  const events = [...dossier.timeline].filter((e) => !kinds || kinds.includes(e.kind)).sort((a, b) => b.at.localeCompare(a.at))
+  const closed = dossier.status === "cloture" || dossier.status === "archive"
+  // Prochaine étape attendue, en tête du fil (vue « Tout » et « Étapes & statuts »)
+  const showNext = !closed && (filter === "tout" || filter === "etapes")
+  const { quiDoitAgir } = dossier.pilotage
+  const yourTurn = quiDoitAgir === role.id || (role.id === "admin" && quiDoitAgir === "nereids")
+  const events = [...dossier.timeline]
+    .filter(rights.canSeeEvent)
+    .filter((e) => !kinds || kinds.includes(e.kind)).sort((a, b) => b.at.localeCompare(a.at))
 
   return (
     <div className="flex flex-col gap-4">
-      <Composer dossier={dossier} />
+      <Composer dossier={dossier} pickRecipients={rights.pickRecipients} />
 
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (
@@ -82,6 +93,24 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
       </div>
 
       <ol className="relative flex flex-col">
+        {showNext && (
+          <li className="relative flex gap-3 pb-5">
+            {events.length > 0 && <span className="absolute top-8 bottom-0 left-[15px] border-l border-dashed" />}
+            <span className="z-10 grid size-8 shrink-0 place-items-center rounded-full border border-dashed border-primary/50 bg-background">
+              <CircleDashed className="size-3.5 text-primary" />
+            </span>
+            <div className="min-w-0 flex-1 pt-1 text-sm">
+              <p>
+                <span className="font-medium">À venir : {dossier.pilotage.prochaineAction}</span>{" "}
+                {yourTurn ? (
+                  <span className="font-semibold text-primary">· À vous d&apos;agir</span>
+                ) : (
+                  <span className="text-muted-foreground">· {ACTOR_LABELS[quiDoitAgir]}</span>
+                )}
+              </p>
+            </div>
+          </li>
+        )}
         {events.map((e, i) => {
           const Icon = KIND_ICONS[e.kind]
           const author = e.author === "system" ? undefined : getUser(e.author)
@@ -128,18 +157,27 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
   )
 }
 
-function Composer({ dossier }: { dossier: Dossier }) {
-  const { user } = useRole()
+function Composer({ dossier, pickRecipients }: { dossier: Dossier; pickRecipients: boolean }) {
+  const { user, role } = useRole()
   const { addEvent } = useStore()
   const [text, setText] = React.useState("")
-  const [to, setTo] = React.useState<(RoleId | "all")[]>([])
+  // Sans choix des destinataires (client), le message part à Nereids
+  const fixedTo: (RoleId | "all")[] = ["admin"]
+  // Un intervenant extérieur écrit d'abord à Nereids : coché par défaut
+  const defaultTo: (RoleId | "all")[] = role.id === "admin" ? [] : ["admin"]
+  const [picked, setTo] = React.useState<(RoleId | "all")[]>(defaultTo)
+  const to = pickRecipients ? picked : fixedTo
   const [focused, setFocused] = React.useState(false)
 
-  const available = RECIPIENT_ROLES.filter((r) => {
-    if (r.id === "all" || r.id === "client") return true
-    const v = dossier.intervenants[r.field!]
-    return Array.isArray(v) ? v.length > 0 : !!v
-  })
+  const available = [
+    ...(role.id === "admin" ? [] : [{ id: "admin" as const }]),
+    ...RECIPIENT_ROLES.filter((r) => {
+      if (r.id === role.id) return false
+      if (r.id === "all" || r.id === "client") return true
+      const v = dossier.intervenants[r.field!]
+      return Array.isArray(v) ? v.length > 0 : !!v
+    }),
+  ]
 
   function toggle(id: RoleId | "all") {
     if (id === "all") return setTo((t) => (t.includes("all") ? [] : ["all"]))
@@ -151,7 +189,7 @@ function Composer({ dossier }: { dossier: Dossier }) {
     addEvent(dossier.id, { kind: "message", author: user.id, title: "Message", body: text.trim(), recipients: to })
     toast.success("Message envoyé", { description: "Les destinataires sont notifiés (plateforme + e-mail)." })
     setText("")
-    setTo([])
+    setTo(defaultTo)
     setFocused(false)
   }
 
@@ -167,12 +205,14 @@ function Composer({ dossier }: { dossier: Dossier }) {
             onChange={(e) => setText(e.target.value)}
             onFocus={() => setFocused(true)}
             rows={open ? 3 : 1}
-            placeholder="Écrire un message dans le suivi…"
+            placeholder={pickRecipients ? "Écrire un message dans le suivi…" : "Écrire un message à Nereids…"}
             className="min-h-0 resize-none"
           />
         </div>
         {open && (
           <div className="flex flex-col gap-3 pl-11">
+            {!pickRecipients && <p className="text-xs text-muted-foreground">Votre message est envoyé à l&apos;équipe Nereids, qui vous répond ici et par e-mail.</p>}
+            {pickRecipients && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Destinataires *</p>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -181,7 +221,7 @@ function Composer({ dossier }: { dossier: Dossier }) {
                     <Checkbox id={`to-${r.id}`} checked={to.includes(r.id) || (r.id !== "all" && to.includes("all"))} onCheckedChange={() => toggle(r.id)} />
                     <Label htmlFor={`to-${r.id}`} className="text-sm font-normal">
                       {ACTOR_LABELS[r.id]}
-                      {r.field && r.field !== "suiveurs" && dossier.intervenants[r.field] && (
+                      {"field" in r && r.field && r.field !== "suiveurs" && dossier.intervenants[r.field] && (
                         <span className="text-muted-foreground">({getUser(dossier.intervenants[r.field] as string)?.firstName})</span>
                       )}
                     </Label>
@@ -189,6 +229,7 @@ function Composer({ dossier }: { dossier: Dossier }) {
                 ))}
               </div>
             </div>
+            )}
             <div className="flex items-center justify-between gap-2">
               <Button variant="ghost" size="sm" onClick={() => toast.info("Pièce jointe — simulation")}>
                 <Paperclip /> Joindre
@@ -199,7 +240,7 @@ function Composer({ dossier }: { dossier: Dossier }) {
                   size="sm"
                   onClick={() => {
                     setText("")
-                    setTo([])
+                    setTo(defaultTo)
                     setFocused(false)
                   }}
                 >

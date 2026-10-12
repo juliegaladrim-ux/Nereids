@@ -7,18 +7,20 @@ import {
   Archive,
   BellRing,
   CalendarDays,
-  Check,
   ChevronLeft,
   CircleDashed,
+  Clock,
   Download,
   FileText,
   Flag,
-  Hourglass,
-  MapPin,
+  Mail,
   MoreHorizontal,
   Pencil,
   Plus,
+  Trash2,
+  UserCheck,
   UserPlus,
+  Wrench,
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
@@ -37,10 +39,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ACTOR_LABELS,
+  CLOSING_REASONS,
   DOC_CATEGORIES,
   DOSSIER_TYPES,
   LITIGE_ASSUR_TYPES,
+  REGIONS,
   SINISTRE_TYPES,
+  SUIVEUR_QUALITES,
   WORKFLOW_STEPS,
   compagnieLabel,
   expectedDocs,
@@ -50,29 +55,46 @@ import {
   lateDays,
   type DocCategory,
   type Dossier,
+  type DossierType,
+  type LitigeAssurantielType,
+  type SinistreType,
+  type SuiveurRequest,
 } from "@/lib/data"
+import { dossierRights, visibleDossiers } from "@/lib/access"
 import { formatDate, formatDateTime, formatLongDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { AddDocDialog, AssignDialog, CloseDialog, RelanceDialog, StatusDialog } from "./dossier-dialogs"
+import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditSection, type Values } from "./dossier-edit"
 import { DossierSuivi } from "./dossier-suivi"
 
 type DialogId = "status" | "close" | "assign" | "relance" | "doc" | null
 
+export type SectionId = "client" | "vehicule" | "compagnie" | "dossier" | "tiers" | "description" | "refs" | "expertise" | "cloture"
+
+const opts = <T extends string>(rec: Record<T, string | { label: string }>) =>
+  (Object.entries(rec) as [T, string | { label: string }][]).map(([value, l]) => ({ value, label: typeof l === "string" ? l : l.label }))
+
 export function DossierDetail({ id }: { id: string }) {
-  const { href, user } = useRole()
+  const { href, user, role } = useRole()
   const { getDossier, updateDossier, addEvent } = useStore()
-  const d = getDossier(id)
+  const rights = dossierRights(role.id, user.id)
+  const isClient = role.id === "client"
+  const listLabel = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
+  const found = getDossier(id)
+  // Un rôle restreint n'ouvre que les dossiers qui le concernent
+  const d = found && visibleDossiers([found], role.id, user.id).length ? found : undefined
   const [dialog, setDialog] = React.useState<DialogId>(null)
   const [docCategory, setDocCategory] = React.useState<DocCategory | undefined>()
   const [tab, setTab] = React.useState("suivi")
+  const [edit, setEdit] = React.useState<EditSection | null>(null)
 
   if (!d) {
     return (
       <div className="py-20 text-center">
         <p className="text-muted-foreground">Dossier introuvable.</p>
         <Button variant="link" render={<Link href={href("dossiers")} />} nativeButton={false}>
-          Retour aux dossiers
+          Retour à « {listLabel} »
         </Button>
       </div>
     )
@@ -80,6 +102,11 @@ export function DossierDetail({ id }: { id: string }) {
 
   const closed = d.status === "cloture" || d.status === "archive"
   const late = isLate(d)
+  // L'admin, c'est Nereids : « Nereids doit agir » = c'est à lui
+  const yourTurn = !closed && (d.pilotage.quiDoitAgir === role.id || (role.id === "admin" && d.pilotage.quiDoitAgir === "nereids"))
+  // Client et suiveur ne voient l'échéance (et le retard) que quand c'est à eux d'agir : les délais internes ne les concernent pas
+  const showDeadline = rights.pilot || yourTurn
+  const ownRef = d.suiveurRefs?.[user.id]
 
   function archive() {
     updateDossier(d!.id, (x) => ({ ...x, status: "archive", pilotage: { ...x.pilotage, ouEnEst: "Dossier archivé.", prochaineAction: "—" } }))
@@ -87,10 +114,205 @@ export function DossierDetail({ id }: { id: string }) {
     toast.success("Dossier archivé", { description: "Il reste consultable dans les archives." })
   }
 
+  /** Applique une modification admin + la trace dans le suivi */
+  function apply(title: string, patch: (x: Dossier) => Dossier) {
+    updateDossier(d!.id, patch)
+    addEvent(d!.id, { kind: "system", author: user.id, title: `${title} modifié(e)` })
+    toast.success("Modifications enregistrées")
+  }
+
+  function openEdit(id: SectionId) {
+    const section = buildSection(id, d!, apply)
+    // Le client ne modifie que ses coordonnées ; le reste passe par Nereids
+    if (id === "client" && !rights.pilot) {
+      section.title = "Modifier mes coordonnées"
+      section.description = "Pour corriger votre nom, écrivez à Nereids dans le suivi."
+      section.fields = section.fields.filter((f) => f.key === "phone" || f.key === "email")
+    }
+    setEdit(section)
+  }
+
+  /** Bouton crayon seulement si le rôle a le droit de modifier ce bloc */
+  /** Admin : ouvre un compte au client après coup (dossier créé sans compte) */
+  function inviteClient() {
+    if (!d!.client.email) {
+      toast.error("E-mail du client manquant", { description: "Ajoutez son e-mail dans la carte Client pour l'inviter." })
+      return
+    }
+    updateDossier(d!.id, (x) => ({ ...x, noClientAccount: undefined, clientAccess: { invitedAt: new Date().toISOString() } }))
+    addEvent(d!.id, { kind: "system", author: user.id, title: "Compte client ouvert", body: `Invitation envoyée à ${d!.client.email}` })
+    toast.success("Invitation envoyée", { description: `${d!.client.firstName} ${d!.client.lastName} peut maintenant suivre son dossier.` })
+  }
+  const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
+
+  /** Le client indique son garage : message à Nereids, qui l'ajoute comme intervenant */
+  function suggestReparateur() {
+    setEdit({
+      title: "Indiquer mon réparateur",
+      description: "Nereids contactera le garage et l'ajoutera à votre dossier.",
+      fields: [
+        { key: "garage", label: "Nom du garage", full: true },
+        { key: "ville", label: "Ville" },
+        { key: "phone", label: "Téléphone", type: "tel" },
+      ],
+      initial: { garage: "", ville: "", phone: "" },
+      onSave: (v) => {
+        if (!v.garage.trim()) return
+        addEvent(d!.id, {
+          kind: "message",
+          author: user.id,
+          title: "Message",
+          body: `Mon réparateur : ${[v.garage, v.ville, v.phone].filter((x) => x.trim()).join(" · ")}`,
+          recipients: ["admin"],
+        })
+        toast.success("Réparateur transmis à Nereids")
+      },
+    })
+  }
+
+  /** Le client demande l'ouverture d'un compte pour un intervenant suiveur (avocat…) : Nereids crée le compte */
+  function requestSuiveur() {
+    setEdit({
+      title: "Ajouter un intervenant suiveur",
+      description: "Votre avocat ou votre protection juridique pourra suivre le dossier. Nereids créera son accès.",
+      fields: [
+        { key: "qualite", label: "Qualité", type: "select", options: SUIVEUR_QUALITES.map((q) => ({ value: q, label: q })), full: true },
+        { key: "firstName", label: "Prénom" },
+        { key: "lastName", label: "Nom" },
+        { key: "structure", label: "Cabinet / société", full: true },
+        { key: "email", label: "E-mail", type: "email" },
+        { key: "phone", label: "Téléphone", type: "tel" },
+        { key: "message", label: "Message pour Nereids", type: "textarea" },
+      ],
+      initial: { qualite: "Avocat", firstName: "", lastName: "", structure: "", email: "", phone: "", message: "" },
+      required: ["qualite", "firstName", "lastName", "email"],
+      submitLabel: "Envoyer la demande",
+      onSave: (v) => {
+        const r: SuiveurRequest = {
+          id: `sr${Date.now()}`,
+          at: new Date().toISOString(),
+          requestedBy: user.id,
+          qualite: v.qualite,
+          firstName: v.firstName.trim(),
+          lastName: v.lastName.trim(),
+          structure: v.structure.trim(),
+          email: v.email.trim(),
+          phone: v.phone.trim(),
+          message: opt(v.message),
+          status: "pending",
+        }
+        updateDossier(d!.id, (x) => ({ ...x, suiveurRequests: [...(x.suiveurRequests ?? []), r] }))
+        addEvent(d!.id, {
+          kind: "system",
+          author: user.id,
+          title: "Demande d'accès pour un intervenant",
+          body: [`${r.firstName} ${r.lastName}`, r.qualite, r.structure].filter(Boolean).join(" · "),
+        })
+        toast.success("Demande envoyée à Nereids", { description: "Vous serez prévenu dès que son accès sera créé." })
+      },
+    })
+  }
+
+  /** L'admin vérifie les infos, crée le compte suiveur et l'ajoute au dossier */
+  function createSuiveur(reqId: string) {
+    const r = d!.suiveurRequests?.find((x) => x.id === reqId)
+    if (!r) return
+    setEdit({
+      title: "Créer le compte intervenant",
+      description: "Il recevra un e-mail pour activer son compte et sera ajouté au dossier.",
+      fields: [
+        { key: "qualite", label: "Qualité", type: "select", options: SUIVEUR_QUALITES.map((q) => ({ value: q, label: q })), full: true },
+        { key: "firstName", label: "Prénom" },
+        { key: "lastName", label: "Nom" },
+        { key: "structure", label: "Cabinet / société", full: true },
+        { key: "email", label: "E-mail", type: "email" },
+        { key: "phone", label: "Téléphone", type: "tel" },
+      ],
+      initial: { qualite: r.qualite, firstName: r.firstName, lastName: r.lastName, structure: r.structure, email: r.email, phone: r.phone },
+      required: ["firstName", "lastName", "email"],
+      submitLabel: "Créer et inviter",
+      onSave: (v) => {
+        const userId = `u-s-${r.id}`
+        const now = new Date().toISOString()
+        updateDossier(d!.id, (x) => ({
+          ...x,
+          intervenants: { ...x.intervenants, suiveurs: [...x.intervenants.suiveurs, userId] },
+          suiveurRequests: (x.suiveurRequests ?? []).map((y) =>
+            y.id === reqId
+              ? { ...y, qualite: v.qualite, firstName: v.firstName.trim(), lastName: v.lastName.trim(), structure: v.structure.trim(), email: v.email.trim(), phone: v.phone.trim(), status: "created", userId, handledAt: now }
+              : y,
+          ),
+        }))
+        addEvent(d!.id, {
+          kind: "assignation",
+          author: user.id,
+          title: "Intervenant ajouté au dossier",
+          body: `${v.firstName} ${v.lastName} (${v.qualite}) — invitation envoyée à ${v.email}`,
+        })
+        toast.success("Compte créé", { description: `Invitation envoyée à ${v.email}. Le client est prévenu.` })
+      },
+    })
+  }
+
+  function refuseSuiveur(reqId: string) {
+    const r = d!.suiveurRequests?.find((x) => x.id === reqId)
+    if (!r) return
+    updateDossier(d!.id, (x) => ({
+      ...x,
+      suiveurRequests: (x.suiveurRequests ?? []).map((y) => (y.id === reqId ? { ...y, status: "refused", handledAt: new Date().toISOString() } : y)),
+    }))
+    addEvent(d!.id, { kind: "system", author: user.id, title: "Demande d'accès refusée", body: `${r.firstName} ${r.lastName} (${r.qualite})` })
+    toast.success("Demande refusée", { description: "Le client est prévenu dans le suivi." })
+  }
+
+  function editDoc(docId: string) {
+    const doc = d!.documents.find((x) => x.id === docId)
+    if (!doc) return
+    setEdit({
+      title: "Modifier le document",
+      fields: [
+        { key: "name", label: "Nom du fichier", full: true },
+        { key: "category", label: "Catégorie", type: "select", options: opts(DOC_CATEGORIES), full: true },
+      ],
+      initial: { name: doc.name, category: doc.category },
+      onSave: (v) =>
+        apply("Document", (x) => ({
+          ...x,
+          documents: x.documents.map((y) => (y.id === docId ? { ...y, name: v.name || y.name, category: (v.category || y.category) as DocCategory } : y)),
+        })),
+    })
+  }
+
+  function deleteDoc(docId: string) {
+    const doc = d!.documents.find((x) => x.id === docId)
+    updateDossier(d!.id, (x) => ({ ...x, documents: x.documents.filter((y) => y.id !== docId) }))
+    addEvent(d!.id, { kind: "document", author: user.id, title: "Document supprimé", body: doc?.name })
+    toast.success("Document supprimé")
+  }
+
+  /** Le suiveur classe le dossier sous sa propre référence (réf. PJ, réf. cabinet) */
+  function editOwnRef() {
+    setEdit({
+      title: "Ma référence",
+      description: "Votre référence interne pour ce dossier. Elle n'est visible que par vous et Nereids.",
+      fields: [{ key: "ref", label: "Référence", full: true }],
+      initial: { ref: d!.suiveurRefs?.[user.id] ?? "" },
+      onSave: (v) => {
+        updateDossier(d!.id, (x) => {
+          const others = Object.fromEntries(Object.entries(x.suiveurRefs ?? {}).filter(([id]) => id !== user.id))
+          return { ...x, suiveurRefs: opt(v.ref) ? { ...others, [user.id]: v.ref.trim() } : others }
+        })
+        toast.success("Référence enregistrée")
+      },
+    })
+  }
+
   const openDoc = (c?: DocCategory) => {
     setDocCategory(c)
     setDialog("doc")
   }
+
+  const pendingRequests = (d.suiveurRequests ?? []).filter((r) => r.status === "pending")
 
   const subtype = d.sinistreType ? SINISTRE_TYPES[d.sinistreType].label : d.litigeType ? LITIGE_ASSUR_TYPES[d.litigeType].label : null
 
@@ -98,38 +320,55 @@ export function DossierDetail({ id }: { id: string }) {
     <>
       {/* En-tête */}
       <div className="mb-5">
-        <Link href={href(d.status === "archive" ? "archives" : "dossiers")} className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="size-4" /> {d.status === "archive" ? "Archives" : "Dossiers"}
-        </Link>
+        {(() => {
+          const toArchives = d.status === "archive" && role.nav.some((n) => n.path === "archives")
+          return (
+            <Link href={href(toArchives ? "archives" : "dossiers")} className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+              <ChevronLeft className="size-4" /> {toArchives ? "Archives" : listLabel}
+            </Link>
+          )
+        })()}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-                {d.client.firstName} {d.client.lastName}
+                {/* Le client se repère à son véhicule, pas à son propre nom */}
+                {isClient ? `${d.vehicule.marque} ${d.vehicule.modele}` : `${d.client.firstName} ${d.client.lastName}`}
               </h1>
               <Immat value={d.vehicule.immat} className="h-7 text-sm" />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {d.ref} · {DOSSIER_TYPES[d.type].label}
-              {subtype && ` — ${subtype}`} · {d.vehicule.marque} {d.vehicule.modele} · créé le {formatDate(d.createdAt)}
+              {subtype && ` — ${subtype}`}
+              {!isClient && ` · ${d.vehicule.marque} ${d.vehicule.modele}`} · créé le {formatDate(d.createdAt)}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge status={d.status} />
-              {late && <LateBadge days={lateDays(d)} />}
+              {late && showDeadline && <LateBadge days={lateDays(d)} />}
             </div>
           </div>
 
+          {!rights.pilot ? (
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button variant="outline" onClick={() => toast.info("Export du dossier complet (ZIP) — simulation")}>
+                <Download /> Tout télécharger
+              </Button>
+              {!closed && (
+                <Button onClick={() => openDoc()}>
+                  <Plus /> Ajouter un document
+                </Button>
+              )}
+            </div>
+          ) : (
           <div className="flex shrink-0 flex-wrap gap-2">
             {!closed && (
-              <>
-                <Button variant="outline" onClick={() => setDialog("relance")}>
-                  <BellRing /> Relancer
-                </Button>
-                <Button variant="outline" onClick={() => setDialog("status")}>
-                  <Pencil /> Modifier le statut
-                </Button>
-              </>
+              <Button variant="outline" onClick={() => setDialog("relance")}>
+                <BellRing /> Relancer
+              </Button>
             )}
+            <Button variant="outline" onClick={() => setDialog("status")}>
+              <Pencil /> Modifier le statut
+            </Button>
             {d.status === "cloture" && (
               <Button onClick={archive}>
                 <Archive /> Archiver
@@ -140,11 +379,9 @@ export function DossierDetail({ id }: { id: string }) {
                 <MoreHorizontal />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {!closed && (
-                  <DropdownMenuItem onClick={() => setDialog("assign")}>
-                    <UserPlus /> Assigner les intervenants
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem onClick={() => setDialog("assign")}>
+                  <UserPlus /> Assigner les intervenants
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openDoc()}>
                   <Plus /> Ajouter un document
                 </DropdownMenuItem>
@@ -162,50 +399,45 @@ export function DossierDetail({ id }: { id: string }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          )}
         </div>
       </div>
 
-      {/* Pilotage : les 3 questions du CDC */}
-      <Card className={cn("mb-6", late && "ring-destructive/30")}>
-        <CardContent className="grid gap-5 md:grid-cols-3 md:gap-0 md:divide-x">
-          <PilotBlock label="Où en est le dossier ?" icon={MapPin}>
-            {d.pilotage.ouEnEst}
-          </PilotBlock>
-          <PilotBlock label="Qu'est-ce qu'on attend ?" icon={Hourglass} className="md:px-5">
-            {d.pilotage.attente}
-          </PilotBlock>
-          <PilotBlock label="Prochaine action" icon={Flag} className="md:pl-5" highlight>
-            <span className="font-medium">{d.pilotage.prochaineAction}</span>
-            <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">{ACTOR_LABELS[d.pilotage.quiDoitAgir]}</span>
-              {d.pilotage.echeance && !closed && (
-                <span className={cn("text-muted-foreground", late && "font-medium text-destructive")}>
-                  {late ? `Échéance dépassée ${relativeDays(d.pilotage.echeance)}` : `Échéance ${relativeDays(d.pilotage.echeance)}`}
-                </span>
-              )}
-            </span>
-            {d.status === "nouveau" && !closed && (
-              <Button size="sm" className="mt-3 w-fit" onClick={() => setDialog("assign")}>
-                <UserPlus /> Assigner
-              </Button>
-            )}
-            {late && d.status !== "nouveau" && (
-              <Button size="sm" variant="outline" className="mt-3 w-fit" onClick={() => setDialog("relance")}>
-                <BellRing /> Relancer
-              </Button>
-            )}
-          </PilotBlock>
+      {/* Client : dossier pas encore complété depuis l'invitation */}
+      {isClient && !d.clientAccess?.submittedAt && d.clientAccess && (
+        <Link
+          href={`/activation/${d.id}${d.clientAccess.activatedAt ? "?etape=infos" : ""}`}
+          className="mb-6 flex items-center gap-4 rounded-xl border border-primary/30 bg-primary-soft p-4 transition-colors hover:border-primary"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground [&_svg]:size-5">
+            <Mail />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Complétez votre dossier</p>
+            <p className="text-sm text-muted-foreground">Vérifiez vos informations et envoyez vos documents.</p>
+          </div>
+          <span className="text-sm font-semibold text-primary">Compléter</span>
+        </Link>
+      )}
+
+      {/* Admin : demandes d'ouverture de compte intervenant faites par le client */}
+      {rights.pilot &&
+        pendingRequests.map((r) => (
+          <SuiveurRequestBanner key={r.id} request={r} onCreate={() => createSuiveur(r.id)} onRefuse={() => refuseSuiveur(r.id)} />
+        ))}
+
+      {/* Étapes du dossier — la prochaine action est dans le suivi, le retard dans le tag, les actions en haut */}
+      <Card size="sm" className="mb-6">
+        <CardContent>
+          <Progress dossier={d} />
         </CardContent>
-        <div className="border-t px-4 pt-4">
-          <Stepper dossier={d} />
-        </div>
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as string)} className="min-w-0">
           <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <TabsList variant="line" className="mb-2">
-              <TabsTrigger value="suivi">Suivi <Count n={d.timeline.length} /></TabsTrigger>
+              <TabsTrigger value="suivi">Suivi <Count n={d.timeline.filter(rights.canSeeEvent).length} /></TabsTrigger>
               <TabsTrigger value="general">Général</TabsTrigger>
               <TabsTrigger value="documents">Documents <Count n={d.documents.length} /></TabsTrigger>
               <TabsTrigger value="expertise">Expertise</TabsTrigger>
@@ -218,30 +450,57 @@ export function DossierDetail({ id }: { id: string }) {
             <DossierSuivi dossier={d} />
           </TabsContent>
           <TabsContent value="general">
-            <General dossier={d} />
+            <General dossier={d} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
           </TabsContent>
           <TabsContent value="documents">
-            <Documents dossier={d} onAdd={openDoc} />
+            <Documents
+              dossier={d}
+              onAdd={closed && !rights.pilot ? undefined : openDoc}
+              canManage={rights.canManageDoc}
+              allowed={rights.docCategories}
+              onEditDoc={editDoc}
+              onDeleteDoc={deleteDoc}
+            />
           </TabsContent>
           <TabsContent value="expertise">
-            <ExpertiseTab dossier={d} />
+            <ExpertiseTab dossier={d} onEdit={editable("expertise")} />
           </TabsContent>
           <TabsContent value="tierce">
-            <TierceTab dossier={d} />
+            <TierceTab dossier={d} onAdd={closed && !rights.pilot ? undefined : openDoc} allowed={rights.docCategories} />
           </TabsContent>
           <TabsContent value="resolution">
-            <Resolution dossier={d} onClose={() => setDialog("close")} />
+            <Resolution dossier={d} onClose={rights.pilot ? () => setDialog("close") : undefined} onEdit={editable("cloture")} />
           </TabsContent>
         </Tabs>
 
         <aside className="flex flex-col gap-4">
-          <Intervenants dossier={d} onAssign={closed ? undefined : () => setDialog("assign")} />
+          <Intervenants
+            dossier={d}
+            onAssign={rights.pilot ? () => setDialog("assign") : undefined}
+            onSuggestReparateur={isClient && !closed && !d.intervenants.reparateur ? suggestReparateur : undefined}
+            pending={pendingRequests}
+            onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
+          />
           <Card size="sm">
             <CardHeader>
               <CardTitle>Références</CardTitle>
+              {rights.canEdit("refs") && (
+                <CardAction>
+                  <EditButton onClick={() => openEdit("refs")} label="Modifier les références" />
+                </CardAction>
+              )}
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                {rights.ownRef && (
+                  <>
+                    <dt className="text-muted-foreground">Ma référence</dt>
+                    <dd className="flex items-center justify-end gap-1 text-right font-medium">
+                      {ownRef ?? <span className="font-normal text-muted-foreground">—</span>}
+                      <EditButton onClick={editOwnRef} label="Modifier ma référence" className="-my-1 -mr-1.5 size-6" />
+                    </dd>
+                  </>
+                )}
                 <dt className="text-muted-foreground">Nereids</dt>
                 <dd className="text-right font-medium">{d.ref}</dd>
                 <dt className="text-muted-foreground">Sinistre</dt>
@@ -260,7 +519,8 @@ export function DossierDetail({ id }: { id: string }) {
       <CloseDialog dossier={d} open={dialog === "close"} onOpenChange={(o) => setDialog(o ? "close" : null)} />
       <AssignDialog key={`a-${JSON.stringify(d.intervenants)}`} dossier={d} open={dialog === "assign"} onOpenChange={(o) => setDialog(o ? "assign" : null)} />
       <RelanceDialog key={`r-${d.pilotage.attente}`} dossier={d} open={dialog === "relance"} onOpenChange={(o) => setDialog(o ? "relance" : null)} />
-      <AddDocDialog dossier={d} defaultCategory={docCategory} open={dialog === "doc"} onOpenChange={(o) => setDialog(o ? "doc" : null)} />
+      <EditDialog key={edit ? `${edit.title}-${d.updatedAt}` : "none"} section={edit} onOpenChange={(o) => !o && setEdit(null)} />
+      <AddDocDialog dossier={d} defaultCategory={docCategory} categories={rights.docCategories} open={dialog === "doc"} onOpenChange={(o) => setDialog(o ? "doc" : null)} />
     </>
   )
 }
@@ -269,69 +529,86 @@ function Count({ n }: { n: number }) {
   return <span className="text-xs text-muted-foreground tabular-nums">{n}</span>
 }
 
-function PilotBlock({
-  label,
-  icon: Icon,
-  children,
-  className,
-  highlight,
-}: {
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  children: React.ReactNode
-  className?: string
-  highlight?: boolean
-}) {
+/**
+ * Progression fine : un point par étape, toutes nommées, l'étape en cours en gras.
+ * La première étape est calée à gauche, la dernière à droite.
+ */
+function Progress({ dossier }: { dossier: Dossier }) {
+  const steps = WORKFLOW_STEPS[dossier.type]
+  const done = dossier.status === "cloture" || dossier.status === "archive"
+  const current = done ? steps.length - 1 : Math.max(0, steps.findIndex((s) => s.statuses.includes(dossier.status)))
+  const last = steps.length - 1
+  const at = (i: number) => `${(i / last) * 100}%`
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  // Si la frise déborde (mobile), on la cale sur l'étape précédente pour voir l'étape en cours et les suivantes
+  React.useEffect(() => {
+    const el = ref.current
+    if (el) el.scrollLeft = (Math.max(0, current - 1) / last) * el.scrollWidth
+  }, [current, last])
+
   return (
-    <div className={cn("flex flex-col", className)}>
-      <span className={cn("mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground", highlight && "text-primary")}>
-        <Icon className="size-3.5" /> {label}
-      </span>
-      <div className="flex flex-col text-sm">{children}</div>
+    // Sur mobile, la frise défile horizontalement plutôt que de tasser les libellés
+    <div ref={ref} className="-mx-4 overflow-x-auto px-4 pt-1.5 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
+      <div className="relative mx-2.5" style={{ minWidth: steps.length * 80 }}>
+        <div className="relative h-3">
+          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-2 border-dotted border-border" />
+          <span className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 bg-primary" style={{ width: at(current) }} />
+          {steps.map((s, i) => (
+            <span
+              key={s.label}
+              className={cn(
+                "absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full",
+                i === current && !done
+                  ? "size-3 border-2 border-primary bg-card ring-4 ring-primary/15"
+                  : cn("size-2", i <= current ? "bg-primary" : "bg-border"),
+              )}
+              style={{ left: at(i) }}
+            />
+          ))}
+        </div>
+        <div className="relative mt-2 h-5 text-xs whitespace-nowrap sm:text-sm">
+          {steps.map((s, i) => (
+            <span
+              key={s.label}
+              className={cn(
+                "absolute",
+                i === 0 ? "-left-1" : i === last ? "-right-1" : "-translate-x-1/2",
+                i === current ? "font-semibold text-foreground" : "text-muted-foreground",
+              )}
+              style={i === 0 || i === last ? undefined : { left: at(i) }}
+            >
+              {s.label}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
-function Stepper({ dossier }: { dossier: Dossier }) {
-  const steps = WORKFLOW_STEPS[dossier.type]
-  const current = Math.max(0, steps.findIndex((s) => s.statuses.includes(dossier.status)))
-  const done = dossier.status === "cloture" || dossier.status === "archive"
-  return (
-    <ol className="-mx-4 flex overflow-x-auto px-4 pb-4">
-      {steps.map((s, i) => {
-        const state = done || i < current ? "done" : i === current ? "current" : "todo"
-        return (
-          <li key={s.label} className="flex min-w-[88px] flex-1 flex-col items-center gap-1.5 text-center">
-            <div className="flex w-full items-center">
-              <span className={cn("h-0.5 flex-1", i === 0 ? "bg-transparent" : state === "todo" ? "bg-border" : "bg-primary")} />
-              <span
-                className={cn(
-                  "grid size-6 shrink-0 place-items-center rounded-full border-2 text-[0.65rem] font-semibold",
-                  state === "done" && "border-primary bg-primary text-primary-foreground",
-                  state === "current" && "border-primary bg-background text-primary ring-4 ring-primary/15",
-                  state === "todo" && "border-border bg-background text-muted-foreground",
-                )}
-              >
-                {state === "done" ? <Check className="size-3.5" /> : i + 1}
-              </span>
-              <span className={cn("h-0.5 flex-1", i === steps.length - 1 ? "bg-transparent" : state === "done" && (done || i + 1 <= current) ? "bg-primary" : "bg-border")} />
-            </div>
-            <span className={cn("text-xs", state === "current" ? "font-medium text-foreground" : "text-muted-foreground")}>{s.label}</span>
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
-function Intervenants({ dossier, onAssign }: { dossier: Dossier; onAssign?: () => void }) {
-  const rows: { label: string; id?: string }[] = [
+function Intervenants({
+  dossier,
+  onAssign,
+  onSuggestReparateur,
+  pending,
+  onRequestSuiveur,
+}: {
+  dossier: Dossier
+  onAssign?: () => void
+  onSuggestReparateur?: () => void
+  pending: SuiveurRequest[]
+  onRequestSuiveur?: () => void
+}) {
+  const rows: { label: string; id?: string; ref?: string }[] = [
     { label: "Gestionnaire", id: dossier.intervenants.gestionnaire },
     { label: "Expert", id: dossier.intervenants.expert },
     { label: "Réparateur", id: dossier.intervenants.reparateur },
     ...(dossier.intervenants.suiveurs.length
-      ? dossier.intervenants.suiveurs.map((id) => ({ label: "Suiveur", id }))
-      : [{ label: "Suiveur", id: undefined }]),
+      ? dossier.intervenants.suiveurs.map((id) => ({ label: getUser(id)?.fonction || "Suiveur", id, ref: dossier.suiveurRefs?.[id] }))
+      : pending.length
+        ? []
+        : [{ label: "Suiveur", id: undefined }]),
   ]
   return (
     <Card size="sm">
@@ -367,21 +644,96 @@ function Intervenants({ dossier, onAssign }: { dossier: Dossier; onAssign?: () =
                     {r.label}
                     {u && ` · ${u.structure}`}
                   </p>
+                  {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
                 </div>
               </li>
             )
           })}
+          {/* Demande d'accès en attente de création par Nereids */}
+          {pending.map((r) => (
+            <li key={r.id} className="flex items-center gap-3">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full border border-dashed border-tone-waiting">
+                <Clock className="size-3.5 text-tone-waiting" />
+              </span>
+              <div className="min-w-0 text-sm">
+                <p className="truncate font-medium">
+                  {r.firstName} {r.lastName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {r.qualite} · <span className="font-medium text-tone-waiting">accès en cours de création</span>
+                </p>
+              </div>
+            </li>
+          ))}
         </ul>
+        {(onSuggestReparateur || onRequestSuiveur) && (
+          <div className="mt-4 flex flex-col gap-2">
+            {onSuggestReparateur && (
+              <Button size="sm" variant="outline" className="w-full" onClick={onSuggestReparateur}>
+                <Wrench /> Indiquer mon réparateur
+              </Button>
+            )}
+            {onRequestSuiveur && (
+              <Button size="sm" variant="outline" className="w-full" onClick={onRequestSuiveur}>
+                <UserPlus /> Ajouter un intervenant suiveur
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-function InfoCard({ title, rows }: { title: string; rows: [string, React.ReactNode][] }) {
+function SuiveurRequestBanner({ request: r, onCreate, onRefuse }: { request: SuiveurRequest; onCreate: () => void; onRefuse: () => void }) {
+  const author = getUser(r.requestedBy)
+  return (
+    <div className="mb-6 flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft p-4 sm:flex-row sm:items-center sm:gap-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground [&_svg]:size-5">
+        <UserPlus />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">Demande de compte intervenant</p>
+        <p className="text-sm">
+          {r.firstName} {r.lastName} · {r.qualite}
+          {r.structure && ` · ${r.structure}`}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {r.email}
+          {r.phone && ` · ${r.phone}`} — demandé par {author ? fullName(author) : "le client"} {relativeDays(r.at)}
+        </p>
+        {r.message && <p className="mt-1 text-sm italic text-muted-foreground">« {r.message} »</p>}
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <Button variant="outline" onClick={onRefuse}>
+          Refuser
+        </Button>
+        <Button onClick={onCreate}>
+          <UserCheck /> Créer le compte
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function EditButton({ onClick, label, className }: { onClick: () => void; label: string; className?: string }) {
+  return (
+    <Button size="icon-sm" variant="ghost" aria-label={label} title={label} onClick={onClick} className={className}>
+      <Pencil />
+    </Button>
+  )
+}
+
+function InfoCard({ title, rows, onEdit }: { title: string; rows: [string, React.ReactNode][]; onEdit?: () => void }) {
   return (
     <Card size="sm">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
+        {onEdit && (
+          <CardAction>
+            <EditButton onClick={onEdit} label={`Modifier — ${title}`} />
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-[minmax(110px,auto)_1fr] gap-x-4 gap-y-2 text-sm">
@@ -397,7 +749,31 @@ function InfoCard({ title, rows }: { title: string; rows: [string, React.ReactNo
   )
 }
 
-function General({ dossier: d }: { dossier: Dossier }) {
+function General({
+  dossier: d,
+  editable,
+  showAccount,
+  onInviteClient,
+}: {
+  dossier: Dossier
+  editable: (id: SectionId) => (() => void) | undefined
+  showAccount?: boolean
+  onInviteClient?: () => void
+}) {
+  const account: React.ReactNode = d.noClientAccount ? (
+    <span className="flex flex-wrap items-center gap-x-2">
+      <span className="text-muted-foreground">Pas de compte</span>
+      {onInviteClient && (
+        <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={onInviteClient}>
+          Inviter le client
+        </button>
+      )}
+    </span>
+  ) : d.clientAccess?.activatedAt ? (
+    `Actif depuis le ${formatDate(d.clientAccess.activatedAt)}`
+  ) : d.clientAccess ? (
+    `Invité le ${formatDate(d.clientAccess.invitedAt)} · pas encore activé`
+  ) : null
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <InfoCard
@@ -406,7 +782,9 @@ function General({ dossier: d }: { dossier: Dossier }) {
           ["Nom", `${d.client.firstName} ${d.client.lastName}`],
           ["Téléphone", d.client.phone],
           ["E-mail", d.client.email],
+          ...(showAccount && account ? [["Compte client", account] as [string, React.ReactNode]] : []),
         ]}
+        onEdit={editable("client")}
       />
       <InfoCard
         title="Véhicule"
@@ -415,6 +793,7 @@ function General({ dossier: d }: { dossier: Dossier }) {
           ["Immatriculation", <Immat key="i" value={d.vehicule.immat} />],
           ["VIN", d.vehicule.vin && <span key="v" className="font-mono text-xs">{d.vehicule.vin}</span>],
         ]}
+        onEdit={editable("vehicule")}
       />
       <InfoCard
         title={compagnieLabel(d.type)}
@@ -423,6 +802,7 @@ function General({ dossier: d }: { dossier: Dossier }) {
           ["E-mail", d.compagnie?.email],
           ["Référence", d.compagnie?.reference],
         ]}
+        onEdit={editable("compagnie")}
       />
       <InfoCard
         title="Dossier"
@@ -432,16 +812,33 @@ function General({ dossier: d }: { dossier: Dossier }) {
           ["Créé le", formatDate(d.createdAt)],
           ["Région", d.region],
         ]}
+        onEdit={editable("dossier")}
       />
-      {d.tiers && d.tiers.length > 0 && (
-        <InfoCard title="Tiers" rows={d.tiers.map((t, i) => [`Tiers ${i + 1}`, `${t.nom}${t.coordonnees ? ` · ${t.coordonnees}` : ""}`])} />
-      )}
-      {d.description && <InfoCard title="Description" rows={[["Problème", d.description]]} />}
+      <InfoCard
+        title="Tiers"
+        rows={d.tiers?.length ? d.tiers.map((t, i) => [`Tiers ${i + 1}`, [t.nom, t.phone, t.email].filter(Boolean).join(" · ")]) : [["Tiers", null]]}
+        onEdit={editable("tiers")}
+      />
+      <InfoCard title="Description" rows={[["Problème", d.description]]} onEdit={editable("description")} />
     </div>
   )
 }
 
-function Documents({ dossier: d, onAdd }: { dossier: Dossier; onAdd: (c?: DocCategory) => void }) {
+function Documents({
+  dossier: d,
+  onAdd,
+  canManage,
+  allowed,
+  onEditDoc,
+  onDeleteDoc,
+}: {
+  dossier: Dossier
+  onAdd?: (c?: DocCategory) => void
+  canManage: (doc: Dossier["documents"][number]) => boolean
+  allowed: DocCategory[]
+  onEditDoc: (id: string) => void
+  onDeleteDoc: (id: string) => void
+}) {
   const expected = expectedDocs(d.type, d.litigeType)
   const missing = expected.filter((c) => !d.documents.some((doc) => doc.category === c))
   const byCat = Object.entries(
@@ -459,18 +856,20 @@ function Documents({ dossier: d, onAdd }: { dossier: Dossier; onAdd: (c?: DocCat
           <Button variant="outline" size="sm" onClick={() => toast.info("Téléchargement groupé (ZIP) — simulation")}>
             <Download /> Tout télécharger
           </Button>
-          <Button size="sm" onClick={() => onAdd()}>
-            <Plus /> Ajouter un document
-          </Button>
+          {onAdd && (
+            <Button size="sm" onClick={() => onAdd()}>
+              <Plus /> Ajouter un document
+            </Button>
+          )}
         </div>
       </div>
 
-      {missing.length > 0 && d.status !== "cloture" && d.status !== "archive" && (
+      {onAdd && missing.length > 0 && d.status !== "cloture" && d.status !== "archive" && (
         <Card size="sm" className="bg-tone-waiting-bg/50 ring-tone-waiting/20">
           <CardContent>
             <p className="mb-2 text-sm font-medium">Pièces manquantes</p>
             <div className="flex flex-wrap gap-2">
-              {missing.map((c) => (
+              {missing.filter((c) => allowed.includes(c)).map((c) => (
                 <Button key={c} size="xs" variant="outline" className="bg-background" onClick={() => onAdd(c)}>
                   <Plus /> {DOC_CATEGORIES[c]}
                 </Button>
@@ -502,6 +901,21 @@ function Documents({ dossier: d, onAdd }: { dossier: Dossier; onAdd: (c?: DocCat
                   <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
                     <Download />
                   </Button>
+                  {canManage(doc) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Actions sur le document" />}>
+                      <MoreHorizontal />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => onEditDoc(doc.id)}>
+                        <Pencil /> Renommer / reclasser
+                      </DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => onDeleteDoc(doc.id)}>
+                        <Trash2 /> Supprimer
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  )}
                 </li>
               )
             })}
@@ -512,8 +926,9 @@ function Documents({ dossier: d, onAdd }: { dossier: Dossier; onAdd: (c?: DocCat
   )
 }
 
-function ExpertiseTab({ dossier: d }: { dossier: Dossier }) {
+function ExpertiseTab({ dossier: d, onEdit }: { dossier: Dossier; onEdit?: () => void }) {
   const pv = d.documents.find((x) => x.category === "pv")
+  const preRapport = d.documents.find((x) => x.category === "pre_rapport")
   const rapport = d.documents.find((x) => x.category === "rapport")
   if (!d.expertise.date) {
     return (
@@ -524,6 +939,11 @@ function ExpertiseTab({ dossier: d }: { dossier: Dossier }) {
           <p className="max-w-sm text-sm text-muted-foreground">
             L&apos;expert assigné proposera une date et un lieu. Les participants seront convoqués automatiquement.
           </p>
+          {onEdit && (
+            <Button size="sm" variant="outline" className="mt-2" onClick={onEdit}>
+              <CalendarDays /> Programmer l&apos;expertise
+            </Button>
+          )}
         </CardContent>
       </Card>
     )
@@ -537,25 +957,50 @@ function ExpertiseTab({ dossier: d }: { dossier: Dossier }) {
           ["Lieu", d.expertise.lieu],
           ["Statut", d.expertise.realisee ? "Réalisée" : `Prévue ${relativeDays(d.expertise.date)}`],
         ]}
+        onEdit={onEdit}
       />
       <InfoCard title="Personnes convoquées" rows={d.expertise.convoques.map((id) => [ACTOR_LABELS[getUser(id)?.role ?? "client"], fullName(getUser(id))])} />
       <InfoCard
         title="Livrables de l'expert"
         rows={[
           ["PV d'expertise", pv ? pv.name : <span key="p" className="text-muted-foreground">En attente</span>],
-          ["Rapport", rapport ? rapport.name : <span key="r" className="text-muted-foreground">En attente</span>],
+          ...(d.type === "litige_auto"
+            ? [["Pré-rapport", preRapport ? preRapport.name : <span key="pr" className="text-muted-foreground">En attente</span>] as [string, React.ReactNode]]
+            : []),
+          [d.type === "litige_auto" ? "Rapport final" : "Rapport", rapport ? rapport.name : <span key="r" className="text-muted-foreground">En attente</span>],
         ]}
       />
     </div>
   )
 }
 
-function TierceTab({ dossier: d }: { dossier: Dossier }) {
+/** Livrable attendu : le document s'il est déposé, sinon un bouton d'ajout */
+function DocSlot({ doc, category, onAdd }: { doc?: Dossier["documents"][number]; category: DocCategory; onAdd?: (c: DocCategory) => void }) {
+  if (doc)
+    return (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <FileText className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{doc.name}</span>
+        <Button variant="ghost" size="icon-xs" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
+          <Download />
+        </Button>
+      </span>
+    )
+  return onAdd ? (
+    <Button size="xs" variant="outline" onClick={() => onAdd(category)}>
+      <Plus /> Ajouter
+    </Button>
+  ) : (
+    <span className="text-muted-foreground">En attente</span>
+  )
+}
+
+function TierceTab({ dossier: d, onAdd, allowed }: { dossier: Dossier; onAdd?: (c?: DocCategory) => void; allowed: DocCategory[] }) {
+  const pv = d.documents.find((x) => x.category === "pv")
+  const rapport = d.documents.find((x) => x.category === "rapport")
+  const add = (c: DocCategory) => (onAdd && allowed.includes(c) ? onAdd : undefined)
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Rattaché au dossier principal : suivi de la contre-expertise ou de l&apos;expertise contradictoire.
-      </p>
       <InfoCard
         title="Tierce expertise"
         rows={[
@@ -564,26 +1009,38 @@ function TierceTab({ dossier: d }: { dossier: Dossier }) {
           ["Date prévue", d.expertise.date ? formatDate(d.expertise.date) : "—"],
           ["Statut", d.status === "nouveau" || d.status === "en_etude" ? "En attente de validation de l'expert" : "En cours"],
           ["Résultat", "—"],
-          ["PV", "—"],
-          ["Rapport", "—"],
+          ["PV", <DocSlot key="pv" doc={pv} category="pv" onAdd={add("pv")} />],
+          ["Rapport", <DocSlot key="rapport" doc={rapport} category="rapport" onAdd={add("rapport")} />],
         ]}
       />
     </div>
   )
 }
 
-function Resolution({ dossier: d, onClose }: { dossier: Dossier; onClose: () => void }) {
+function Resolution({ dossier: d, onClose, onEdit }: { dossier: Dossier; onClose?: () => void; onEdit?: () => void }) {
   const relances = d.timeline.filter((e) => e.kind === "relance")
   const reclam = d.timeline.find((e) => e.title.includes("Réclamation envoyée"))
+  const preRapport = d.documents.find((x) => x.category === "pre_rapport")
+  const rapport = d.documents.find((x) => x.category === "rapport")
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <InfoCard
-        title="Réclamation"
-        rows={[
-          ["Envoyée le", reclam ? formatDate(reclam.at) : "—"],
-          ["Accord / paiement", d.status === "attente_paiement" ? "Accord obtenu, paiement attendu" : d.status === "cloture" || d.status === "archive" ? "—" : "En attente"],
-        ]}
-      />
+      {d.type === "litige_auto" ? (
+        <InfoCard
+          title="Rapport"
+          rows={[
+            ["Pré-rapport", preRapport ? `Déposé le ${formatDate(preRapport.addedAt)}` : "En attente"],
+            ["Rapport final", rapport ? `Déposé le ${formatDate(rapport.addedAt)}` : "—"],
+          ]}
+        />
+      ) : (
+        <InfoCard
+          title="Réclamation"
+          rows={[
+            ["Envoyée le", reclam ? formatDate(reclam.at) : "—"],
+            ["Accord / paiement", d.status === "attente_paiement" ? "Accord obtenu, paiement attendu" : d.status === "cloture" || d.status === "archive" ? "—" : "En attente"],
+          ]}
+        />
+      )}
       <Card size="sm">
         <CardHeader>
           <CardTitle>Relances effectuées</CardTitle>
@@ -606,13 +1063,15 @@ function Resolution({ dossier: d, onClose }: { dossier: Dossier; onClose: () => 
       <Card size="sm" className="md:col-span-2">
         <CardHeader>
           <CardTitle>Clôture</CardTitle>
-          {!d.cloture && (
-            <CardAction>
-              <Button size="sm" variant="outline" onClick={onClose}>
-                Clôturer le dossier
-              </Button>
-            </CardAction>
-          )}
+          <CardAction>
+            {d.cloture
+              ? onEdit && <EditButton onClick={onEdit} label="Modifier la clôture" />
+              : onClose && (
+                  <Button size="sm" variant="outline" onClick={onClose}>
+                    Clôturer le dossier
+                  </Button>
+                )}
+          </CardAction>
         </CardHeader>
         <CardContent className="text-sm">
           {d.cloture ? (
@@ -627,4 +1086,160 @@ function Resolution({ dossier: d, onClose }: { dossier: Dossier; onClose: () => 
       </Card>
     </div>
   )
+}
+
+// ─── Blocs modifiables par l'admin ───────────────────────────────────────────
+
+function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (x: Dossier) => Dossier) => void): EditSection {
+  const save = (title: string, patch: (x: Dossier, v: Values) => Dossier) => (v: Values) => apply(title, (x) => patch(x, v))
+
+  switch (id) {
+    case "client":
+      return {
+        title: "Modifier le client",
+        fields: [
+          { key: "firstName", label: "Prénom" },
+          { key: "lastName", label: "Nom" },
+          { key: "phone", label: "Téléphone", type: "tel" },
+          { key: "email", label: "E-mail", type: "email" },
+        ],
+        initial: { firstName: d.client.firstName, lastName: d.client.lastName, phone: d.client.phone, email: d.client.email },
+        onSave: save("Client", (x, v) => ({ ...x, client: { ...x.client, ...v } })),
+      }
+    case "vehicule":
+      return {
+        title: "Modifier le véhicule",
+        fields: [
+          { key: "marque", label: "Marque" },
+          { key: "modele", label: "Modèle" },
+          { key: "immat", label: "Immatriculation" },
+          { key: "vin", label: "VIN" },
+        ],
+        initial: { ...d.vehicule, vin: d.vehicule.vin ?? "" },
+        onSave: save("Véhicule", (x, v) => ({
+          ...x,
+          vehicule: { marque: v.marque, modele: v.modele, immat: v.immat.toUpperCase(), vin: opt(v.vin) },
+        })),
+      }
+    case "compagnie":
+      return {
+        title: `Modifier — ${compagnieLabel(d.type)}`,
+        fields: [
+          { key: "nom", label: "Nom", full: true },
+          { key: "email", label: "E-mail", type: "email" },
+          { key: "reference", label: "Référence" },
+        ],
+        initial: { nom: d.compagnie?.nom ?? "", email: d.compagnie?.email ?? "", reference: d.compagnie?.reference ?? "" },
+        onSave: save(compagnieLabel(d.type), (x, v) => ({
+          ...x,
+          compagnie: opt(v.nom) || opt(v.email) || opt(v.reference) ? { nom: v.nom, email: opt(v.email), reference: opt(v.reference) } : undefined,
+        })),
+      }
+    case "dossier":
+      return {
+        title: "Modifier le dossier",
+        fields: [
+          { key: "type", label: "Type", type: "select", options: opts(DOSSIER_TYPES) },
+          {
+            key: "sinistreType",
+            label: "Qualification",
+            type: "select",
+            options: opts(SINISTRE_TYPES),
+            hidden: (v) => v.type !== "sinistre",
+          },
+          {
+            key: "litigeType",
+            label: "Qualification",
+            type: "select",
+            options: opts(LITIGE_ASSUR_TYPES),
+            hidden: (v) => v.type !== "litige_assurantiel",
+          },
+          { key: "region", label: "Région", type: "select", options: REGIONS.map((r) => ({ value: r, label: r })) },
+          { key: "createdAt", label: "Créé le", type: "date" },
+        ],
+        initial: {
+          type: d.type,
+          sinistreType: d.sinistreType ?? "",
+          litigeType: d.litigeType ?? "",
+          region: d.region,
+          createdAt: toDateInput(d.createdAt),
+        },
+        onSave: save("Dossier", (x, v) => ({
+          ...x,
+          type: v.type as DossierType,
+          sinistreType: v.type === "sinistre" ? ((opt(v.sinistreType) as SinistreType) ?? undefined) : undefined,
+          litigeType: v.type === "litige_assurantiel" ? ((opt(v.litigeType) as LitigeAssurantielType) ?? undefined) : undefined,
+          region: v.region,
+          createdAt: fromDateInput(v.createdAt) ?? x.createdAt,
+        })),
+      }
+    case "tiers":
+      return {
+        title: "Modifier les tiers",
+        fields: [{ key: "tiers", label: "Tiers", type: "textarea", hint: "Un tiers par ligne : Nom · téléphone · e-mail" }],
+        initial: { tiers: (d.tiers ?? []).map((t) => [t.nom, t.phone ?? "", t.email ?? ""].join(" · ").replace(/( · )+$/, "")).join("\n") },
+        onSave: save("Tiers", (x, v) => ({
+          ...x,
+          tiers: v.tiers
+            .split("\n")
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .map((l) => {
+              const [nom, phone, email] = l.split("·").map((p) => p.trim())
+              return { nom, phone: opt(phone ?? ""), email: opt(email ?? "") }
+            }),
+        })),
+      }
+    case "description":
+      return {
+        title: "Modifier la description",
+        fields: [{ key: "description", label: "Problème", type: "textarea" }],
+        initial: { description: d.description ?? "" },
+        onSave: save("Description", (x, v) => ({ ...x, description: opt(v.description) })),
+      }
+    case "refs":
+      return {
+        title: "Modifier les références",
+        fields: [
+          { key: "ref", label: "Réf. Nereids" },
+          { key: "sinistre", label: "Réf. sinistre" },
+          { key: "interne", label: "Réf. interne" },
+          { key: "expert", label: "Réf. expert" },
+        ],
+        initial: { ref: d.ref, sinistre: d.refs.sinistre ?? "", interne: d.refs.interne ?? "", expert: d.refs.expert ?? "" },
+        onSave: save("Références", (x, v) => ({
+          ...x,
+          ref: opt(v.ref) ?? x.ref,
+          refs: { sinistre: opt(v.sinistre), interne: opt(v.interne), expert: opt(v.expert) },
+        })),
+      }
+    case "expertise":
+      return {
+        title: d.expertise.date ? "Modifier l'expertise" : "Programmer l'expertise",
+        fields: [
+          { key: "date", label: "Date et heure", type: "datetime" },
+          { key: "realisee", label: "Statut", type: "select", options: [{ value: "non", label: "Prévue" }, { value: "oui", label: "Réalisée" }] },
+          { key: "lieu", label: "Lieu", full: true },
+        ],
+        initial: { date: toDateTimeInput(d.expertise.date), lieu: d.expertise.lieu ?? "", realisee: d.expertise.realisee ? "oui" : "non" },
+        onSave: save("Expertise", (x, v) => ({
+          ...x,
+          expertise: { ...x.expertise, date: fromDateInput(v.date), lieu: opt(v.lieu), realisee: v.realisee === "oui" },
+        })),
+      }
+    case "cloture":
+      return {
+        title: "Modifier la clôture",
+        fields: [
+          { key: "motif", label: "Motif", type: "select", options: CLOSING_REASONS.map((m) => ({ value: m, label: m })) },
+          { key: "at", label: "Clôturé le", type: "date" },
+          { key: "commentaire", label: "Commentaire", type: "textarea" },
+        ],
+        initial: { motif: d.cloture?.motif ?? "", at: toDateInput(d.cloture?.at), commentaire: d.cloture?.commentaire ?? "" },
+        onSave: save("Clôture", (x, v) => ({
+          ...x,
+          cloture: { motif: v.motif, commentaire: opt(v.commentaire), at: fromDateInput(v.at) ?? x.cloture?.at ?? new Date().toISOString() },
+        })),
+      }
+  }
 }

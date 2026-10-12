@@ -9,7 +9,6 @@ import {
   Car,
   Check,
   CircleDashed,
-  FileWarning,
   Gavel,
   Paperclip,
   Plus,
@@ -26,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
   DOC_CATEGORIES,
@@ -33,6 +33,7 @@ import {
   LITIGE_ASSUR_TYPES,
   SINISTRE_TYPES,
   USERS,
+  allUsers,
   compagnieLabel,
   daysFromNow,
   expectedDocs,
@@ -54,7 +55,7 @@ type Form = {
   client: { firstName: string; lastName: string; phone: string; email: string }
   vehicule: { marque: string; modele: string; immat: string; vin: string }
   compagnie: { nom: string; email: string; reference: string }
-  tiers: { nom: string; coordonnees: string }[]
+  tiers: { nom: string; phone: string; email: string }[]
   probleme: { description: string; date: string }
   docs: Partial<Record<DocCategory, string[]>>
   autres: string[]
@@ -62,13 +63,15 @@ type Form = {
   expert: string | null
   reparateur: string | null
   suiveur: string | null
+  /** Ouvrir un compte au client (invitation e-mail) — activé par défaut, sauf pour les sinistres */
+  clientAccount: boolean
 }
 
 const EMPTY: Form = {
   client: { firstName: "", lastName: "", phone: "", email: "" },
   vehicule: { marque: "", modele: "", immat: "", vin: "" },
   compagnie: { nom: "", email: "", reference: "" },
-  tiers: [{ nom: "", coordonnees: "" }],
+  tiers: [{ nom: "", phone: "", email: "" }],
   probleme: { description: "", date: "" },
   docs: {},
   autres: [],
@@ -76,6 +79,7 @@ const EMPTY: Form = {
   expert: null,
   reparateur: null,
   suiveur: null,
+  clientAccount: true,
 }
 
 const TYPE_ICONS: Record<DossierType, React.ComponentType<{ className?: string }>> = {
@@ -120,6 +124,8 @@ export function CreateDossier() {
     type: !typeComplete,
     clientNom: !f.client.lastName.trim() || !f.client.firstName.trim(),
     clientContact: !f.client.phone.trim() && !f.client.email.trim(),
+    // L'invitation part par e-mail : pas de compte sans adresse
+    clientEmail: f.clientAccount && !f.client.email.trim(),
     immat: !f.vehicule.immat.trim(),
     marque: !f.vehicule.marque.trim(),
   }
@@ -150,6 +156,7 @@ export function CreateDossier() {
     const now = new Date().toISOString()
     const ref = nextDossierRef(dossiers)
     const assigned = !!f.gestionnaire && !!f.expert
+    const invite = f.clientAccount
     const status = horsRecours ? "cloture" : assigned ? "en_etude" : "nouveau"
 
     const documents = [
@@ -218,7 +225,7 @@ export function CreateDossier() {
       client: { ...f.client },
       vehicule: { ...f.vehicule, immat: f.vehicule.immat.toUpperCase(), vin: f.vehicule.vin || undefined },
       compagnie: f.compagnie.nom ? { ...f.compagnie } : undefined,
-      tiers: f.type === "litige_auto" ? f.tiers.filter((t) => t.nom) : undefined,
+      tiers: f.type === "litige_auto" ? f.tiers.filter((t) => t.nom).map((t) => ({ nom: t.nom, phone: t.phone || undefined, email: t.email || undefined })) : undefined,
       refs: { sinistre: f.compagnie.reference || undefined },
       region: "Auvergne-Rhône-Alpes",
       intervenants: {
@@ -249,11 +256,13 @@ export function CreateDossier() {
       timeline,
       description: f.probleme.description || undefined,
       horsPerimetre: horsRecours || undefined,
+      clientAccess: invite ? { invitedAt: now } : undefined,
+      noClientAccount: invite ? undefined : true,
       cloture: horsRecours ? { motif: "Hors périmètre", at: now } : undefined,
     }
     createDossier(d)
     toast.success(`Dossier ${ref} créé`, {
-      description: assigned ? "Les intervenants assignés ont été notifiés." : f.client.email ? "Le client a reçu une invitation par e-mail." : undefined,
+      description: [assigned && "Les intervenants assignés ont été notifiés.", invite ? "Le client a reçu une invitation par e-mail." : "Aucun compte client ouvert."].filter(Boolean).join(" ") || undefined,
     })
     router.push(href(`dossiers/${ref}`))
   }
@@ -289,7 +298,7 @@ export function CreateDossier() {
                     <ChoiceCard
                       key={t}
                       selected={f.type === t}
-                      onClick={() => setF((p) => ({ ...p, type: t, sinistreType: undefined, litigeType: undefined }))}
+                      onClick={() => setF((p) => ({ ...p, type: t, sinistreType: undefined, litigeType: undefined, clientAccount: t !== "sinistre" }))}
                       icon={<Icon className="size-5" />}
                       title={DOSSIER_TYPES[t].label}
                       description={DOSSIER_TYPES[t].description}
@@ -354,13 +363,27 @@ export function CreateDossier() {
                         <FieldLabel htmlFor="c-phone">Téléphone</FieldLabel>
                         <Input id="c-phone" type="tel" value={f.client.phone} onChange={(e) => setIn("client", "phone", e.target.value)} />
                       </Field>
-                      <Field data-invalid={submitted && errors.clientContact}>
-                        <FieldLabel htmlFor="c-mail">E-mail</FieldLabel>
+                      <Field data-invalid={submitted && (errors.clientContact || errors.clientEmail)}>
+                        <FieldLabel htmlFor="c-mail">E-mail{f.clientAccount && " *"}</FieldLabel>
                         <Input id="c-mail" type="email" value={f.client.email} onChange={(e) => setIn("client", "email", e.target.value)} />
-                        <FieldDescription>Le client recevra une invitation pour suivre son dossier.</FieldDescription>
                       </Field>
                     </div>
                     {submitted && errors.clientContact && <FieldError>Indiquez au moins un téléphone ou un e-mail.</FieldError>}
+                    {submitted && !errors.clientContact && errors.clientEmail && (
+                      <FieldError>Indiquez l&apos;e-mail du client pour lui ouvrir un compte, ou désactivez l&apos;ouverture du compte.</FieldError>
+                    )}
+
+                    <Field orientation="horizontal" className="rounded-lg border p-3">
+                      <Switch id="c-account" checked={f.clientAccount} onCheckedChange={(v) => set("clientAccount", v)} />
+                      <div className="flex flex-col gap-0.5">
+                        <FieldLabel htmlFor="c-account">Ouvrir un compte au client</FieldLabel>
+                        <FieldDescription>
+                          {f.clientAccount
+                            ? "Le client reçoit une invitation par e-mail pour suivre son dossier et envoyer ses pièces."
+                            : "Aucune invitation envoyée : Nereids gère le dossier seul. Vous pourrez inviter le client plus tard depuis la fiche."}
+                        </FieldDescription>
+                      </div>
+                    </Field>
 
                     <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
                       <Field data-invalid={submitted && errors.immat}>
@@ -395,22 +418,26 @@ export function CreateDossier() {
                       <CardDescription>
                         {f.type === "sinistre" && "Compagnie du tiers responsable, si elle est connue."}
                         {f.type === "litige_assurantiel" && "La compagnie contestée par le client."}
-                        {f.type === "litige_auto" && "Vendeur, garage… et suiveur éventuel (protection juridique, avocat)."}
+                        {f.type === "litige_auto" && "Vendeur, garage…"}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <FieldGroup>
                         {f.type === "litige_auto" &&
                           f.tiers.map((t, i) => (
-                            <div key={i} className="grid gap-4 sm:grid-cols-2">
+                            <div key={i} className="grid gap-4 sm:grid-cols-3">
                               <Field>
                                 <FieldLabel>Tiers {i + 1} — nom ou raison sociale</FieldLabel>
                                 <Input value={t.nom} placeholder="Ex. garage, vendeur…" onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom: e.target.value } : x)))} />
                               </Field>
                               <Field>
-                                <FieldLabel>Coordonnées</FieldLabel>
+                                <FieldLabel>Téléphone</FieldLabel>
+                                <Input type="tel" value={t.phone} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
+                              </Field>
+                              <Field>
+                                <FieldLabel>E-mail</FieldLabel>
                                 <div className="flex gap-2">
-                                  <Input value={t.coordonnees} placeholder="Téléphone, e-mail, adresse" onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, coordonnees: e.target.value } : x)))} />
+                                  <Input type="email" value={t.email} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
                                   {i > 0 && (
                                     <Button variant="ghost" size="icon" aria-label="Retirer" onClick={() => set("tiers", f.tiers.filter((_, j) => j !== i))}>
                                       <Trash2 />
@@ -421,25 +448,27 @@ export function CreateDossier() {
                             </div>
                           ))}
                         {f.type === "litige_auto" && f.tiers.length < 2 && (
-                          <Button variant="outline" size="sm" className="w-fit" onClick={() => set("tiers", [...f.tiers, { nom: "", coordonnees: "" }])}>
+                          <Button variant="outline" size="sm" className="w-fit" onClick={() => set("tiers", [...f.tiers, { nom: "", phone: "", email: "" }])}>
                             <Plus /> Ajouter un 2ᵉ tiers
                           </Button>
                         )}
 
-                        <div className={cn("grid gap-4 sm:grid-cols-3", f.type === "litige_auto" && "border-t pt-5")}>
-                          <Field>
-                            <FieldLabel htmlFor="co-nom">{f.type === "litige_auto" ? "Suiveur (PJ, avocat…)" : "Nom de la compagnie"}</FieldLabel>
-                            <Input id="co-nom" value={f.compagnie.nom} onChange={(e) => setIn("compagnie", "nom", e.target.value)} />
-                          </Field>
-                          <Field>
-                            <FieldLabel htmlFor="co-mail">E-mail</FieldLabel>
-                            <Input id="co-mail" type="email" value={f.compagnie.email} onChange={(e) => setIn("compagnie", "email", e.target.value)} />
-                          </Field>
-                          <Field>
-                            <FieldLabel htmlFor="co-ref">{f.type === "litige_auto" ? "Référence" : "Référence sinistre"}</FieldLabel>
-                            <Input id="co-ref" value={f.compagnie.reference} onChange={(e) => setIn("compagnie", "reference", e.target.value)} />
-                          </Field>
-                        </div>
+                        {f.type !== "litige_auto" && (
+                          <div className="grid gap-4 sm:grid-cols-3">
+                            <Field>
+                              <FieldLabel htmlFor="co-nom">Nom de la compagnie</FieldLabel>
+                              <Input id="co-nom" value={f.compagnie.nom} onChange={(e) => setIn("compagnie", "nom", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="co-mail">E-mail</FieldLabel>
+                              <Input id="co-mail" type="email" value={f.compagnie.email} onChange={(e) => setIn("compagnie", "email", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="co-ref">Référence sinistre</FieldLabel>
+                              <Input id="co-ref" value={f.compagnie.reference} onChange={(e) => setIn("compagnie", "reference", e.target.value)} />
+                            </Field>
+                          </div>
+                        )}
 
                         {f.litigeType === "imputable" && (
                           <div className="grid gap-4 border-t pt-5 sm:grid-cols-[1fr_200px]">
@@ -521,6 +550,7 @@ export function CreateDossier() {
                       <AssignFields
                         value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur, suiveur: f.suiveur }}
                         onChange={(k, v) => set(k, v)}
+                        hideSuiveur
                       />
                     </CardContent>
                   </Card>
@@ -539,28 +569,24 @@ export function CreateDossier() {
             <CardContent className="flex flex-col gap-4 text-sm">
               <ul className="flex flex-col gap-2">
                 <RecapItem ok={typeComplete} label="Type de dossier" detail={f.type ? DOSSIER_TYPES[f.type].label : undefined} />
-                <RecapItem ok={!errors.clientNom && !errors.clientContact} label="Client" detail={f.client.lastName ? `${f.client.firstName} ${f.client.lastName}` : undefined} />
+                <RecapItem
+                  ok={!errors.clientNom && !errors.clientContact && !errors.clientEmail}
+                  label="Client"
+                  detail={
+                    [f.client.lastName && `${f.client.firstName} ${f.client.lastName}`, typeComplete && (f.clientAccount ? "Compte ouvert" : "Sans compte")]
+                      .filter(Boolean)
+                      .join(" · ") || undefined
+                  }
+                />
                 <RecapItem ok={!errors.immat && !errors.marque} label="Véhicule" detail={f.vehicule.immat ? `${f.vehicule.immat.toUpperCase()} ${f.vehicule.marque}` : undefined} />
                 {!horsRecours && typeComplete && (
                   <>
-                    <RecapItem optional ok={!!f.compagnie.nom} label={f.type === "litige_auto" ? "Suiveur" : compagnieLabel(f.type!)} detail={f.compagnie.nom || undefined} />
+                    {f.type !== "litige_auto" && <RecapItem optional ok={!!f.compagnie.nom} label={compagnieLabel(f.type!)} detail={f.compagnie.nom || undefined} />}
                     <RecapItem optional ok={missingDocs.length === 0} label="Pièces" detail={missingDocs.length ? `${missingDocs.length} manquante(s)` : "Complètes"} />
                     <RecapItem optional ok={!!f.gestionnaire && !!f.expert} label="Intervenants" detail={f.gestionnaire && f.expert ? "Gestionnaire et expert" : "À assigner"} />
                   </>
                 )}
               </ul>
-
-              {typeComplete && !horsRecours && (
-                <div className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
-                  Statut à la création :{" "}
-                  <span className="font-medium text-foreground">{f.gestionnaire && f.expert ? "En étude" : "Nouveau"}</span>
-                  {missingDocs.length > 0 && (
-                    <span className="mt-1 flex items-center gap-1">
-                      <FileWarning className="size-3.5" /> Les pièces manquantes seront signalées dans le dossier.
-                    </span>
-                  )}
-                </div>
-              )}
 
               <Button size="lg" className="w-full" onClick={submit}>
                 {horsRecours ? "Enregistrer hors périmètre" : "Créer le dossier"}
@@ -628,18 +654,21 @@ export type AssignValue = { gestionnaire: string | null; expert: string | null; 
 export function AssignFields({
   value,
   onChange,
+  hideSuiveur,
 }: {
   value: AssignValue
   onChange: (k: keyof AssignValue, v: string | null) => void
+  /** Masqué à la création : le suiveur s'assigne depuis la fiche dossier */
+  hideSuiveur?: boolean
 }) {
   const opts = (role: string) =>
-    USERS.filter((u) => u.role === role).map((u) => ({
+    allUsers().filter((u) => u.role === role).map((u) => ({
       value: u.id,
       label: role === "reparateur" || role === "suiveur" ? `${u.structure}` : fullName(u),
       hint: u.load !== undefined ? `${u.load} dossiers` : undefined,
     }))
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="flex flex-col gap-4">
       <Field>
         <FieldLabel>Gestionnaire</FieldLabel>
         <SimpleSelect placeholder="Choisir un gestionnaire" options={opts("gestionnaire")} value={value.gestionnaire} onChange={(v) => onChange("gestionnaire", v)} />
@@ -647,21 +676,17 @@ export function AssignFields({
       <Field>
         <FieldLabel>Expert</FieldLabel>
         <SimpleSelect placeholder="Choisir un expert" options={opts("expert")} value={value.expert} onChange={(v) => onChange("expert", v)} />
-        <FieldDescription>La charge actuelle est indiquée pour chaque expert.</FieldDescription>
       </Field>
       <Field>
         <FieldLabel>Réparateur</FieldLabel>
         <SimpleSelect placeholder="Optionnel" options={opts("reparateur")} value={value.reparateur} onChange={(v) => onChange("reparateur", v)} />
       </Field>
-      <Field>
-        <FieldLabel>Intervenant suiveur</FieldLabel>
-        <SimpleSelect placeholder="Optionnel" options={opts("suiveur")} value={value.suiveur} onChange={(v) => onChange("suiveur", v)} />
-        <FieldDescription>
-          <button type="button" className="underline underline-offset-2" onClick={() => toast.info("Invitation d'un nouveau partenaire — parcours à concevoir")}>
-            Inviter un nouveau partenaire
-          </button>
-        </FieldDescription>
-      </Field>
+      {!hideSuiveur && (
+        <Field>
+          <FieldLabel>Intervenant suiveur</FieldLabel>
+          <SimpleSelect placeholder="Optionnel" options={opts("suiveur")} value={value.suiveur} onChange={(v) => onChange("suiveur", v)} />
+        </Field>
+      )}
     </div>
   )
 }

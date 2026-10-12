@@ -29,6 +29,8 @@ export type Role = {
   /** Utilisateur fictif connecté pour ce rôle */
   userId: string
   nav: NavItem[]
+  /** Page d'arrivée de l'espace (connexion, logo, changement de rôle) */
+  home: string
   /** L'espace est-il déjà conçu dans le proto ? */
   ready: boolean
   canCreateDossier: boolean
@@ -43,6 +45,7 @@ export const ROLES: Role[] = [
     userId: "u-admin",
     ready: true,
     canCreateDossier: true,
+    home: "tableau-de-bord",
     nav: [
       { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Dossiers", path: "dossiers", icon: FolderOpen },
@@ -58,6 +61,7 @@ export const ROLES: Role[] = [
     userId: "u-gest",
     ready: false,
     canCreateDossier: true,
+    home: "tableau-de-bord",
     nav: [
       { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
@@ -72,6 +76,7 @@ export const ROLES: Role[] = [
     userId: "u-expert",
     ready: false,
     canCreateDossier: false,
+    home: "tableau-de-bord",
     nav: [
       { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
@@ -85,6 +90,7 @@ export const ROLES: Role[] = [
     userId: "u-rep",
     ready: false,
     canCreateDossier: false,
+    home: "tableau-de-bord",
     nav: [
       { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
@@ -96,12 +102,11 @@ export const ROLES: Role[] = [
     short: "Suiveur",
     description: "Protection juridique, avocat… consulte le suivi, échange et dépose des pièces.",
     userId: "u-suiveur",
-    ready: false,
+    ready: true,
     canCreateDossier: false,
-    nav: [
-      { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
-      { label: "Dossiers suivis", path: "dossiers", icon: FolderOpen },
-    ],
+    // Comme le client : invité par e-mail, il arrive directement sur ses dossiers suivis
+    home: "dossiers",
+    nav: [{ label: "Dossiers suivis", path: "dossiers", icon: FolderOpen }],
   },
   {
     id: "client",
@@ -112,10 +117,9 @@ export const ROLES: Role[] = [
     ready: true,
     // Le dossier est toujours créé par Nereids (CR 05/10) : le client est invité par e-mail
     canCreateDossier: false,
-    nav: [
-      { label: "Accueil", path: "tableau-de-bord", icon: LayoutDashboard },
-      { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
-    ],
+    // Pas de page d'accueil séparée : le client arrive directement sur ses dossiers
+    home: "dossiers",
+    nav: [{ label: "Mes dossiers", path: "dossiers", icon: FolderOpen }],
   },
 ]
 

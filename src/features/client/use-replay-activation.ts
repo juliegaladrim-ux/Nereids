@@ -10,9 +10,9 @@ import type { ActivationStep } from "./activation-flow"
 export function useReplayActivation() {
   const { updateDossier } = useStore()
   const router = useRouter()
-  return (step: ActivationStep = "mail") => {
+  return (step: ActivationStep = "password") => {
     const seed = seedDossiers().find((d) => d.id === CLIENT_ACTIVATION_DOSSIER)!
     updateDossier(seed.id, () => seed)
-    router.push(`/activation/${seed.id}${step === "mail" ? "" : `?etape=${step}`}`)
+    router.push(`/activation/${seed.id}${step === "password" ? "" : `?etape=${step}`}`)
   }
 }

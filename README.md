@@ -40,4 +40,6 @@ Logo provisoire dans `src/components/logo.tsx`. À remplacer à réception de la
 ## Avancement
 
 - ✅ Administrateur Nereids : tableau de bord, liste des dossiers, création, fiche dossier (assignation, statut, relance, documents, messages, clôture, archivage), mon compte
-- ⬜ Gestionnaire, expert, réparateur, intervenant suiveur, client : espaces créés, écrans à concevoir (mon compte déjà disponible)
+- ✅ Client particulier : activation par e-mail (`/activation/[dossier]`), mes dossiers, fiche dossier
+- ✅ Intervenant suiveur : activation par e-mail (`/activation/suiveur/[utilisateur]` : mot de passe + coordonnées, sans écran d'e-mail simulé), dossiers suivis, fiche dossier (messages, dépôt et téléchargement de documents, sa propre référence)
+- ⬜ Gestionnaire, expert, réparateur : espaces créés, écrans à concevoir (mon compte déjà disponible)

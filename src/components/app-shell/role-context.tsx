@@ -15,7 +15,7 @@ export function RoleProvider({ roleId, children }: { roleId: RoleId; children: R
     return {
       role,
       user: getUser(role.userId)!,
-      href: (path = "tableau-de-bord") => `/${role.id}/${path}`.replace(/\/+$/, ""),
+      href: (path = role.home) => `/${role.id}/${path}`.replace(/\/+$/, ""),
     }
   }, [roleId])
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>
