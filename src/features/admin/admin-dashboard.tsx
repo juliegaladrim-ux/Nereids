@@ -56,11 +56,6 @@ export function AdminDashboard() {
       <PageHeader
         title={`Bonjour ${user.firstName}`}
         description={new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        actions={
-          <Button variant="outline" render={<Link href={href("dossiers")} />} nativeButton={false}>
-            Tous les dossiers
-          </Button>
-        }
       />
 
       {/* Indicateurs */}
