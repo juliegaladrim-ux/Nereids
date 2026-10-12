@@ -275,10 +275,23 @@ export const VALIDATION_ITEMS = [
 
 export function clientValidation(d: Dossier): ClientValidation {
   if (d.validation) return d.validation
-  // Par défaut : un dossier nouveau attend la signature de mission, les autres sont validés
-  return d.status === "nouveau"
-    ? { mission: "en_attente", devis: "a_faire", reglement: "a_faire" }
-    : { mission: "ok", devis: "ok", reglement: "ok" }
+  // Déduit du statut : mission signée avant l'étude, devis puis règlement avant l'expertise
+  switch (d.status) {
+    case "nouveau":
+      return { mission: "en_attente", devis: "a_faire", reglement: "a_faire" }
+    case "en_etude":
+    case "attente_client":
+      return { mission: "ok", devis: "en_attente", reglement: "a_faire" }
+    case "recours_valide":
+    case "attente_tiers":
+    case "attente_compagnie":
+      return { mission: "ok", devis: "ok", reglement: "en_attente" }
+    case "complement":
+      // Expertise complémentaire : nouveau devis à faire signer, nouveau règlement à attendre
+      return { mission: "ok", devis: "en_attente", reglement: "a_faire" }
+    default:
+      return { mission: "ok", devis: "ok", reglement: "ok" }
+  }
 }
 
 export const SUIVEUR_QUALITES = ["Avocat", "Protection juridique", "Autre"] as const
@@ -552,7 +565,6 @@ export function seedDossiers(): Dossier[] {
       refs: { interne: "HY-3290", expert: "GAR-26-051" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert2", suiveurs: [] },
-      validation: { mission: "ok", devis: "ok", reglement: "en_attente" },
       pilotage: {
         ouEnEst: "L'expert a étudié le dossier : il manque l'historique d'entretien.",
         attente: "Factures d'entretien du véhicule",
@@ -630,8 +642,6 @@ export function seedDossiers(): Dossier[] {
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", suiveurs: ["u-suiveur"] },
       suiveurRefs: { "u-suiveur": "PJ-55-2026-1209" },
-      // Expertise complémentaire nécessaire : nouveau devis envoyé, règlement pas encore demandé
-      validation: { mission: "ok", devis: "en_attente", reglement: "a_faire" },
       pilotage: {
         ouEnEst: "Expertise contradictoire réalisée, PV déposé.",
         attente: "Pré-rapport de l'expert (attendu à +48 h)",

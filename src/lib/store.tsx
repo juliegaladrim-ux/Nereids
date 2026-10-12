@@ -19,7 +19,7 @@ import {
  * restent visibles. Un bouton « Réinitialiser » remet les données de départ.
  */
 
-const STORAGE_KEY = "nereids-proto-v4"
+const STORAGE_KEY = "nereids-proto-v5"
 const ACCOUNTS_KEY = "nereids-proto-accounts-v1"
 
 type Store = {

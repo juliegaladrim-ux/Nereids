@@ -245,6 +245,8 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
     sinistreType: s.type === "sinistre" ? s.sinistreType : undefined,
     litigeType: s.type === "litige_assurantiel" ? s.litigeType : undefined,
     status,
+    // Voyants M / D / R recalculés à partir du statut choisi
+    validation: undefined,
     createdAt,
     compagnie,
     tiers: s.type === "litige_auto" ? d.tiers : undefined,
