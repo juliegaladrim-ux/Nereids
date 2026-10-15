@@ -700,7 +700,7 @@ function Intervenants({
       ? dossier.intervenants.suiveurs.map((id) => ({ label: getUser(id)?.fonction || "Suiveur", id, ref: dossier.suiveurRefs?.[id], slot: { kind: "suiveur" as const, id } }))
       : pending.length
         ? []
-        : [{ label: "Suiveur", id: undefined }]),
+        : [{ label: "Suiveur", id: undefined, slot: { kind: "suiveur" as const } }]),
   ]
   return (
     <Card size="sm">
@@ -738,6 +738,11 @@ function Intervenants({
                   </p>
                   {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
                 </div>
+                {!u && r.slot && onEditIntervenant && (
+                  <Button variant="ghost" size="icon-xs" className="shrink-0" aria-label={`Ajouter : ${r.label.toLowerCase()}`} title="Ajouter" onClick={() => onEditIntervenant(r.slot!)}>
+                    <Plus />
+                  </Button>
+                )}
                 {u && r.slot && onEditIntervenant && onRemoveIntervenant && (
                   <DropdownMenu>
                     <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="shrink-0" aria-label={`Actions sur ${fullName(u)}`} />}>

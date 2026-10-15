@@ -8,17 +8,24 @@ import { SimpleSelect } from "@/components/simple-select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { allUsers, fullName, getUser, withRef, type Dossier } from "@/lib/data"
+import { allUsers, daysFromNow, defaultPilotage, fullName, getUser, withRef, type Dossier } from "@/lib/data"
 import { useStore } from "@/lib/store"
 
-/** Intervenant assigné sur lequel l'admin agit : un des 3 postes, ou un suiveur (identifié par son id) */
-export type IntervenantSlot = { kind: "gestionnaire" | "expert" | "reparateur" } | { kind: "suiveur"; id: string }
+/** Poste sur lequel l'admin agit : un des 3 postes, ou un suiveur (identifié par son id ; sans id = nouveau suiveur) */
+export type IntervenantSlot = { kind: "gestionnaire" | "expert" | "reparateur" } | { kind: "suiveur"; id?: string }
 
 const LABELS: Record<IntervenantSlot["kind"], { label: string; article: string }> = {
   gestionnaire: { label: "gestionnaire", article: "le" },
   expert: { label: "expert", article: "l'" },
   reparateur: { label: "réparateur", article: "le" },
   suiveur: { label: "intervenant suiveur", article: "l'" },
+}
+
+const INDEFINITE: Record<IntervenantSlot["kind"], string> = {
+  gestionnaire: "un gestionnaire",
+  expert: "un expert",
+  reparateur: "un réparateur",
+  suiveur: "un intervenant suiveur",
 }
 
 const title = (s: IntervenantSlot) => `${LABELS[s.kind].article}${LABELS[s.kind].article.endsWith("'") ? "" : " "}${LABELS[s.kind].label}`
@@ -30,7 +37,11 @@ function currentId(d: Dossier, s: IntervenantSlot) {
 /** Remplace (ou retire, si `next` est null) l'intervenant du poste */
 function assign(d: Dossier, s: IntervenantSlot, next: string | null): Dossier {
   if (s.kind === "suiveur") {
-    const suiveurs = next ? d.intervenants.suiveurs.map((id) => (id === s.id ? next : id)) : d.intervenants.suiveurs.filter((id) => id !== s.id)
+    const suiveurs = !s.id
+      ? [...d.intervenants.suiveurs, ...(next ? [next] : [])]
+      : next
+        ? d.intervenants.suiveurs.map((id) => (id === s.id ? next : id))
+        : d.intervenants.suiveurs.filter((id) => id !== s.id)
     return { ...d, intervenants: { ...d.intervenants, suiveurs } }
   }
   const updated = { ...d, intervenants: { ...d.intervenants, [s.kind]: next ?? undefined } }
@@ -40,7 +51,7 @@ function assign(d: Dossier, s: IntervenantSlot, next: string | null): Dossier {
 
 type Props = { dossier: Dossier; slot: IntervenantSlot | null; onOpenChange: (o: boolean) => void }
 
-// ─── Modifier ────────────────────────────────────────────────────────────────
+// ─── Ajouter / modifier ────────────────────────────────────────────────────────────────
 
 export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props) {
   const { user } = useRole()
@@ -64,14 +75,21 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
     if (!slot || !v || v === current) return onOpenChange(false)
     const before = getUser(current)
     const after = getUser(v)
-    updateDossier(d.id, (x) => assign(x, slot, v))
+    // Comme dans « Assigner » : un dossier nouveau passe en étude dès qu'il a un gestionnaire et un expert
+    const next = assign(d, slot, v)
+    const becomesReady = d.status === "nouveau" && !!next.intervenants.gestionnaire && !!next.intervenants.expert
+    updateDossier(d.id, (x) => {
+      const y = assign(x, slot, v)
+      return becomesReady ? { ...y, status: "en_etude" as const, pilotage: { ...defaultPilotage("en_etude", y.type), echeance: daysFromNow(3) } } : y
+    })
     addEvent(d.id, {
       kind: "assignation",
       author: user.id,
-      title: "Intervenant modifié",
-      body: `${capitalize(LABELS[slot.kind].label)} : ${before ? fullName(before) : "—"} → ${after ? fullName(after) : "—"}`,
+      title: before ? "Intervenant modifié" : "Intervenant ajouté au dossier",
+      body: `${capitalize(LABELS[slot.kind].label)} : ${before ? `${fullName(before)} → ` : ""}${after ? fullName(after) : "—"}`,
     })
-    toast.success(`${capitalize(LABELS[slot.kind].label)} modifié`, { description: "Le nouvel intervenant a été notifié (plateforme + e-mail)." })
+    if (becomesReady) addEvent(d.id, { kind: "status", author: "system", title: "Statut → En étude" })
+    toast.success(`${capitalize(LABELS[slot.kind].label)} ${before ? "modifié" : "ajouté"}`, { description: "L'intervenant a été notifié (plateforme + e-mail)." })
     onOpenChange(false)
   }
 
@@ -79,8 +97,10 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Modifier {title(slot)}</DialogTitle>
-          <DialogDescription>Le nouvel intervenant aura accès au dossier ; l&apos;ancien n&apos;y aura plus accès.</DialogDescription>
+          <DialogTitle>{current ? `Modifier ${title(slot)}` : `Ajouter ${INDEFINITE[slot.kind]}`}</DialogTitle>
+          <DialogDescription>
+            {current ? "Le nouvel intervenant aura accès au dossier ; l'ancien n'y aura plus accès." : "Il aura accès au dossier et sera notifié."}
+          </DialogDescription>
         </DialogHeader>
         <Field>
           <FieldLabel>{capitalize(LABELS[slot.kind].label)}</FieldLabel>
@@ -91,7 +111,7 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
             Annuler
           </Button>
           <Button disabled={!v || v === current} onClick={save}>
-            Enregistrer et notifier
+            {current ? "Enregistrer et notifier" : "Ajouter et notifier"}
           </Button>
         </DialogFooter>
       </DialogContent>
