@@ -7,9 +7,11 @@ import {
   Archive,
   BellRing,
   CalendarDays,
+  Check,
   ChevronLeft,
   CircleDashed,
   Clock,
+  Copy,
   Download,
   FileText,
   Flag,
@@ -19,6 +21,7 @@ import {
   Mail,
   MoreHorizontal,
   Pencil,
+  Phone,
   Plus,
   Trash2,
   UserCheck,
@@ -357,6 +360,13 @@ export function DossierDetail({ id }: { id: string }) {
               {subtype && ` — ${subtype}`}
               {!isClient && ` · ${d.vehicule.marque} ${d.vehicule.modele}`} · créé le {formatDate(d.createdAt)}
             </p>
+            {/* Coordonnées du client à portée de main : un clic copie */}
+            {!isClient && (d.client.phone || d.client.email) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {d.client.phone && <CopyChip icon={Phone} value={d.client.phone} />}
+                {d.client.email && <CopyChip icon={Mail} value={d.client.email} />}
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge status={d.status} />
               {late && showDeadline && <LateBadge days={lateDays(d)} />}
@@ -449,7 +459,7 @@ export function DossierDetail({ id }: { id: string }) {
         ))}
 
       {/* Étapes du dossier — la prochaine action est dans le suivi, le retard dans le tag, les actions en haut */}
-      <Card size="sm" className="mb-6">
+      <Card size="sm" className="mb-6 border-brand/30 bg-brand-soft">
         <CardContent>
           <Progress dossier={d} />
         </CardContent>
@@ -557,6 +567,24 @@ export function DossierDetail({ id }: { id: string }) {
   )
 }
 
+function CopyChip({ icon: Icon, value }: { icon: React.ElementType; value: string }) {
+  return (
+    <button
+      type="button"
+      title="Copier"
+      onClick={() => {
+        navigator.clipboard?.writeText(value)
+        toast.success("Copié", { description: value })
+      }}
+      className="group inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border bg-card px-2 text-sm transition-colors hover:border-foreground/30 hover:bg-muted/60"
+    >
+      <Icon className="size-3.5 text-muted-foreground" />
+      <span className="font-medium">{value}</span>
+      <Copy className="size-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
+    </button>
+  )
+}
+
 function Count({ n }: { n: number }) {
   return (
     <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-foreground/10 px-1.5 text-[0.7rem] leading-none font-semibold text-foreground tabular-nums">
@@ -584,39 +612,51 @@ function Progress({ dossier }: { dossier: Dossier }) {
   }, [current, last])
 
   return (
-    // Sur mobile, la frise défile horizontalement plutôt que de tasser les libellés
-    <div ref={ref} className="-mx-4 overflow-x-auto px-4 pt-1.5 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
-      <div className="relative mx-2.5" style={{ minWidth: steps.length * 80 }}>
-        <div className="relative h-3">
-          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-2 border-dotted border-border" />
-          <span className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 bg-brand" style={{ width: at(current) }} />
-          {steps.map((s, i) => (
-            <span
-              key={s.label}
-              className={cn(
-                "absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full",
-                i === current && !done
-                  ? "size-3 border-2 border-brand bg-card ring-4 ring-brand/15"
-                  : cn("size-2", i <= current ? "bg-brand" : "bg-border"),
-              )}
-              style={{ left: at(i) }}
-            />
-          ))}
-        </div>
-        <div className="relative mt-2 h-5 text-xs whitespace-nowrap sm:text-sm">
-          {steps.map((s, i) => (
-            <span
-              key={s.label}
-              className={cn(
-                "absolute",
-                i === 0 ? "-left-1" : i === last ? "-right-1" : "-translate-x-1/2",
-                i === current ? "font-semibold text-foreground" : "text-muted-foreground",
-              )}
-              style={i === 0 || i === last ? undefined : { left: at(i) }}
-            >
-              {s.label}
-            </span>
-          ))}
+    <div>
+      <p className="mb-3 flex items-baseline gap-2 text-sm">
+        <span className="font-semibold text-brand-ink tabular-nums">
+          {done ? "Terminé" : `Étape ${current + 1}/${steps.length}`}
+        </span>
+        <span className="font-semibold">{steps[current].label}</span>
+      </p>
+      {/* Sur mobile, la frise défile horizontalement plutôt que de tasser les libellés */}
+      <div ref={ref} className="-mx-4 overflow-x-auto px-4 pt-1 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
+        <div className="relative mx-3" style={{ minWidth: steps.length * 80 }}>
+          <div className="relative h-5">
+            <span className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand/20" />
+            <span className="absolute top-1/2 left-0 h-1.5 -translate-y-1/2 rounded-full bg-brand" style={{ width: at(current) }} />
+            {steps.map((s, i) => (
+              <span
+                key={s.label}
+                className={cn(
+                  "absolute top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full",
+                  i === current && !done
+                    ? "size-5 border-4 border-brand bg-card ring-4 ring-brand/25"
+                    : i <= current
+                      ? "size-4 bg-brand text-primary-foreground"
+                      : "size-3 border-2 border-brand/40 bg-card",
+                )}
+                style={{ left: at(i) }}
+              >
+                {(i < current || done) && <Check className="size-2.5" strokeWidth={4} />}
+              </span>
+            ))}
+          </div>
+          <div className="relative mt-2 h-5 text-xs whitespace-nowrap sm:text-sm">
+            {steps.map((s, i) => (
+              <span
+                key={s.label}
+                className={cn(
+                  "absolute",
+                  i === 0 ? "-left-1.5" : i === last ? "-right-1.5" : "-translate-x-1/2",
+                  i === current ? "font-semibold text-brand-ink" : i < current ? "text-foreground" : "text-muted-foreground",
+                )}
+                style={i === 0 || i === last ? undefined : { left: at(i) }}
+              >
+                {s.label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
