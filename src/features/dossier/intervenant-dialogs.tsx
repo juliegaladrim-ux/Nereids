@@ -6,9 +6,10 @@ import { toast } from "sonner"
 import { useRole } from "@/components/app-shell/role-context"
 import { SimpleSelect } from "@/components/simple-select"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBack, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { allUsers, daysFromNow, defaultPilotage, fullName, getUser, withRef, type Dossier } from "@/lib/data"
+import { NEW_INTERVENANT_FORM, NEW_LABELS, NewIntervenantForm } from "@/features/admin/create-dossier"
+import { allUsers, daysFromNow, defaultPilotage, fullName, getUser, withRef, type Dossier, type User } from "@/lib/data"
 import { useStore } from "@/lib/store"
 
 /** Poste sur lequel l'admin agit : un des 3 postes, ou un suiveur (identifié par son id ; sans id = nouveau suiveur) */
@@ -58,28 +59,42 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
   const { updateDossier, addEvent } = useStore()
   const current = slot ? currentId(d, slot) : undefined
   const [v, setV] = React.useState<string | null>(current ?? null)
+  // Intervenant saisi à la main (expert ou réparateur hors liste), comme dans « Assigner »
+  const [added, setAdded] = React.useState<User[]>([])
+  const [creating, setCreating] = React.useState(false)
+  // Au retour de l'écran de saisie, un double-clic ne doit ni fermer la modale ni enregistrer
+  const switchedAt = React.useRef(0)
+  function showCreate(on: boolean) {
+    switchedAt.current = Date.now()
+    setCreating(on)
+  }
+  const justSwitched = () => Date.now() - switchedAt.current < 600
 
   if (!slot) return null
   const role = slot.kind
+  const manual = role === "expert" || role === "reparateur" ? role : null
+  const find = (id: string | null) => added.find((u) => u.id === id) ?? getUser(id ?? undefined)
   // Un suiveur déjà sur le dossier ne peut pas en remplacer un autre
-  const options = [...allUsers(), ...(d.extraIntervenants ?? [])]
+  const options = [...allUsers(), ...(d.extraIntervenants ?? []), ...added]
     .filter((u, i, all) => u.role === role && all.findIndex((x) => x.id === u.id) === i)
     .filter((u) => role !== "suiveur" || u.id === current || !d.intervenants.suiveurs.includes(u.id))
     .map((u) => ({
       value: u.id,
       label: role === "reparateur" ? u.structure : fullName(u),
-      hint: u.load !== undefined ? `${u.load} dossiers` : role === "suiveur" ? u.structure : undefined,
+      hint: u.load !== undefined ? `${u.load} dossiers` : added.includes(u) ? "Ajouté à la main" : role === "suiveur" ? u.structure : undefined,
     }))
 
   function save() {
     if (!slot || !v || v === current) return onOpenChange(false)
     const before = getUser(current)
-    const after = getUser(v)
+    const after = find(v)
+    const extra = added.filter((u) => u.id === v)
     // Comme dans « Assigner » : un dossier nouveau passe en étude dès qu'il a un gestionnaire et un expert
-    const next = assign(d, slot, v)
+    const next = role === "expert" ? withRef(assign(d, slot, v), after) : assign(d, slot, v)
     const becomesReady = d.status === "nouveau" && !!next.intervenants.gestionnaire && !!next.intervenants.expert
     updateDossier(d.id, (x) => {
-      const y = assign(x, slot, v)
+      const assigned = assign({ ...x, extraIntervenants: [...(x.extraIntervenants ?? []), ...extra] }, slot, v)
+      const y = role === "expert" ? withRef(assigned, after) : assigned
       return becomesReady ? { ...y, status: "en_etude" as const, pilotage: { ...defaultPilotage("en_etude", y.type), echeance: daysFromNow(3) } } : y
     })
     addEvent(d.id, {
@@ -94,26 +109,63 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog
+      open
+      onOpenChange={(o, details) => {
+        if (!o && details.reason === "outside-press" && justSwitched()) return details.cancel()
+        onOpenChange(o)
+      }}
+    >
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{current ? `Modifier ${title(slot)}` : `Ajouter ${INDEFINITE[slot.kind]}`}</DialogTitle>
-          <DialogDescription>
-            {current ? "Le nouvel intervenant aura accès au dossier ; l'ancien n'y aura plus accès." : "Il aura accès au dossier et sera notifié."}
-          </DialogDescription>
-        </DialogHeader>
-        <Field>
-          <FieldLabel>{capitalize(LABELS[slot.kind].label)}</FieldLabel>
-          <SimpleSelect placeholder="Choisir" options={options} value={v} onChange={setV} />
-        </Field>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annuler
-          </Button>
-          <Button disabled={!v || v === current} onClick={save}>
-            {current ? "Enregistrer et notifier" : "Ajouter et notifier"}
-          </Button>
-        </DialogFooter>
+        {creating && manual ? (
+          <>
+            <DialogBack onClick={() => showCreate(false)} />
+            <DialogHeader>
+              <DialogTitle>{NEW_LABELS[manual].title}</DialogTitle>
+              <DialogDescription>Pour un intervenant qui n&apos;est pas encore dans la liste.</DialogDescription>
+            </DialogHeader>
+            <NewIntervenantForm
+              role={manual}
+              onAdd={(u) => {
+                setAdded((a) => [...a, u])
+                setV(u.id)
+                showCreate(false)
+              }}
+            />
+            <DialogFooter>
+              <Button type="submit" form={NEW_INTERVENANT_FORM}>
+                {NEW_LABELS[manual].submit}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{current ? `Modifier ${title(slot)}` : `Ajouter ${INDEFINITE[slot.kind]}`}</DialogTitle>
+              <DialogDescription>
+                {current ? "Le nouvel intervenant aura accès au dossier ; l'ancien n'y aura plus accès." : "Il aura accès au dossier et sera notifié."}
+              </DialogDescription>
+            </DialogHeader>
+            <Field>
+              <FieldLabel>{capitalize(LABELS[slot.kind].label)}</FieldLabel>
+              <SimpleSelect
+                placeholder="Choisir"
+                options={options}
+                value={v}
+                onChange={setV}
+                action={manual ? { label: NEW_LABELS[manual].title, onSelect: () => showCreate(true) } : undefined}
+              />
+            </Field>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => !justSwitched() && onOpenChange(false)}>
+                Annuler
+              </Button>
+              <Button disabled={!v || v === current} onClick={() => !justSwitched() && save()}>
+                {current ? "Enregistrer et notifier" : "Ajouter et notifier"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )

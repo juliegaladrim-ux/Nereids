@@ -507,8 +507,9 @@ export function seedAccounts(): Record<string, Account> {
   return { [SUIVEUR_ACTIVATION_USER]: { invitedAt: daysFromNow(-1, 15) } }
 }
 
-export function fullName(u?: { firstName: string; lastName: string }): string {
-  return u ? `${u.firstName} ${u.lastName}` : "—"
+/** Nom affiché ; un réparateur saisi sans contact est affiché sous le nom de son garage */
+export function fullName(u?: { firstName: string; lastName: string; structure?: string }): string {
+  return u ? `${u.firstName} ${u.lastName}`.trim() || u.structure || "—" : "—"
 }
 
 const letters = (s = "") => s.normalize("NFD").replace(/[^A-Za-z]/g, "").toUpperCase()
