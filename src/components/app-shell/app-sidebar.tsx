@@ -70,6 +70,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {role.nav.map((item) => {
+                if (item.soon)
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton aria-disabled tooltip={`${item.label} (${item.soon})`} className="cursor-default text-muted-foreground hover:bg-transparent hover:text-muted-foreground">
+                        <item.icon />
+                        <span>{item.label}</span>
+                        <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] font-semibold leading-none">{item.soon}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
                 const url = href(item.path)
                 const active =
                   pathname === url ||

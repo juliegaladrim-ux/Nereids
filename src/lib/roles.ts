@@ -1,5 +1,6 @@
 import {
   Archive,
+  CalendarDays,
   FolderOpen,
   LayoutDashboard,
   Users,
@@ -19,6 +20,8 @@ export type NavItem = {
   /** Chemin relatif au rôle, ex. "dossiers" → /admin/dossiers */
   path: string
   icon: LucideIcon
+  /** Onglet prévu mais pas encore conçu : affiché désactivé avec ce badge (ex. "V2") */
+  soon?: string
 }
 
 export type Role = {
@@ -45,10 +48,11 @@ export const ROLES: Role[] = [
     userId: "u-admin",
     ready: true,
     canCreateDossier: true,
-    home: "tableau-de-bord",
+    // Pas de tableau de bord (réunion client 15/10) : l'admin arrive sur les dossiers en cours
+    home: "dossiers",
     nav: [
-      { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Dossiers en cours", path: "dossiers", icon: FolderOpen },
+      { label: "Calendrier experts", path: "calendrier-experts", icon: CalendarDays, soon: "V2" },
       { label: "Archives", path: "archives", icon: Archive },
       { label: "Utilisateurs", path: "utilisateurs", icon: Users },
     ],
