@@ -23,7 +23,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <StoreProvider>
           <TooltipProvider>{children}</TooltipProvider>
-          <Toaster position="bottom-right" />
+          {/* Au-dessus de la barre « Prototype » */}
+          <Toaster position="bottom-center" offset={{ bottom: 72 }} />
         </StoreProvider>
       </body>
     </html>

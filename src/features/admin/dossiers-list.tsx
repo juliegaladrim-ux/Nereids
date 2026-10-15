@@ -128,74 +128,75 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
         </div>
       )}
 
-      {/* Recherche + filtres */}
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <div className="col-span-full flex items-center gap-2">
-          <div className="relative flex-1 lg:w-80 lg:flex-none">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Immat., réf., client, expert…"
-              className="pl-9"
-            />
-          </div>
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setQ("")
-                setType(ALL)
-                setStatus(ALL)
-                setGest(ALL)
-                setCabinet(ALL)
-                setExpert(ALL)
-                setRep(ALL)
-              }}
-            >
-              <X /> Effacer
-            </Button>
-          )}
+      {/* Recherche + filtres : pastilles dans une barre blanche */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5">
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Immat., réf., client, expert…"
+            className="h-8 rounded-full pl-9"
+          />
         </div>
-        <SimpleSelect
+        <FilterPill
           value={type}
-          onChange={(v) => setType(v ?? ALL)}
-          options={[{ value: ALL, label: "Tous les types" }, ...Object.entries(DOSSIER_TYPES).map(([value, t]) => ({ value, label: t.label }))]}
+          onChange={setType}
+          options={[{ value: ALL, label: "Type" }, ...Object.entries(DOSSIER_TYPES).map(([value, t]) => ({ value, label: t.label }))]}
         />
-        <SimpleSelect
+        <FilterPill
           value={status}
-          onChange={(v) => setStatus(v ?? ALL)}
-          options={[{ value: ALL, label: "Tous les statuts" }, ...Object.entries(STATUSES).map(([value, s]) => ({ value, label: s.label }))]}
+          onChange={setStatus}
+          options={[{ value: ALL, label: "Statut" }, ...Object.entries(STATUSES).map(([value, s]) => ({ value, label: s.label }))]}
         />
-        <SimpleSelect
+        <FilterPill
           value={gest}
-          onChange={(v) => setGest(v ?? ALL)}
-          options={[{ value: ALL, label: "Tous gestionnaires" }, ...USERS.filter((u) => u.role === "gestionnaire").map((u) => ({ value: u.id, label: fullName(u) }))]}
+          onChange={setGest}
+          options={[{ value: ALL, label: "Gestionnaire" }, ...USERS.filter((u) => u.role === "gestionnaire").map((u) => ({ value: u.id, label: fullName(u) }))]}
         />
-        <SimpleSelect
+        <FilterPill
           value={cabinet}
-          onChange={(v) => {
-            const c = v ?? ALL
+          onChange={(c) => {
             setCabinet(c)
             // L'expert choisi n'appartient plus au cabinet : on le retire
             if (c !== ALL && expert !== ALL && getUser(expert)?.structure !== c) setExpert(ALL)
           }}
-          options={[{ value: ALL, label: "Tous cabinets" }, ...CABINETS.map((c) => ({ value: c, label: c }))]}
+          options={[{ value: ALL, label: "Cabinet" }, ...CABINETS.map((c) => ({ value: c, label: c }))]}
         />
-        <SimpleSelect
+        <FilterPill
           value={expert}
-          onChange={(v) => setExpert(v ?? ALL)}
-          options={[{ value: ALL, label: "Tous experts" }, ...cabinetExperts.map((u) => ({ value: u.id, label: fullName(u) }))]}
+          onChange={setExpert}
+          options={[{ value: ALL, label: "Expert" }, ...cabinetExperts.map((u) => ({ value: u.id, label: fullName(u) }))]}
         />
-        <SimpleSelect
+        <FilterPill
           value={rep}
-          onChange={(v) => setRep(v ?? ALL)}
-          options={[{ value: ALL, label: "Tous réparateurs" }, ...USERS.filter((u) => u.role === "reparateur").map((u) => ({ value: u.id, label: u.structure }))]}
+          onChange={setRep}
+          options={[{ value: ALL, label: "Réparateur" }, ...USERS.filter((u) => u.role === "reparateur").map((u) => ({ value: u.id, label: u.structure }))]}
         />
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
+            onClick={() => {
+              setQ("")
+              setType(ALL)
+              setStatus(ALL)
+              setGest(ALL)
+              setCabinet(ALL)
+              setExpert(ALL)
+              setRep(ALL)
+            }}
+          >
+            <X /> Effacer
+          </Button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
+        <p className="px-4 py-3 text-xs text-muted-foreground">
+          {rows.length} dossier{rows.length > 1 ? "s" : ""}
+        </p>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -224,7 +225,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                 onClick={() => router.push(href(`dossiers/${d.id}`))}
               >
                 <TableCell className="pl-4">
-                  <Link href={href(`dossiers/${d.id}`)} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
+                  <Link href={href(`dossiers/${d.id}`)} className="font-semibold text-brand-ink hover:underline" onClick={(e) => e.stopPropagation()}>
                     {d.ref}
                   </Link>
                   <div className="text-xs text-muted-foreground">
@@ -268,7 +269,6 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
           </TableBody>
         </Table>
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">{rows.length} dossier(s)</p>
     </>
   )
 }
@@ -294,34 +294,35 @@ function ViewCard({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        "group flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/30",
-        tone === "danger" && "border-destructive/40",
-        tone === "primary" && "border-brand/40",
+        "flex cursor-pointer flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/30",
         selected && "border-foreground ring-1 ring-foreground hover:border-foreground",
       )}
     >
       <span
         className={cn(
-          "grid size-10 shrink-0 place-items-center rounded-full bg-muted text-foreground",
-          tone === "danger" && "bg-destructive/10 text-destructive",
-          tone === "primary" && "bg-brand-soft text-brand-ink",
+          "flex items-center gap-1.5 text-sm font-medium text-muted-foreground",
+          tone === "danger" && "text-destructive",
+          tone === "primary" && "text-brand-ink",
         )}
       >
-        <Icon className="size-5" />
+        <Icon className="size-4 shrink-0" />
+        <span className="truncate">{label}</span>
       </span>
-      <span className="min-w-0">
-        <span
-          className={cn(
-            "block text-2xl leading-none font-bold tabular-nums",
-            tone === "danger" && "text-destructive",
-            tone === "primary" && "text-brand-ink",
-          )}
-        >
-          {value}
-        </span>
-        <span className="mt-1 block truncate text-sm font-medium text-muted-foreground">{label}</span>
-      </span>
+      <span className="text-[28px] leading-none font-bold tabular-nums">{value}</span>
     </button>
+  )
+}
+
+/** Filtre en pastille : le libellé du filtre s'affiche tant qu'aucune valeur n'est choisie */
+function FilterPill({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <SimpleSelect
+      value={value}
+      onChange={(v) => onChange(v ?? ALL)}
+      options={options}
+      size="sm"
+      className={cn("w-auto max-w-56 rounded-full px-3", value !== ALL && "border-foreground font-medium")}
+    />
   )
 }
 

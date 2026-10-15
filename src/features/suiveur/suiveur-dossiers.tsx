@@ -62,9 +62,8 @@ export function SuiveurDossiers() {
     <div className="mx-auto w-full max-w-6xl">
       <PageHeader title="Dossiers suivis" description={`${user.structure} · ${all.length} dossier${all.length > 1 ? "s" : ""}`} />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-          <TabsList>
+      <Tabs value={view} onValueChange={(v) => setView(v as View)} className="mb-3">
+          <TabsList variant="line">
             {(
               [
                 ["en_cours", "En cours"],
@@ -79,10 +78,13 @@ export function SuiveurDossiers() {
               </TabsTrigger>
             ))}
           </TabsList>
-        </Tabs>
+      </Tabs>
+
+      {/* Recherche dans une barre blanche */}
+      <div className="mb-3 rounded-xl border bg-card p-2.5">
         <div className="relative sm:w-80">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ma réf., réf. dossier, client, immat.…" className="pl-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ma réf., réf. dossier, client, immat.…" className="h-8 rounded-full pl-9" />
         </div>
       </div>
 
@@ -95,6 +97,9 @@ export function SuiveurDossiers() {
       {/* Ordinateur : tableau */}
       {rows.length > 0 && (
         <div className="hidden overflow-hidden rounded-xl border bg-card lg:block">
+          <p className="px-4 py-3 text-xs text-muted-foreground">
+            {rows.length} dossier{rows.length > 1 ? "s" : ""}
+          </p>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -111,7 +116,7 @@ export function SuiveurDossiers() {
                 return (
                   <TableRow key={d.id} className="cursor-pointer" onClick={() => router.push(href(`dossiers/${d.id}`))}>
                     <TableCell className="pl-4">
-                      <Link href={href(`dossiers/${d.id}`)} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
+                      <Link href={href(`dossiers/${d.id}`)} className="font-semibold text-brand-ink hover:underline" onClick={(e) => e.stopPropagation()}>
                         {d.client.firstName} {d.client.lastName}
                       </Link>
                       <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">

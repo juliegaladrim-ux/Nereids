@@ -528,30 +528,30 @@ export function DossierDetail({ id }: { id: string }) {
               <CardTitle>Références</CardTitle>
               {rights.canEdit("refs") && (
                 <CardAction>
-                  <EditButton onClick={() => openEdit("refs")} label="Modifier les références" />
+                  <EditAction onClick={() => openEdit("refs")} label="Modifier les références" />
                 </CardAction>
               )}
             </CardHeader>
             <CardContent>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-                {rights.ownRef && (
-                  <>
-                    <dt className="text-muted-foreground">Ma référence</dt>
-                    <dd className="flex items-center justify-end gap-1 text-right font-medium">
-                      {ownRef ?? <span className="font-normal text-muted-foreground">—</span>}
-                      <EditButton onClick={editOwnRef} label="Modifier ma référence" className="-my-1 -mr-1.5 size-6" />
-                    </dd>
-                  </>
-                )}
-                <dt className="text-muted-foreground">Nereids</dt>
-                <dd className="text-right font-medium">{d.ref}</dd>
-                <dt className="text-muted-foreground">Sinistre</dt>
-                <dd className="text-right">{d.refs.sinistre ?? "—"}</dd>
-                <dt className="text-muted-foreground">Interne</dt>
-                <dd className="text-right">{d.refs.interne ?? "—"}</dd>
-                <dt className="text-muted-foreground">Expert</dt>
-                <dd className="text-right">{d.refs.expert ?? "—"}</dd>
-              </dl>
+              <InfoRows
+                rows={[
+                  ...(rights.ownRef
+                    ? [
+                        [
+                          "Ma référence",
+                          <span key="own" className="flex items-center justify-end gap-1">
+                            {ownRef ?? <span className="font-normal text-muted-foreground">—</span>}
+                            <EditButton onClick={editOwnRef} label="Modifier ma référence" className="-my-1 -mr-1.5 size-6" />
+                          </span>,
+                        ] as [string, React.ReactNode],
+                      ]
+                    : []),
+                  ["Nereids", d.ref],
+                  ["Sinistre", d.refs.sinistre],
+                  ["Interne", d.refs.interne],
+                  ["Expert", d.refs.expert],
+                ]}
+              />
             </CardContent>
           </Card>
         </aside>
@@ -807,21 +807,41 @@ function InfoCard({ title, rows, onEdit }: { title: string; rows: [string, React
         <CardTitle>{title}</CardTitle>
         {onEdit && (
           <CardAction>
-            <EditButton onClick={onEdit} label={`Modifier — ${title}`} />
+            <EditAction onClick={onEdit} label={`Modifier — ${title}`} />
           </CardAction>
         )}
       </CardHeader>
       <CardContent>
-        <dl className="grid grid-cols-[minmax(110px,auto)_1fr] gap-x-4 gap-y-2 text-sm">
-          {rows.map(([k, v]) => (
-            <React.Fragment key={k}>
-              <dt className="text-muted-foreground">{k}</dt>
-              <dd className="min-w-0 break-words">{v || "—"}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
+        <InfoRows rows={rows} />
       </CardContent>
     </Card>
+  )
+}
+
+/** Bouton « Modifier » discret dans l'en-tête d'une carte */
+function EditAction({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <Button size="xs" variant="secondary" aria-label={label} onClick={onClick}>
+      Modifier
+    </Button>
+  )
+}
+
+/** Lignes libellé / valeur sur fond gris clair */
+function InfoRows({ rows }: { rows: [React.ReactNode, React.ReactNode][] }) {
+  return (
+    <dl className="flex flex-col gap-1 text-sm">
+      {rows.map(([k, v], i) => {
+        // Texte long (description…) : libellé au-dessus, valeur alignée à gauche
+        const long = typeof v === "string" && v.length > 40
+        return (
+          <div key={i} className={cn("flex gap-4 rounded-md bg-muted/70 px-3 py-2", long ? "flex-col gap-1" : "items-start justify-between")}>
+            <dt className="shrink-0 text-muted-foreground">{k}</dt>
+            <dd className={cn("min-w-0 font-medium break-words", !long && "text-right")}>{v || "—"}</dd>
+          </div>
+        )
+      })}
+    </dl>
   )
 }
 
@@ -1198,7 +1218,7 @@ function Resolution({ dossier: d, onClose, onEdit }: { dossier: Dossier; onClose
           <CardTitle>Clôture</CardTitle>
           <CardAction>
             {d.cloture
-              ? onEdit && <EditButton onClick={onEdit} label="Modifier la clôture" />
+              ? onEdit && <EditAction onClick={onEdit} label="Modifier la clôture" />
               : onClose && (
                   <Button size="sm" variant="outline" onClick={onClose}>
                     Clôturer le dossier

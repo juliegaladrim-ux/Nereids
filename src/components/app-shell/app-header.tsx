@@ -26,7 +26,7 @@ import { useRole } from "./role-context"
 
 export function AppHeader() {
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-background/90 px-3 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 bg-band/85 px-3 backdrop-blur sm:px-6 lg:px-8">
       {/* Sur mobile le menu est fermé par défaut : on garde le bouton pour l'ouvrir */}
       <SidebarTrigger className="md:hidden" />
       <GlobalSearch />
@@ -64,7 +64,7 @@ function GlobalSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex h-10 w-full max-w-md items-center gap-2 rounded-[6px] border border-input bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-foreground/30"
+        className="flex h-10 w-full max-w-md items-center gap-2 rounded-full bg-card/80 px-4 text-sm text-muted-foreground shadow-xs transition-colors hover:bg-card"
       >
         <Search className="size-4" />
         <span className="truncate">

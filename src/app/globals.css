@@ -40,6 +40,7 @@
   --color-brand: var(--brand);
   --color-brand-ink: var(--brand-ink);
   --color-brand-soft: var(--brand-soft);
+  --color-band: var(--band);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -78,8 +79,10 @@
   --brand: #749ba9;
   --brand-ink: #456c7a; /* bleu foncé pour le texte : contraste AA sur blanc */
   --brand-soft: #ebf1f3;
+  /* Bandeau dégradé en haut des pages (inspiration Deel) */
+  --band: #dce8ec;
 
-  --background: #f4f5f5;
+  --background: #f6f6f4;
   --foreground: #1d1d1b;
   --card: #ffffff;
   --card-foreground: #1d1d1b;
@@ -96,7 +99,7 @@
   --accent: #ecedee;
   --accent-foreground: #1d1d1b;
   --destructive: #d92d20;
-  --border: #dee0e1;
+  --border: #e6e7e5;
   --input: #c5c9cb;
   --ring: var(--brand);
   --chart-1: #456c7a;
@@ -105,13 +108,13 @@
   --chart-4: #5a5d5f;
   --chart-5: #c5c9cb;
   --radius: 0.5rem;
-  --sidebar: #f4f5f5;
+  --sidebar: #fbfbfa;
   --sidebar-foreground: #1d1d1b;
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e8eaeb;
+  --sidebar-accent: #eef0ef;
   --sidebar-accent-foreground: #1d1d1b;
-  --sidebar-border: #dee0e1;
+  --sidebar-border: #e6e7e5;
   --sidebar-ring: var(--brand);
 
   --tone-new: #456c7a;
@@ -140,6 +143,7 @@
   --brand: #8fb1bd;
   --brand-ink: #a9c4cd;
   --brand-soft: oklch(0.3 0.03 220);
+  --band: oklch(0.25 0.03 220);
   --primary: #749ba9;
   --primary-hover: #8fb1bd;
   --primary-soft: var(--brand-soft);

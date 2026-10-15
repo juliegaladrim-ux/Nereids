@@ -15,10 +15,11 @@ import {
   ShieldAlert,
   Trash2,
   Upload,
+  X,
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
-import { PageHeader } from "@/components/page-header"
+import { Logo } from "@/components/logo"
 import { SimpleSelect } from "@/components/simple-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -276,18 +277,25 @@ export function CreateDossier() {
   )
 
   return (
-    <>
-      <PageHeader
-        title="Nouveau dossier"
-        description="Renseignez l'essentiel : le reste pourra être complété plus tard."
-        actions={
-          <Button variant="ghost" render={<Link href={href("dossiers")} />} nativeButton={false}>
-            Annuler
-          </Button>
-        }
-      />
+    // Assistant plein écran façon Deel : logo + fermeture en haut, étapes à droite, actions en pied de page
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
+      <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4 sm:px-6">
+        <Logo />
+        <span className="h-6 w-px bg-border" />
+        <span className="text-sm font-semibold">Nouveau dossier</span>
+        <Button variant="ghost" size="icon" className="ml-auto" aria-label="Fermer" render={<Link href={href("dossiers")} />} nativeButton={false}>
+          <X />
+        </Button>
+      </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-28 sm:px-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">Nouveau dossier</h1>
+        <p className="mt-1 text-[15px] text-muted-foreground">Renseignez l&apos;essentiel : le reste pourra être complété plus tard.</p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex min-w-0 flex-col gap-6">
           {/* 1. Type */}
           <Card>
@@ -321,7 +329,7 @@ export function CreateDossier() {
                     ))}
                   </div>
                   {horsRecours && (
-                    <Alert>
+                    <Alert variant="warning">
                       <AlertTriangle />
                       <AlertTitle>Hors module recours direct</AlertTitle>
                       <AlertDescription>
@@ -565,14 +573,11 @@ export function CreateDossier() {
           )}
         </div>
 
-        {/* Récapitulatif */}
-        <aside className="lg:sticky lg:top-20 lg:self-start">
-          <Card>
-            <CardHeader>
-              <CardTitle>Récapitulatif</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4 text-sm">
-              <ul className="flex flex-col gap-2">
+        {/* Étapes */}
+        <aside className="lg:sticky lg:top-0 lg:self-start">
+          <Card size="sm">
+            <CardContent className="text-sm">
+              <ul className="flex flex-col gap-1">
                 <RecapItem ok={typeComplete} label="Type de dossier" detail={f.type ? DOSSIER_TYPES[f.type].label : undefined} />
                 <RecapItem
                   ok={!errors.clientNom && !errors.clientContact && !errors.clientEmail}
@@ -592,14 +597,21 @@ export function CreateDossier() {
                   </>
                 )}
               </ul>
-
-              <Button size="lg" className="w-full" onClick={submit}>
-                {horsRecours ? "Enregistrer" : "Créer le dossier"}
-              </Button>
             </CardContent>
           </Card>
         </aside>
       </div>
+      </div>
+      </div>
+
+      <footer className="shrink-0 border-t bg-card">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
+          <Button variant="ghost" render={<Link href={href("dossiers")} />} nativeButton={false}>
+            Annuler
+          </Button>
+          <Button onClick={submit}>{horsRecours ? "Enregistrer" : "Créer le dossier"}</Button>
+        </div>
+      </footer>
 
       {/* Saisie d'un expert / réparateur absent de la liste */}
       <Dialog open={!!creating} onOpenChange={(o) => !o && setCreating(null)}>
@@ -630,7 +642,7 @@ export function CreateDossier() {
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 
@@ -667,17 +679,22 @@ function ChoiceCard({
   )
 }
 
+/** Étape façon Deel : « Terminé » en vert au-dessus du libellé quand c'est rempli */
 function RecapItem({ ok, label, detail, optional }: { ok: boolean; label: string; detail?: string; optional?: boolean }) {
   return (
-    <li className="flex items-start gap-2">
+    <li className={cn("flex items-start gap-2.5 rounded-md px-2 py-2", !ok && !optional && "bg-muted/70")}>
       {ok ? (
-        <Check className="mt-0.5 size-4 shrink-0 text-tone-done" />
+        <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-tone-done text-white">
+          <Check className="size-3" strokeWidth={3} />
+        </span>
       ) : (
-        <CircleDashed className={cn("mt-0.5 size-4 shrink-0", optional ? "text-muted-foreground" : "text-tone-waiting")} />
+        <CircleDashed className={cn("mt-0.5 size-5 shrink-0", optional ? "text-muted-foreground/60" : "text-muted-foreground")} />
       )}
       <div className="min-w-0">
-        <span className="font-medium">{label}</span>
-        {detail && <span className="block truncate text-muted-foreground">{detail}</span>}
+        {ok && <span className="block text-[11px] leading-tight font-semibold tracking-wide text-tone-done uppercase">Terminé</span>}
+        {!ok && optional && <span className="block text-[11px] leading-tight font-semibold tracking-wide text-muted-foreground uppercase">Optionnel</span>}
+        <span className={cn("block font-medium", optional && !ok && "text-muted-foreground")}>{label}</span>
+        {detail && <span className="block truncate text-xs text-muted-foreground">{detail}</span>}
       </div>
     </li>
   )
