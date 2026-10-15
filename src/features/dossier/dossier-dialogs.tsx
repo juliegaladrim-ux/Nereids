@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 
 import { useRole } from "@/components/app-shell/role-context"
@@ -11,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
+  DialogBack,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -212,14 +212,8 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
       <DialogContent className="sm:max-w-lg">
         {creating ? (
           <>
+            <DialogBack onClick={() => setCreating(null)} />
             <DialogHeader>
-              <button
-                type="button"
-                onClick={() => setCreating(null)}
-                className="-ml-1 mb-1 inline-flex w-fit cursor-pointer items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="size-4" /> Retour
-              </button>
               <DialogTitle>{NEW_LABELS[creating].title}</DialogTitle>
               <DialogDescription>Pour un intervenant qui n&apos;est pas encore dans la liste.</DialogDescription>
             </DialogHeader>
@@ -232,9 +226,6 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
               }}
             />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCreating(null)}>
-                Retour
-              </Button>
               <Button type="submit" form={NEW_INTERVENANT_FORM}>
                 {NEW_LABELS[creating].submit}
               </Button>
@@ -244,9 +235,6 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
           <>
             <DialogHeader>
               <DialogTitle>Assigner les intervenants</DialogTitle>
-              <DialogDescription>
-                Le dossier passe « En étude » dès qu&apos;un gestionnaire et un expert sont assignés.
-              </DialogDescription>
             </DialogHeader>
             <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} added={added} onCreate={setCreating} />
             <DialogFooter>
