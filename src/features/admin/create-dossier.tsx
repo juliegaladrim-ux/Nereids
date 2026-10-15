@@ -23,6 +23,7 @@ import { SimpleSelect } from "@/components/simple-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -106,6 +107,7 @@ export function CreateDossier() {
   const [f, setF] = React.useState<Form>(EMPTY)
   /** Experts / réparateurs saisis à la main (hors liste) */
   const [added, setAdded] = React.useState<User[]>([])
+  const [creating, setCreating] = React.useState<NewRole | null>(null)
   const [submitted, setSubmitted] = React.useState(false)
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
@@ -553,7 +555,7 @@ export function CreateDossier() {
                         value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur }}
                         onChange={(k, v) => set(k, v)}
                         added={added}
-                        onAdd={(u) => setAdded((a) => [...a, u])}
+                        onCreate={setCreating}
                       />
                     </CardContent>
                   </Card>
@@ -598,6 +600,36 @@ export function CreateDossier() {
           </Card>
         </aside>
       </div>
+
+      {/* Saisie d'un expert / réparateur absent de la liste */}
+      <Dialog open={!!creating} onOpenChange={(o) => !o && setCreating(null)}>
+        <DialogContent className="sm:max-w-lg">
+          {creating && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{NEW_LABELS[creating].title}</DialogTitle>
+                <DialogDescription>Pour un intervenant qui n&apos;est pas encore dans la liste.</DialogDescription>
+              </DialogHeader>
+              <NewIntervenantForm
+                role={creating}
+                onAdd={(u) => {
+                  setAdded((a) => [...a, u])
+                  set(creating, u.id)
+                  setCreating(null)
+                }}
+              />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreating(null)}>
+                  Annuler
+                </Button>
+                <Button type="submit" form={NEW_INTERVENANT_FORM}>
+                  {NEW_LABELS[creating].submit}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -652,22 +684,24 @@ function RecapItem({ ok, label, detail, optional }: { ok: boolean; label: string
 }
 
 export type AssignValue = { gestionnaire: string | null; expert: string | null; reparateur: string | null }
+export type NewRole = "expert" | "reparateur"
 
 /**
  * Champs d'assignation — réutilisés dans la création et dans la fiche dossier.
  * L'intervenant suiveur ne s'assigne pas ici : son compte est ouvert à la demande du client.
+ * « Ajouter un expert / réparateur » (en bas de chaque liste) ouvre l'écran de saisie géré par le parent.
  */
 export function AssignFields({
   value,
   onChange,
   added,
-  onAdd,
+  onCreate,
 }: {
   value: AssignValue
   onChange: (k: keyof AssignValue, v: string | null) => void
   /** Intervenants saisis à la main, pas encore enregistrés sur le dossier */
   added: User[]
-  onAdd: (u: User) => void
+  onCreate: (role: NewRole) => void
 }) {
   const opts = (role: string) =>
     [...allUsers(), ...added].filter((u) => u.role === role).map((u) => ({
@@ -675,10 +709,6 @@ export function AssignFields({
       label: role === "reparateur" ? u.structure : fullName(u),
       hint: u.load !== undefined ? `${u.load} dossiers` : added.includes(u) ? "Ajouté à la main" : undefined,
     }))
-  const add = (role: "expert" | "reparateur") => (u: User) => {
-    onAdd(u)
-    onChange(role, u.id)
-  }
   return (
     <div className="flex flex-col gap-4">
       <Field>
@@ -687,52 +717,60 @@ export function AssignFields({
       </Field>
       <Field>
         <FieldLabel>Expert</FieldLabel>
-        <SimpleSelect placeholder="Choisir un expert" options={opts("expert")} value={value.expert} onChange={(v) => onChange("expert", v)} />
-        <ManualIntervenant role="expert" onAdd={add("expert")} />
+        <SimpleSelect
+          placeholder="Choisir un expert"
+          options={opts("expert")}
+          value={value.expert}
+          onChange={(v) => onChange("expert", v)}
+          action={{ label: "Ajouter un expert", onSelect: () => onCreate("expert") }}
+        />
       </Field>
       <Field>
         <FieldLabel>Réparateur</FieldLabel>
-        <SimpleSelect placeholder="Optionnel" options={opts("reparateur")} value={value.reparateur} onChange={(v) => onChange("reparateur", v)} />
-        <ManualIntervenant role="reparateur" onAdd={add("reparateur")} />
+        <SimpleSelect
+          placeholder="Optionnel"
+          options={opts("reparateur")}
+          value={value.reparateur}
+          onChange={(v) => onChange("reparateur", v)}
+          action={{ label: "Ajouter un réparateur", onSelect: () => onCreate("reparateur") }}
+        />
       </Field>
     </div>
   )
 }
 
-/** Saisie d'un expert ou d'un réparateur absent de la liste */
-function ManualIntervenant({ role, onAdd }: { role: "expert" | "reparateur"; onAdd: (u: User) => void }) {
-  const empty = { structure: "", firstName: "", lastName: "", phone: "", email: "" }
-  const [open, setOpen] = React.useState(false)
-  const [v, setV] = React.useState(empty)
+export const NEW_INTERVENANT_FORM = "new-intervenant"
+export const NEW_LABELS: Record<NewRole, { title: string; submit: string }> = {
+  expert: { title: "Ajouter un expert", submit: "Ajouter l'expert" },
+  reparateur: { title: "Ajouter un réparateur", submit: "Ajouter le réparateur" },
+}
+
+/**
+ * Saisie d'un expert ou d'un réparateur absent de la liste.
+ * Le bouton d'envoi est dans le pied de la modale du parent (attribut form={NEW_INTERVENANT_FORM}).
+ */
+export function NewIntervenantForm({ role, onAdd }: { role: NewRole; onAdd: (u: User) => void }) {
+  const [v, setV] = React.useState({ structure: "", firstName: "", lastName: "", phone: "", email: "" })
   const [tried, setTried] = React.useState(false)
   const isExpert = role === "expert"
-  const missing = {
+  const missing: Partial<Record<keyof typeof v, boolean>> = {
     structure: !isExpert && !v.structure.trim(),
     firstName: isExpert && !v.firstName.trim(),
     lastName: isExpert && !v.lastName.trim(),
     email: !/^\S+@\S+\.\S+$/.test(v.email.trim()),
   }
-  const field = (k: keyof typeof empty, label: string, type = "text") => (
-    <Field data-invalid={tried && missing[k as keyof typeof missing] ? true : undefined}>
-      <FieldLabel htmlFor={`${role}-${k}`}>{label}</FieldLabel>
-      <Input
-        id={`${role}-${k}`}
-        type={type}
-        value={v[k]}
-        aria-invalid={tried && missing[k as keyof typeof missing] ? true : undefined}
-        onChange={(e) => setV((p) => ({ ...p, [k]: e.target.value }))}
-      />
-    </Field>
-  )
-
-  if (!open)
+  const field = (k: keyof typeof v, label: string, type = "text") => {
+    const invalid = tried && missing[k] ? true : undefined
     return (
-      <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit text-brand-ink" onClick={() => setOpen(true)}>
-        <Plus /> {isExpert ? "Expert absent de la liste" : "Réparateur absent de la liste"}
-      </Button>
+      <Field data-invalid={invalid}>
+        <FieldLabel htmlFor={`new-${k}`}>{label}</FieldLabel>
+        <Input id={`new-${k}`} type={type} value={v[k]} aria-invalid={invalid} onChange={(e) => setV((p) => ({ ...p, [k]: e.target.value }))} />
+      </Field>
     )
+  }
 
-  function submit() {
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
     setTried(true)
     if (Object.values(missing).some(Boolean)) return
     onAdd({
@@ -745,39 +783,26 @@ function ManualIntervenant({ role, onAdd }: { role: "expert" | "reparateur"; onA
       structure: v.structure.trim() || (isExpert ? "Expert indépendant" : "Réparateur"),
       fonction: isExpert ? "Expert automobile" : "",
     })
-    toast.success(isExpert ? "Expert ajouté" : "Réparateur ajouté", { description: "Il recevra une invitation par e-mail à l'enregistrement." })
-    setV(empty)
-    setTried(false)
-    setOpen(false)
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        {isExpert ? (
-          <>
-            {field("firstName", "Prénom")}
-            {field("lastName", "Nom")}
-            <div className="sm:col-span-2">{field("structure", "Cabinet (optionnel)")}</div>
-          </>
-        ) : (
-          <>
-            <div className="sm:col-span-2">{field("structure", "Garage")}</div>
-            {field("firstName", "Prénom du contact (optionnel)")}
-            {field("lastName", "Nom du contact (optionnel)")}
-          </>
-        )}
-        {field("email", "E-mail", "email")}
-        {field("phone", "Téléphone (optionnel)", "tel")}
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Annuler
-        </Button>
-        <Button type="button" size="sm" onClick={submit}>
-          Ajouter
-        </Button>
-      </div>
-    </div>
+    <form id={NEW_INTERVENANT_FORM} onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
+      {isExpert ? (
+        <>
+          {field("firstName", "Prénom")}
+          {field("lastName", "Nom")}
+          <div className="sm:col-span-2">{field("structure", "Cabinet (optionnel)")}</div>
+        </>
+      ) : (
+        <>
+          <div className="sm:col-span-2">{field("structure", "Garage")}</div>
+          {field("firstName", "Prénom du contact (optionnel)")}
+          {field("lastName", "Nom du contact (optionnel)")}
+        </>
+      )}
+      {field("email", "E-mail", "email")}
+      {field("phone", "Téléphone (optionnel)", "tel")}
+      <p className="text-sm text-muted-foreground sm:col-span-2">Il recevra une invitation par e-mail une fois l&apos;assignation enregistrée.</p>
+    </form>
   )
 }

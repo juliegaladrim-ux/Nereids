@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 
 import { useRole } from "@/components/app-shell/role-context"
@@ -20,7 +21,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { AssignFields, type AssignValue } from "@/features/admin/create-dossier"
+import { AssignFields, NEW_INTERVENANT_FORM, NEW_LABELS, NewIntervenantForm, type AssignValue, type NewRole } from "@/features/admin/create-dossier"
 import {
   CLOSING_REASONS,
   DOC_CATEGORIES,
@@ -169,6 +170,8 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
   }
   const [v, setV] = React.useState<AssignValue>(initial)
   const [added, setAdded] = React.useState<User[]>([])
+  /** Écran de saisie d'un intervenant hors liste, à la place de l'écran d'assignation */
+  const [creating, setCreating] = React.useState<NewRole | null>(null)
 
   function save() {
     const changed = (Object.keys(v) as (keyof AssignValue)[]).filter((k) => v[k] !== initial[k])
@@ -199,21 +202,61 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setCreating(null)
+        onOpenChange(o)
+      }}
+    >
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Assigner les intervenants</DialogTitle>
-          <DialogDescription>
-            Le dossier passe « En étude » dès qu&apos;un gestionnaire et un expert sont assignés.
-          </DialogDescription>
-        </DialogHeader>
-        <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} added={added} onAdd={(u) => setAdded((a) => [...a, u])} />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annuler
-          </Button>
-          <Button onClick={save}>Assigner et notifier</Button>
-        </DialogFooter>
+        {creating ? (
+          <>
+            <DialogHeader>
+              <button
+                type="button"
+                onClick={() => setCreating(null)}
+                className="-ml-1 mb-1 inline-flex w-fit cursor-pointer items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" /> Retour
+              </button>
+              <DialogTitle>{NEW_LABELS[creating].title}</DialogTitle>
+              <DialogDescription>Pour un intervenant qui n&apos;est pas encore dans la liste.</DialogDescription>
+            </DialogHeader>
+            <NewIntervenantForm
+              role={creating}
+              onAdd={(u) => {
+                setAdded((a) => [...a, u])
+                setV((p) => ({ ...p, [creating]: u.id }))
+                setCreating(null)
+              }}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreating(null)}>
+                Retour
+              </Button>
+              <Button type="submit" form={NEW_INTERVENANT_FORM}>
+                {NEW_LABELS[creating].submit}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Assigner les intervenants</DialogTitle>
+              <DialogDescription>
+                Le dossier passe « En étude » dès qu&apos;un gestionnaire et un expert sont assignés.
+              </DialogDescription>
+            </DialogHeader>
+            <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} added={added} onCreate={setCreating} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Annuler
+              </Button>
+              <Button onClick={save}>Assigner et notifier</Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )
