@@ -32,6 +32,7 @@ import {
   type DocCategory,
   type Dossier,
   type StatusId,
+  type User,
 } from "@/lib/data"
 import { useStore } from "@/lib/store"
 import { fromDateInput, toDateInput } from "./dossier-edit"
@@ -165,9 +166,9 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
     gestionnaire: dossier.intervenants.gestionnaire ?? null,
     expert: dossier.intervenants.expert ?? null,
     reparateur: dossier.intervenants.reparateur ?? null,
-    suiveur: dossier.intervenants.suiveurs[0] ?? null,
   }
   const [v, setV] = React.useState<AssignValue>(initial)
+  const [added, setAdded] = React.useState<User[]>([])
 
   function save() {
     const changed = (Object.keys(v) as (keyof AssignValue)[]).filter((k) => v[k] !== initial[k])
@@ -179,8 +180,9 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
         gestionnaire: v.gestionnaire ?? undefined,
         expert: v.expert ?? undefined,
         reparateur: v.reparateur ?? undefined,
-        suiveurs: v.suiveur ? [v.suiveur, ...d.intervenants.suiveurs.filter((s) => s !== v.suiveur && s !== initial.suiveur)] : d.intervenants.suiveurs.filter((s) => s !== initial.suiveur),
+        suiveurs: d.intervenants.suiveurs,
       },
+      extraIntervenants: [...(d.extraIntervenants ?? []), ...added.filter((u) => u.id === v.expert || u.id === v.reparateur)],
       ...(becomesReady
         ? { status: "en_etude" as const, pilotage: { ...defaultPilotage("en_etude", d.type), echeance: daysFromNow(3) } }
         : {}),
@@ -189,7 +191,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
       kind: "assignation",
       author: user.id,
       title: "Intervenants mis à jour",
-      body: changed.map((k) => `${LABELS[k]} : ${v[k] ? fullName(getUser(v[k]!)) : "retiré"}`).join(" · "),
+      body: changed.map((k) => `${LABELS[k]} : ${v[k] ? fullName(getUser(v[k]!) ?? added.find((u) => u.id === v[k])) : "retiré"}`).join(" · "),
     })
     if (becomesReady) addEvent(dossier.id, { kind: "status", author: "system", title: "Statut → En étude" })
     toast.success("Intervenants assignés", { description: "Chaque intervenant a été notifié (plateforme + e-mail)." })
@@ -205,7 +207,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
             Le dossier passe « En étude » dès qu&apos;un gestionnaire et un expert sont assignés.
           </DialogDescription>
         </DialogHeader>
-        <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} />
+        <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} added={added} onAdd={(u) => setAdded((a) => [...a, u])} />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
@@ -221,7 +223,6 @@ const LABELS: Record<keyof AssignValue, string> = {
   gestionnaire: "Gestionnaire",
   expert: "Expert",
   reparateur: "Réparateur",
-  suiveur: "Suiveur",
 }
 
 // ─── Relancer ────────────────────────────────────────────────────────────────

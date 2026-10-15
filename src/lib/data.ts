@@ -291,6 +291,8 @@ export type Dossier = {
   noClientAccount?: boolean
   /** Demandes d'ouverture de compte intervenant suiveur faites par le client */
   suiveurRequests?: SuiveurRequest[]
+  /** Experts / réparateurs hors annuaire, saisis à la main par Nereids lors de l'assignation */
+  extraIntervenants?: User[]
   /** Référence de chaque intervenant suiveur dans son propre outil (réf. PJ, réf. cabinet), par userId */
   suiveurRefs?: Record<string, string>
   /** Notes internes Nereids (onglet « Notes internes », admin uniquement) */

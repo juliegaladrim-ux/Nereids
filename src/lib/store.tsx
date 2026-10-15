@@ -96,7 +96,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Les comptes suiveurs créés depuis une demande client deviennent des utilisateurs à part entière
   if (dossiers)
-    registerUsers(dossiers.flatMap((d) => (d.suiveurRequests ?? []).filter((r) => r.status === "created").map(suiveurFromRequest)))
+    registerUsers(
+      dossiers.flatMap((d) => [
+        ...(d.suiveurRequests ?? []).filter((r) => r.status === "created").map(suiveurFromRequest),
+        ...(d.extraIntervenants ?? []),
+      ]),
+    )
 
   const value = React.useMemo<Store | null>(
     () =>

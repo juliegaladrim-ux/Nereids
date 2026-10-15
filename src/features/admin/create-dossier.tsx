@@ -44,6 +44,7 @@ import {
   type LitigeAssurantielType,
   type SinistreType,
   type TimelineEvent,
+  type User,
 } from "@/lib/data"
 import { nextDossierRef, useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -62,7 +63,6 @@ type Form = {
   gestionnaire: string | null
   expert: string | null
   reparateur: string | null
-  suiveur: string | null
   /** Ouvrir un compte au client (invitation e-mail) — activé par défaut, sauf pour les sinistres */
   clientAccount: boolean
 }
@@ -78,7 +78,6 @@ const EMPTY: Form = {
   gestionnaire: null,
   expert: null,
   reparateur: null,
-  suiveur: null,
   clientAccount: true,
 }
 
@@ -105,6 +104,8 @@ export function CreateDossier() {
   const { dossiers, createDossier } = useStore()
   const router = useRouter()
   const [f, setF] = React.useState<Form>(EMPTY)
+  /** Experts / réparateurs saisis à la main (hors liste) */
+  const [added, setAdded] = React.useState<User[]>([])
   const [submitted, setSubmitted] = React.useState(false)
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
@@ -191,16 +192,16 @@ export function CreateDossier() {
     ]
     if (documents.length)
       timeline.push({ id: `e-${ref}-2`, at: now, kind: "document", author: user.id, title: `${documents.length} document(s) ajouté(s)` })
-    if (f.gestionnaire || f.expert || f.reparateur || f.suiveur)
+    if (f.gestionnaire || f.expert || f.reparateur)
       timeline.push({
         id: `e-${ref}-3`,
         at: now,
         kind: "assignation",
         author: user.id,
         title: "Intervenants assignés",
-        body: [f.gestionnaire, f.expert, f.reparateur, f.suiveur]
+        body: [f.gestionnaire, f.expert, f.reparateur]
           .filter(Boolean)
-          .map((id) => fullName(USERS.find((u) => u.id === id)))
+          .map((id) => fullName([...USERS, ...added].find((u) => u.id === id)))
           .join(" · "),
       })
     if (status !== "nouveau")
@@ -232,8 +233,9 @@ export function CreateDossier() {
         gestionnaire: f.gestionnaire ?? undefined,
         expert: f.expert ?? undefined,
         reparateur: f.reparateur ?? undefined,
-        suiveurs: f.suiveur ? [f.suiveur] : [],
+        suiveurs: [],
       },
+      extraIntervenants: added.filter((u) => u.id === f.expert || u.id === f.reparateur),
       pilotage: horsRecours
         ? { ouEnEst: "Dossier enregistré, hors module recours direct.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" }
         : assigned
@@ -548,9 +550,10 @@ export function CreateDossier() {
                     </CardHeader>
                     <CardContent>
                       <AssignFields
-                        value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur, suiveur: f.suiveur }}
+                        value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur }}
                         onChange={(k, v) => set(k, v)}
-                        hideSuiveur
+                        added={added}
+                        onAdd={(u) => setAdded((a) => [...a, u])}
                       />
                     </CardContent>
                   </Card>
@@ -648,25 +651,34 @@ function RecapItem({ ok, label, detail, optional }: { ok: boolean; label: string
   )
 }
 
-export type AssignValue = { gestionnaire: string | null; expert: string | null; reparateur: string | null; suiveur: string | null }
+export type AssignValue = { gestionnaire: string | null; expert: string | null; reparateur: string | null }
 
-/** Champs d'assignation — réutilisés dans la création et dans la fiche dossier */
+/**
+ * Champs d'assignation — réutilisés dans la création et dans la fiche dossier.
+ * L'intervenant suiveur ne s'assigne pas ici : son compte est ouvert à la demande du client.
+ */
 export function AssignFields({
   value,
   onChange,
-  hideSuiveur,
+  added,
+  onAdd,
 }: {
   value: AssignValue
   onChange: (k: keyof AssignValue, v: string | null) => void
-  /** Masqué à la création : le suiveur s'assigne depuis la fiche dossier */
-  hideSuiveur?: boolean
+  /** Intervenants saisis à la main, pas encore enregistrés sur le dossier */
+  added: User[]
+  onAdd: (u: User) => void
 }) {
   const opts = (role: string) =>
-    allUsers().filter((u) => u.role === role).map((u) => ({
+    [...allUsers(), ...added].filter((u) => u.role === role).map((u) => ({
       value: u.id,
-      label: role === "reparateur" || role === "suiveur" ? `${u.structure}` : fullName(u),
-      hint: u.load !== undefined ? `${u.load} dossiers` : undefined,
+      label: role === "reparateur" ? u.structure : fullName(u),
+      hint: u.load !== undefined ? `${u.load} dossiers` : added.includes(u) ? "Ajouté à la main" : undefined,
     }))
+  const add = (role: "expert" | "reparateur") => (u: User) => {
+    onAdd(u)
+    onChange(role, u.id)
+  }
   return (
     <div className="flex flex-col gap-4">
       <Field>
@@ -676,17 +688,96 @@ export function AssignFields({
       <Field>
         <FieldLabel>Expert</FieldLabel>
         <SimpleSelect placeholder="Choisir un expert" options={opts("expert")} value={value.expert} onChange={(v) => onChange("expert", v)} />
+        <ManualIntervenant role="expert" onAdd={add("expert")} />
       </Field>
       <Field>
         <FieldLabel>Réparateur</FieldLabel>
         <SimpleSelect placeholder="Optionnel" options={opts("reparateur")} value={value.reparateur} onChange={(v) => onChange("reparateur", v)} />
+        <ManualIntervenant role="reparateur" onAdd={add("reparateur")} />
       </Field>
-      {!hideSuiveur && (
-        <Field>
-          <FieldLabel>Intervenant suiveur</FieldLabel>
-          <SimpleSelect placeholder="Optionnel" options={opts("suiveur")} value={value.suiveur} onChange={(v) => onChange("suiveur", v)} />
-        </Field>
-      )}
+    </div>
+  )
+}
+
+/** Saisie d'un expert ou d'un réparateur absent de la liste */
+function ManualIntervenant({ role, onAdd }: { role: "expert" | "reparateur"; onAdd: (u: User) => void }) {
+  const empty = { structure: "", firstName: "", lastName: "", phone: "", email: "" }
+  const [open, setOpen] = React.useState(false)
+  const [v, setV] = React.useState(empty)
+  const [tried, setTried] = React.useState(false)
+  const isExpert = role === "expert"
+  const missing = {
+    structure: !isExpert && !v.structure.trim(),
+    firstName: isExpert && !v.firstName.trim(),
+    lastName: isExpert && !v.lastName.trim(),
+    email: !/^\S+@\S+\.\S+$/.test(v.email.trim()),
+  }
+  const field = (k: keyof typeof empty, label: string, type = "text") => (
+    <Field data-invalid={tried && missing[k as keyof typeof missing] ? true : undefined}>
+      <FieldLabel htmlFor={`${role}-${k}`}>{label}</FieldLabel>
+      <Input
+        id={`${role}-${k}`}
+        type={type}
+        value={v[k]}
+        aria-invalid={tried && missing[k as keyof typeof missing] ? true : undefined}
+        onChange={(e) => setV((p) => ({ ...p, [k]: e.target.value }))}
+      />
+    </Field>
+  )
+
+  if (!open)
+    return (
+      <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit text-brand-ink" onClick={() => setOpen(true)}>
+        <Plus /> {isExpert ? "Expert absent de la liste" : "Réparateur absent de la liste"}
+      </Button>
+    )
+
+  function submit() {
+    setTried(true)
+    if (Object.values(missing).some(Boolean)) return
+    onAdd({
+      id: `u-m-${Date.now().toString(36)}`,
+      role,
+      firstName: v.firstName.trim(),
+      lastName: v.lastName.trim(),
+      email: v.email.trim(),
+      phone: v.phone.trim(),
+      structure: v.structure.trim() || (isExpert ? "Expert indépendant" : "Réparateur"),
+      fonction: isExpert ? "Expert automobile" : "",
+    })
+    toast.success(isExpert ? "Expert ajouté" : "Réparateur ajouté", { description: "Il recevra une invitation par e-mail à l'enregistrement." })
+    setV(empty)
+    setTried(false)
+    setOpen(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {isExpert ? (
+          <>
+            {field("firstName", "Prénom")}
+            {field("lastName", "Nom")}
+            <div className="sm:col-span-2">{field("structure", "Cabinet (optionnel)")}</div>
+          </>
+        ) : (
+          <>
+            <div className="sm:col-span-2">{field("structure", "Garage")}</div>
+            {field("firstName", "Prénom du contact (optionnel)")}
+            {field("lastName", "Nom du contact (optionnel)")}
+          </>
+        )}
+        {field("email", "E-mail", "email")}
+        {field("phone", "Téléphone (optionnel)", "tel")}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Annuler
+        </Button>
+        <Button type="button" size="sm" onClick={submit}>
+          Ajouter
+        </Button>
+      </div>
     </div>
   )
 }
