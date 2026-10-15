@@ -172,6 +172,14 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
   const [added, setAdded] = React.useState<User[]>([])
   /** Écran de saisie d'un intervenant hors liste, à la place de l'écran d'assignation */
   const [creating, setCreating] = React.useState<NewRole | null>(null)
+  // Au retour de l'écran d'ajout, la modale change de taille : un double-clic sur « Ajouter » ne doit
+  // ni la fermer (clic à côté) ni déclencher « Assigner et notifier » (même emplacement)
+  const switchedAt = React.useRef(0)
+  function showScreen(role: NewRole | null) {
+    switchedAt.current = Date.now()
+    setCreating(role)
+  }
+  const justSwitched = () => Date.now() - switchedAt.current < 600
 
   function save() {
     const changed = (Object.keys(v) as (keyof AssignValue)[]).filter((k) => v[k] !== initial[k])
@@ -204,7 +212,8 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => {
+      onOpenChange={(o, details) => {
+        if (!o && details.reason === "outside-press" && justSwitched()) return details.cancel()
         if (!o) setCreating(null)
         onOpenChange(o)
       }}
@@ -212,7 +221,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
       <DialogContent className="sm:max-w-lg">
         {creating ? (
           <>
-            <DialogBack onClick={() => setCreating(null)} />
+            <DialogBack onClick={() => showScreen(null)} />
             <DialogHeader>
               <DialogTitle>{NEW_LABELS[creating].title}</DialogTitle>
               <DialogDescription>Pour un intervenant qui n&apos;est pas encore dans la liste.</DialogDescription>
@@ -222,7 +231,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
               onAdd={(u) => {
                 setAdded((a) => [...a, u])
                 setV((p) => ({ ...p, [creating]: u.id }))
-                setCreating(null)
+                showScreen(null)
               }}
             />
             <DialogFooter>
@@ -236,12 +245,12 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
             <DialogHeader>
               <DialogTitle>Assigner les intervenants</DialogTitle>
             </DialogHeader>
-            <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} added={added} onCreate={setCreating} />
+            <AssignFields value={v} onChange={(k, val) => setV((p) => ({ ...p, [k]: val }))} added={added} onCreate={showScreen} />
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => !justSwitched() && onOpenChange(false)}>
                 Annuler
               </Button>
-              <Button onClick={save}>Assigner et notifier</Button>
+              <Button onClick={() => !justSwitched() && save()}>Assigner et notifier</Button>
             </DialogFooter>
           </>
         )}
