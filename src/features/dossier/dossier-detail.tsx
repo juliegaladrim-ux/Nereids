@@ -81,6 +81,7 @@ import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type Edit
 import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
+import { EditIntervenantDialog, RemoveIntervenantDialog, type IntervenantSlot } from "./intervenant-dialogs"
 
 type DialogId = "status" | "close" | "assign" | "relance" | "doc" | null
 
@@ -102,6 +103,9 @@ export function DossierDetail({ id }: { id: string }) {
   const [docCategory, setDocCategory] = React.useState<DocCategory | undefined>()
   const [tab, setTab] = React.useState("suivi")
   const [edit, setEdit] = React.useState<EditSection | null>(null)
+  // Admin : modifier / retirer un intervenant assigné
+  const [editSlot, setEditSlot] = React.useState<IntervenantSlot | null>(null)
+  const [removeSlot, setRemoveSlot] = React.useState<IntervenantSlot | null>(null)
   // Les visites des intervenants et du client sont tracées dans le suivi (visibles par Nereids, qui n'est pas tracé)
   const trackVisit = !!d && role.id !== "admin"
 
@@ -525,6 +529,8 @@ export function DossierDetail({ id }: { id: string }) {
           <Intervenants
             dossier={d}
             onAssign={rights.pilot ? () => setDialog("assign") : undefined}
+            onEditIntervenant={role.id === "admin" ? setEditSlot : undefined}
+            onRemoveIntervenant={role.id === "admin" ? setRemoveSlot : undefined}
             onSuggestReparateur={isClient && !closed && !d.intervenants.reparateur ? suggestReparateur : undefined}
             pending={pendingRequests}
             onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
@@ -563,6 +569,8 @@ export function DossierDetail({ id }: { id: string }) {
 
       <StatusDialog key={`s-${d.status}`} dossier={d} open={dialog === "status"} onOpenChange={(o) => setDialog(o ? "status" : null)} />
       <CloseDialog dossier={d} open={dialog === "close"} onOpenChange={(o) => setDialog(o ? "close" : null)} />
+      <EditIntervenantDialog key={`ei-${JSON.stringify(editSlot)}`} dossier={d} slot={editSlot} onOpenChange={(o) => !o && setEditSlot(null)} />
+      <RemoveIntervenantDialog dossier={d} slot={removeSlot} onOpenChange={(o) => !o && setRemoveSlot(null)} />
       <AssignDialog key={`a-${JSON.stringify(d.intervenants)}`} dossier={d} open={dialog === "assign"} onOpenChange={(o) => setDialog(o ? "assign" : null)} />
       <RelanceDialog key={`r-${d.pilotage.attente}`} dossier={d} open={dialog === "relance"} onOpenChange={(o) => setDialog(o ? "relance" : null)} />
       <EditDialog key={edit ? `${edit.title}-${d.updatedAt}` : "none"} section={edit} onOpenChange={(o) => !o && setEdit(null)} />
@@ -670,22 +678,26 @@ function Progress({ dossier }: { dossier: Dossier }) {
 function Intervenants({
   dossier,
   onAssign,
+  onEditIntervenant,
+  onRemoveIntervenant,
   onSuggestReparateur,
   pending,
   onRequestSuiveur,
 }: {
   dossier: Dossier
   onAssign?: () => void
+  onEditIntervenant?: (s: IntervenantSlot) => void
+  onRemoveIntervenant?: (s: IntervenantSlot) => void
   onSuggestReparateur?: () => void
   pending: SuiveurRequest[]
   onRequestSuiveur?: () => void
 }) {
-  const rows: { label: string; id?: string; ref?: string }[] = [
-    { label: "Gestionnaire", id: dossier.intervenants.gestionnaire },
-    { label: "Expert", id: dossier.intervenants.expert },
-    { label: "Réparateur", id: dossier.intervenants.reparateur },
+  const rows: { label: string; id?: string; ref?: string; slot?: IntervenantSlot }[] = [
+    { label: "Gestionnaire", id: dossier.intervenants.gestionnaire, slot: { kind: "gestionnaire" } },
+    { label: "Expert", id: dossier.intervenants.expert, slot: { kind: "expert" } },
+    { label: "Réparateur", id: dossier.intervenants.reparateur, slot: { kind: "reparateur" } },
     ...(dossier.intervenants.suiveurs.length
-      ? dossier.intervenants.suiveurs.map((id) => ({ label: getUser(id)?.fonction || "Suiveur", id, ref: dossier.suiveurRefs?.[id] }))
+      ? dossier.intervenants.suiveurs.map((id) => ({ label: getUser(id)?.fonction || "Suiveur", id, ref: dossier.suiveurRefs?.[id], slot: { kind: "suiveur" as const, id } }))
       : pending.length
         ? []
         : [{ label: "Suiveur", id: undefined }]),
@@ -718,7 +730,7 @@ function Intervenants({
             return (
               <li key={i} className="flex items-center gap-3">
                 {u ? <UserAvatar user={u} /> : <span className="grid size-7 place-items-center rounded-full border border-dashed"><CircleDashed className="size-3.5 text-muted-foreground" /></span>}
-                <div className="min-w-0 text-sm">
+                <div className="min-w-0 flex-1 text-sm">
                   <p className={cn("truncate", u ? "font-medium" : "text-muted-foreground italic")}>{u ? fullName(u) : "Non assigné"}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {r.label}
@@ -726,6 +738,21 @@ function Intervenants({
                   </p>
                   {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
                 </div>
+                {u && r.slot && onEditIntervenant && onRemoveIntervenant && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="shrink-0" aria-label={`Actions sur ${fullName(u)}`} />}>
+                      <MoreHorizontal />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onClick={() => onEditIntervenant(r.slot!)}>
+                        <Pencil /> Modifier
+                      </DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => onRemoveIntervenant(r.slot!)}>
+                        <Trash2 /> Retirer
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </li>
             )
           })}

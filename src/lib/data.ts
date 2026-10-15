@@ -404,10 +404,6 @@ export function withConsultations(d: Dossier): Dossier {
 /** Convocation à l'expertise envoyée aux parties */
 export const convocationSent = (d: Dossier) => d.expertise.convoques.length > 0
 
-/** Personnes convoquées par défaut : client (s'il a un compte), réparateur, expert */
-export const defaultConvoques = (d: Dossier) =>
-  [d.client.userId, d.intervenants.reparateur, d.intervenants.expert].filter((u): u is string => !!u)
-
 /** Identifiant du client dans les listes de convocation (il n'a pas toujours de compte) */
 export const clientConvoqueId = (d: Dossier) => d.client.userId ?? "client"
 
@@ -424,8 +420,8 @@ export function setExpertise(d: Dossier, index: number, patch: (e: Expertise) =>
 export function expertisePeople(d: Dossier, index: number): string[] {
   const e = allExpertises(d)[index]
   if (e.convoques.length) return e.convoques
-  // Expertise n°1 : liste par défaut ; expertises suivantes : liste à remplir
-  return e.aConvoquer ?? (index === 0 ? defaultConvoques(d) : [])
+  // Pas de liste par défaut : les personnes à convoquer sont ajoutées à la main
+  return e.aConvoquer ?? []
 }
 
 /** Proto : une 2e expertise vide (à compléter) dès que la 1re a eu lieu ou est programmée */

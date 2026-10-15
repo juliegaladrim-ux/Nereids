@@ -42,8 +42,8 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
     structure: "Particulier",
     fonction: "",
   }
-  // Expertise n°1 : le client est toujours convoqué ; expertises suivantes : seulement s'il a été ajouté
-  const withClient = index === 0 || ids.includes(clientId)
+  // Le client n'est convoqué que s'il a été ajouté (convocations n°1 déjà envoyées : il l'a toujours été)
+  const withClient = ids.includes(clientId) || (index === 0 && sent)
   const others = ids
     .map((id) => getUser(id))
     .filter((u): u is User => !!u && u.role !== "client")
