@@ -15,7 +15,6 @@ import {
   Download,
   FileText,
   Flag,
-  Image as ImageIcon,
   LayoutGrid,
   List,
   Mail,
@@ -27,9 +26,11 @@ import {
   UserCheck,
   UserPlus,
   Wrench,
+  X,
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { DocThumbnail, useDocPreview } from "@/components/doc-preview"
 import { Immat } from "@/components/immat"
 import { ExpertiseBadge, LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
@@ -50,18 +51,20 @@ import {
   LITIGE_ASSUR_TYPES,
   REGIONS,
   SINISTRE_TYPES,
+  STATUS_ORDER,
   SUIVEUR_QUALITES,
   WORKFLOW_STEPS,
   clientValidation,
   compagnieLabel,
-  convocationSent,
-  defaultConvoques,
+  allExpertises,
   docDate,
+  expertisePeople,
   expectedDocs,
   fullName,
   getUser,
   isLate,
   lateDays,
+  setExpertise,
   type DocCategory,
   type Dossier,
   type DossierType,
@@ -161,6 +164,8 @@ export function DossierDetail({ id }: { id: string }) {
     toast.success("Invitation envoyée", { description: `${d!.client.firstName} ${d!.client.lastName} peut maintenant suivre son dossier.` })
   }
   const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
+  // Expertises multiples et convoqués : admin et expert
+  const canManageExpertise = role.id === "admin" || role.id === "expert"
 
   /** Le client indique son garage : message à Nereids, qui l'ajoute comme intervenant */
   function suggestReparateur() {
@@ -474,7 +479,6 @@ export function DossierDetail({ id }: { id: string }) {
               <TabsTrigger value="documents">Documents <Count n={d.documents.length} /></TabsTrigger>
               <TabsTrigger value="expertise">Expertise</TabsTrigger>
               {d.type === "litige_assurantiel" && <TabsTrigger value="tierce">Tierce expertise</TabsTrigger>}
-              <TabsTrigger value="resolution">Résolution</TabsTrigger>
               {role.id === "admin" && (
                 <TabsTrigger value="notes">
                   Notes internes {!!d.notes?.length && <Count n={d.notes.length} />}
@@ -484,7 +488,7 @@ export function DossierDetail({ id }: { id: string }) {
           </div>
 
           <TabsContent value="suivi">
-            <DossierSuivi dossier={d} />
+            <DossierSuivi dossier={d} onEditCloture={editable("cloture")} />
           </TabsContent>
           <TabsContent value="general">
             <General dossier={d} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
@@ -500,13 +504,15 @@ export function DossierDetail({ id }: { id: string }) {
             />
           </TabsContent>
           <TabsContent value="expertise">
-            <ExpertiseTab dossier={d} onEdit={editable("expertise")} />
+            <ExpertiseTab
+              dossier={d}
+              canManage={canManageExpertise}
+              onEdit={(i) => (i === 0 ? editable("expertise") : canManageExpertise ? () => setEdit(expertiseSection(d, i, apply)) : undefined)}
+              onAddPv={() => openDoc("pv")}
+            />
           </TabsContent>
           <TabsContent value="tierce">
             <TierceTab dossier={d} onAdd={closed && !rights.pilot ? undefined : openDoc} allowed={rights.docCategories} />
-          </TabsContent>
-          <TabsContent value="resolution">
-            <Resolution dossier={d} onClose={rights.pilot ? () => setDialog("close") : undefined} onEdit={editable("cloture")} />
           </TabsContent>
           {role.id === "admin" && (
             <TabsContent value="notes">
@@ -548,8 +554,6 @@ export function DossierDetail({ id }: { id: string }) {
                     : []),
                   ["Nereids", d.ref],
                   ["Sinistre", d.refs.sinistre],
-                  ["Interne", d.refs.interne],
-                  ["Expert", d.refs.expert],
                 ]}
               />
             </CardContent>
@@ -692,7 +696,7 @@ function Intervenants({
         <CardTitle>Intervenants</CardTitle>
         {onAssign && (
           <CardAction>
-            <Button size="xs" variant="outline" onClick={onAssign}>
+            <Button size="xs" onClick={onAssign}>
               Assigner
             </Button>
           </CardAction>
@@ -701,7 +705,7 @@ function Intervenants({
       <CardContent>
         <ul className="flex flex-col gap-3">
           <li className="flex items-center gap-3">
-            <UserAvatar user={dossier.client} />
+            <UserAvatar user={dossier.client} role="client" />
             <div className="min-w-0 text-sm">
               <p className="truncate font-medium">
                 {dossier.client.firstName} {dossier.client.lastName}
@@ -940,10 +944,11 @@ function Documents({
   // Classement : date du document, de la plus ancienne à la plus récente (ex. carte grise 11/06 avant facture d'entretien 15/06)
   const sorted = [...d.documents].sort((a, b) => docDate(a).localeCompare(docDate(b)))
   const [view, setView] = React.useState<"liste" | "galerie">("liste")
+  const preview = useDocPreview()
 
   function actions(doc: Dossier["documents"][number], className?: string) {
     return (
-      <div className={cn("flex shrink-0", className)}>
+      <div className={cn("relative z-10 flex shrink-0", className)}>
         <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
           <Download />
         </Button>
@@ -1026,7 +1031,8 @@ function Documents({
           {sorted.map((doc) => {
             const author = getUser(doc.addedBy)
             return (
-              <li key={doc.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={doc.id} className="relative flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
+                <button type="button" className="absolute inset-0 cursor-pointer" aria-label={`Aperçu de ${doc.name}`} onClick={() => preview.open(doc)} />
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
                   <FileText className="size-4 text-muted-foreground" />
                 </span>
@@ -1047,11 +1053,11 @@ function Documents({
       {d.documents.length > 0 && view === "galerie" && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {sorted.map((doc) => {
-            const Icon = doc.category === "photos" ? ImageIcon : FileText
             return (
-              <li key={doc.id} className="flex flex-col overflow-hidden rounded-xl border bg-card">
-                <div className="relative grid aspect-[4/3] place-items-center bg-muted">
-                  <Icon className="size-8 text-muted-foreground" />
+              <li key={doc.id} className="group relative flex flex-col overflow-hidden rounded-xl border bg-card">
+                <button type="button" className="absolute inset-0 z-[1] cursor-pointer" aria-label={`Aperçu de ${doc.name}`} onClick={() => preview.open(doc)} />
+                <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                  <DocThumbnail doc={doc} className="transition-transform duration-200 group-hover:scale-[1.03]" />
                   {actions(doc, "absolute top-1.5 right-1.5 rounded-lg bg-background/90 shadow-xs")}
                 </div>
                 <div className="min-w-0 p-3">
@@ -1066,74 +1072,187 @@ function Documents({
           })}
         </ul>
       )}
+      {preview.dialog}
     </div>
   )
 }
 
-function ExpertiseTab({ dossier: d, onEdit }: { dossier: Dossier; onEdit?: () => void }) {
-  const pv = d.documents.find((x) => x.category === "pv")
+function ExpertiseTab({
+  dossier: d,
+  onEdit,
+  canManage,
+  onAddPv,
+}: {
+  dossier: Dossier
+  /** Ouvre la modification de l'expertise n° index + 1 */
+  onEdit: (index: number) => (() => void) | undefined
+  /** Admin et expert : ajouter une expertise, la compléter, ajouter des convoqués */
+  canManage: boolean
+  onAddPv: () => void
+}) {
+  const { user } = useRole()
+  const { updateDossier, addEvent } = useStore()
+  const expertises = allExpertises(d)
+  const [index, setIndex] = React.useState(0)
+  const i = Math.min(index, expertises.length - 1)
+  const e = expertises[i]
+  // Un PV par expertise, dans l'ordre de dépôt : 1er PV → expertise n°1, 2e PV → n°2…
+  const pvs = d.documents.filter((x) => x.category === "pv").sort((a, b) => a.addedAt.localeCompare(b.addedAt))
   const preRapport = d.documents.find((x) => x.category === "pre_rapport")
   const rapport = d.documents.find((x) => x.category === "rapport")
-  if (!d.expertise.date) {
-    return (
-      <Card size="sm">
-        <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
-          <CalendarDays className="size-6 text-muted-foreground" />
-          <p className="font-medium">Expertise non programmée</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            L&apos;expert assigné proposera une date et un lieu. Les participants seront convoqués automatiquement.
-          </p>
-          {onEdit && (
-            <Button size="sm" variant="outline" className="mt-2" onClick={onEdit}>
-              <CalendarDays /> Programmer l&apos;expertise
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+  const sent = e.convoques.length > 0
+  const last = i === expertises.length - 1
+  // PV attendu à partir du statut « En attente PV » (ou s'il est déjà déposé) ; les expertises précédentes sont passées
+  const pvVisible = !last || !!pvs[i] || STATUS_ORDER.indexOf(d.status) >= STATUS_ORDER.indexOf("attente_pv")
+  const add = (label: string, onClick?: () => void) =>
+    canManage && onClick ? (
+      <Button key={label} size="xs" variant="outline" onClick={onClick}>
+        <Plus /> Ajouter
+      </Button>
+    ) : (
+      <span className="text-muted-foreground">—</span>
     )
+
+  function addExpertise() {
+    const n = expertises.length + 1
+    updateDossier(d.id, (x) => ({ ...x, autresExpertises: [...(x.autresExpertises ?? []), { convoques: [], aConvoquer: [] }] }))
+    addEvent(d.id, { kind: "expertise", author: user.id, title: `Expertise n°${n} ajoutée` })
+    setIndex(n - 1)
+    toast.success(`Expertise n°${n} ajoutée`, { description: "Renseignez la date, le lieu et les personnes à convoquer." })
   }
+
+  /** Supprime une expertise ajoutée (par erreur) — la n°1 reste */
+  function removeExpertise(k: number) {
+    const removed = expertises[k]
+    updateDossier(d.id, (x) => ({ ...x, autresExpertises: (x.autresExpertises ?? []).filter((_, j) => j !== k - 1) }))
+    addEvent(d.id, { kind: "expertise", author: user.id, title: `Expertise n°${k + 1} supprimée` })
+    if (i >= k) setIndex(i - 1)
+    toast.success(`Expertise n°${k + 1} supprimée`, {
+      action: {
+        label: "Annuler",
+        onClick: () => {
+          updateDossier(d.id, (x) => {
+            const list = [...(x.autresExpertises ?? [])]
+            list.splice(k - 1, 0, removed)
+            return { ...x, autresExpertises: list }
+          })
+          setIndex(k)
+        },
+      },
+    })
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <InfoCard
-          title="Rendez-vous"
-          rows={[
-            ["Date", <span key="d" className="first-letter:uppercase">{formatLongDate(d.expertise.date)}</span>],
-            ["Lieu", d.expertise.lieu],
-            ["Statut", d.expertise.realisee ? "Réalisée" : `Prévue ${relativeDays(d.expertise.date)}`],
-            [
-              "Convocation",
-              <span key="c" className="inline-flex items-center gap-1.5">
-                <span className={cn("size-2 rounded-full", convocationSent(d) ? "bg-tone-done" : "bg-muted-foreground/40")} />
-                {convocationSent(d) ? "Envoyée" : "Pas encore envoyée"}
-              </span>,
-            ],
-          ]}
-          onEdit={onEdit}
-        />
-        <InfoCard
-          title="Livrables de l'expert"
-          rows={[
-            ["PV d'expertise", <DocSlot key="p" doc={pv} category="pv" />],
-            ...(d.type === "litige_auto"
-              ? [["Pré-rapport", <DocSlot key="pr" doc={preRapport} category="pre_rapport" />] as [string, React.ReactNode]]
-              : []),
-            [d.type === "litige_auto" ? "Rapport final" : "Rapport", <DocSlot key="r" doc={rapport} category="rapport" />],
-          ]}
-        />
-      </div>
-      <ConvoquesCard dossier={d} />
+      {(expertises.length > 1 || canManage) && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {expertises.length > 1 ? (
+            <div className="flex rounded-lg border bg-card p-0.5 shadow-xs" role="group" aria-label="Expertises">
+              {expertises.map((_, k) => (
+                <div key={k} className={cn("flex items-center rounded-md", k === i ? "bg-foreground text-background" : "text-muted-foreground")}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    aria-pressed={k === i}
+                    onClick={() => setIndex(k)}
+                    className={cn(k === i && "hover:bg-transparent hover:text-background", canManage && k > 0 && k === expertises.length - 1 && "pr-1")}
+                  >
+                    Expertise n°{k + 1}
+                  </Button>
+                  {/* Dernière expertise ajoutée (par erreur) : petite croix pour la retirer — la n°1 reste */}
+                  {canManage && k > 0 && k === expertises.length - 1 && (
+                    <button
+                      type="button"
+                      aria-label={`Supprimer l'expertise n°${k + 1}`}
+                      title={`Supprimer l'expertise n°${k + 1}`}
+                      onClick={() => removeExpertise(k)}
+                      className="mr-1 grid size-4 cursor-pointer place-items-center rounded-sm opacity-60 hover:opacity-100"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span />
+          )}
+          {canManage && (
+            <Button size="sm" onClick={addExpertise}>
+              <Plus /> Ajouter une expertise
+            </Button>
+          )}
+        </div>
+      )}
+
+      {i === 0 && !e.date ? (
+        <Card size="sm">
+          <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
+            <CalendarDays className="size-6 text-muted-foreground" />
+            <p className="font-medium">Expertise non programmée</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              L&apos;expert assigné proposera une date et un lieu. Les participants seront convoqués automatiquement.
+            </p>
+            {onEdit(0) && (
+              <Button size="sm" variant="outline" className="mt-2" onClick={onEdit(0)}>
+                <CalendarDays /> Programmer l&apos;expertise
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <InfoCard
+              title="Rendez-vous"
+              rows={[
+                ["Date", e.date ? <span key="d" className="first-letter:uppercase">{formatLongDate(e.date)}</span> : add("date", onEdit(i))],
+                ["Lieu", e.lieu ?? add("lieu", onEdit(i))],
+                ["Statut", !e.date ? "À programmer" : e.realisee ? "Réalisée" : `Prévue ${relativeDays(e.date)}`],
+                [
+                  "Convocation",
+                  <span key="c" className="inline-flex items-center gap-1.5">
+                    <span className={cn("size-2 rounded-full", sent ? "bg-tone-done" : "bg-muted-foreground/40")} />
+                    {sent ? "Envoyée" : "Pas encore envoyée"}
+                  </span>,
+                ],
+              ]}
+              onEdit={e.date ? onEdit(i) : undefined}
+            />
+            {(pvVisible || last) && (
+              <InfoCard
+                title="Livrables de l'expert"
+                rows={[
+                  ...(pvVisible
+                    ? [["PV d'expertise", <DocSlot key="p" doc={pvs[i]} category="pv" onAdd={canManage && (i === 0 || !!pvs[i - 1]) ? onAddPv : undefined} />] as [string, React.ReactNode]]
+                    : []),
+                  // Pré-rapport et rapport : uniquement sur la dernière expertise
+                  ...(last && d.type === "litige_auto"
+                    ? [["Pré-rapport", <DocSlot key="pr" doc={preRapport} category="pre_rapport" />] as [string, React.ReactNode]]
+                    : []),
+                  ...(last ? [[d.type === "litige_auto" ? "Rapport final" : "Rapport", <DocSlot key="r" doc={rapport} category="rapport" />] as [string, React.ReactNode]] : []),
+                ]}
+              />
+            )}
+          </div>
+          <ConvoquesCard dossier={d} index={i} canAdd={canManage} />
+        </>
+      )}
     </div>
   )
 }
 
 /** Livrable attendu : le document s'il est déposé, sinon un bouton d'ajout */
 function DocSlot({ doc, category, onAdd }: { doc?: Dossier["documents"][number]; category: DocCategory; onAdd?: (c: DocCategory) => void }) {
+  const preview = useDocPreview()
   if (doc)
     return (
       <span className="flex min-w-0 items-center gap-1.5">
-        <FileText className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{doc.name}</span>
+        <button type="button" className="flex min-w-0 cursor-pointer items-center gap-1.5 hover:underline" onClick={() => preview.open(doc)}>
+          <FileText className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{doc.name}</span>
+        </button>
+        {preview.dialog}
         <Button variant="ghost" size="icon-xs" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
           <Download />
         </Button>
@@ -1170,78 +1289,40 @@ function TierceTab({ dossier: d, onAdd, allowed }: { dossier: Dossier; onAdd?: (
   )
 }
 
-function Resolution({ dossier: d, onClose, onEdit }: { dossier: Dossier; onClose?: () => void; onEdit?: () => void }) {
-  const relances = d.timeline.filter((e) => e.kind === "relance")
-  const reclam = d.timeline.find((e) => e.title.includes("Réclamation envoyée"))
-  const preRapport = d.documents.find((x) => x.category === "pre_rapport")
-  const rapport = d.documents.find((x) => x.category === "rapport")
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {d.type === "litige_auto" ? (
-        <InfoCard
-          title="Rapport"
-          rows={[
-            ["Pré-rapport", preRapport ? `Déposé le ${formatDate(preRapport.addedAt)}` : "En attente"],
-            ["Rapport final", rapport ? `Déposé le ${formatDate(rapport.addedAt)}` : "—"],
-          ]}
-        />
-      ) : (
-        <InfoCard
-          title="Réclamation"
-          rows={[
-            ["Envoyée le", reclam ? formatDate(reclam.at) : "—"],
-            ["Accord / paiement", d.status === "attente_paiement" ? "Accord obtenu, paiement attendu" : d.status === "cloture" || d.status === "archive" ? "—" : "En attente"],
-          ]}
-        />
-      )}
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Relances effectuées</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {relances.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune relance.</p>
-          ) : (
-            <ul className="flex flex-col gap-2 text-sm">
-              {relances.map((r) => (
-                <li key={r.id} className="flex justify-between gap-2">
-                  <span className="truncate">{r.title.replace("Relance envoyée — ", "")}</span>
-                  <span className="shrink-0 text-muted-foreground">{formatDate(r.at)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-      <Card size="sm" className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Clôture</CardTitle>
-          <CardAction>
-            {d.cloture
-              ? onEdit && <EditAction onClick={onEdit} label="Modifier la clôture" />
-              : onClose && (
-                  <Button size="sm" variant="outline" onClick={onClose}>
-                    Clôturer le dossier
-                  </Button>
-                )}
-          </CardAction>
-        </CardHeader>
-        <CardContent className="text-sm">
-          {d.cloture ? (
-            <p>
-              Clôturé le {formatDate(d.cloture.at)} — motif : <span className="font-medium">{d.cloture.motif}</span>
-              {d.cloture.commentaire && <span className="text-muted-foreground"> · {d.cloture.commentaire}</span>}
-            </p>
-          ) : (
-            <p className="text-muted-foreground">Dossier en cours. La clôture est réservée à Nereids.</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
 // ─── Blocs modifiables par l'admin ───────────────────────────────────────────
+
+/** Modification d'une expertise (n° index + 1) : date, statut, lieu, convocation */
+export function expertiseSection(d: Dossier, index: number, apply: (title: string, patch: (x: Dossier) => Dossier) => void): EditSection {
+  const e = allExpertises(d)[index]
+  const n = allExpertises(d).length > 1 ? ` n°${index + 1}` : ""
+  return {
+    title: e.date ? `Modifier l'expertise${n}` : `Programmer l'expertise${n}`,
+    fields: [
+      { key: "date", label: "Date et heure", type: "datetime" },
+      { key: "realisee", label: "Statut", type: "select", options: [{ value: "non", label: "Prévue" }, { value: "oui", label: "Réalisée" }] },
+      { key: "lieu", label: "Lieu", full: true },
+      { key: "convocation", label: "Convocation", type: "select", options: [{ value: "non", label: "Pas encore envoyée" }, { value: "oui", label: "Envoyée" }] },
+    ],
+    initial: {
+      date: toDateTimeInput(e.date),
+      lieu: e.lieu ?? "",
+      realisee: e.realisee ? "oui" : "non",
+      convocation: e.convoques.length ? "oui" : "non",
+    },
+    onSave: (v: Values) =>
+      apply(`Expertise${n}`, (x) =>
+        setExpertise(x, index, (cur) => ({
+          ...cur,
+          date: fromDateInput(v.date),
+          lieu: opt(v.lieu),
+          realisee: v.realisee === "oui",
+          // Envoi : la liste à convoquer devient la liste des convoqués ; annulation : on la garde pour plus tard
+          convoques: v.convocation === "oui" ? (cur.convoques.length ? cur.convoques : expertisePeople(x, index)) : [],
+          aConvoquer: v.convocation === "oui" ? cur.aConvoquer : cur.convoques.length ? cur.convoques : cur.aConvoquer,
+        })),
+      ),
+  }
+}
 
 function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (x: Dossier) => Dossier) => void): EditSection {
   const save = (title: string, patch: (x: Dossier, v: Values) => Dossier) => (v: Values) => apply(title, (x) => patch(x, v))
@@ -1356,42 +1437,16 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
         fields: [
           { key: "ref", label: "Réf. Nereids" },
           { key: "sinistre", label: "Réf. sinistre" },
-          { key: "interne", label: "Réf. interne" },
-          { key: "expert", label: "Réf. expert" },
         ],
-        initial: { ref: d.ref, sinistre: d.refs.sinistre ?? "", interne: d.refs.interne ?? "", expert: d.refs.expert ?? "" },
+        initial: { ref: d.ref, sinistre: d.refs.sinistre ?? "" },
         onSave: save("Références", (x, v) => ({
           ...x,
           ref: opt(v.ref) ?? x.ref,
-          refs: { sinistre: opt(v.sinistre), interne: opt(v.interne), expert: opt(v.expert) },
+          refs: { sinistre: opt(v.sinistre) },
         })),
       }
     case "expertise":
-      return {
-        title: d.expertise.date ? "Modifier l'expertise" : "Programmer l'expertise",
-        fields: [
-          { key: "date", label: "Date et heure", type: "datetime" },
-          { key: "realisee", label: "Statut", type: "select", options: [{ value: "non", label: "Prévue" }, { value: "oui", label: "Réalisée" }] },
-          { key: "lieu", label: "Lieu", full: true },
-          { key: "convocation", label: "Convocation", type: "select", options: [{ value: "non", label: "Pas encore envoyée" }, { value: "oui", label: "Envoyée" }] },
-        ],
-        initial: {
-          date: toDateTimeInput(d.expertise.date),
-          lieu: d.expertise.lieu ?? "",
-          realisee: d.expertise.realisee ? "oui" : "non",
-          convocation: convocationSent(d) ? "oui" : "non",
-        },
-        onSave: save("Expertise", (x, v) => ({
-          ...x,
-          expertise: {
-            ...x.expertise,
-            date: fromDateInput(v.date),
-            lieu: opt(v.lieu),
-            realisee: v.realisee === "oui",
-            convoques: v.convocation === "oui" ? (convocationSent(x) ? x.expertise.convoques : defaultConvoques(x)) : [],
-          },
-        })),
-      }
+      return expertiseSection(d, 0, apply)
     case "cloture":
       return {
         title: "Modifier la clôture",

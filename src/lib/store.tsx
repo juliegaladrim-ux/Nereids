@@ -13,6 +13,8 @@ import {
   type Account,
   type Dossier,
   type TimelineEvent,
+  withDemoExpertise,
+  withRef,
 } from "./data"
 
 /**
@@ -64,10 +66,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           withConsultations({
             ...d,
             notes: d.notes ?? seed.find((x) => x.id === d.id)?.notes,
+            autresExpertises: d.autresExpertises ?? withDemoExpertise(d).autresExpertises,
             // Date du document : estimée pour les pièces déjà enregistrées
             documents: d.documents.map((doc) => (doc.docDate ? doc : { ...doc, docDate: demoDocDate(doc.category, doc.addedAt) })),
           }),
-        )
+        ).map((d) => (d.ref.startsWith("NER-") ? withRef(d) : d)) // ancien format de référence
       }
       const rawAccounts = window.localStorage.getItem(ACCOUNTS_KEY)
       if (rawAccounts) initialAccounts = JSON.parse(rawAccounts)
@@ -189,6 +192,6 @@ export function useStore(): Store {
 
 export function nextDossierRef(dossiers: Dossier[]): string {
   const year = new Date().getFullYear()
-  const max = dossiers.reduce((m, d) => Math.max(m, Number(d.ref.split("-").pop()) || 0), 0)
+  const max = dossiers.reduce((m, d) => Math.max(m, Number(d.id.split("-").pop()) || 0), 0)
   return `NER-${year}-${String(max + 1).padStart(4, "0")}`
 }

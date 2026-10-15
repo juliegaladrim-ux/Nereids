@@ -3,14 +3,14 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { AlertTriangle, CalendarClock, CircleCheck, CircleDashed, FolderOpen, Plus, Search, UserPlus, X, type LucideIcon } from "lucide-react"
+import { AlertTriangle, CalendarClock, ChevronDown, CircleCheck, CircleDashed, FolderOpen, Plus, Search, UserPlus, X, type LucideIcon } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
-import { SimpleSelect } from "@/components/simple-select"
 import { LateBadge, StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
@@ -46,8 +46,6 @@ const VIEWS: { id: View; label: string; icon: LucideIcon; tone?: "primary" | "da
   { id: "clotures", label: "Clôturés", icon: CircleCheck, filter: (d) => d.status === "cloture" },
 ]
 
-const ALL = "__all"
-
 const EXPERTS = USERS.filter((u) => u.role === "expert")
 /** Un cabinet = un groupe d'experts (structure de l'expert) */
 const CABINETS = [...new Set(EXPERTS.map((u) => u.structure))].sort()
@@ -61,30 +59,30 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
 
   const view = (params.get("vue") as View) || "tous"
   const [q, setQ] = React.useState("")
-  const [type, setType] = React.useState<string>(ALL)
-  const [status, setStatus] = React.useState<string>(ALL)
-  const [gest, setGest] = React.useState<string>(ALL)
-  const [expert, setExpert] = React.useState<string>(ALL)
-  const [cabinet, setCabinet] = React.useState<string>(ALL)
-  const [rep, setRep] = React.useState<string>(ALL)
+  const [type, setType] = React.useState<string[]>([])
+  const [status, setStatus] = React.useState<string[]>([])
+  const [gest, setGest] = React.useState<string[]>([])
+  const [expert, setExpert] = React.useState<string[]>([])
+  const [cabinet, setCabinet] = React.useState<string[]>([])
+  const [rep, setRep] = React.useState<string[]>([])
 
   // Le cabinet restreint la liste des experts proposés
-  const cabinetExperts = EXPERTS.filter((u) => cabinet === ALL || u.structure === cabinet)
+  const cabinetExperts = EXPERTS.filter((u) => cabinet.length === 0 || cabinet.includes(u.structure))
 
   const base = mode === "archives" ? dossiers.filter((d) => d.status === "archive") : dossiers.filter(VIEWS.find((v) => v.id === view)!.filter)
 
   const rows = base
     .filter((d) => matchesSearch(d, q, (id) => fullName(getUser(id))))
-    .filter((d) => type === ALL || d.type === type)
-    .filter((d) => status === ALL || d.status === status)
-    .filter((d) => gest === ALL || d.intervenants.gestionnaire === gest)
-    .filter((d) => cabinet === ALL || cabinetExperts.some((u) => u.id === d.intervenants.expert))
-    .filter((d) => expert === ALL || d.intervenants.expert === expert)
-    .filter((d) => rep === ALL || d.intervenants.reparateur === rep)
+    .filter((d) => type.length === 0 || type.includes(d.type))
+    .filter((d) => status.length === 0 || status.includes(d.status))
+    .filter((d) => gest.length === 0 || gest.includes(d.intervenants.gestionnaire ?? ""))
+    .filter((d) => cabinet.length === 0 || cabinetExperts.some((u) => u.id === d.intervenants.expert))
+    .filter((d) => expert.length === 0 || expert.includes(d.intervenants.expert ?? ""))
+    .filter((d) => rep.length === 0 || rep.includes(d.intervenants.reparateur ?? ""))
     .sort((a, b) => (view === "expertises" ? (a.expertise.date ?? "").localeCompare(b.expertise.date ?? "") : b.createdAt.localeCompare(a.createdAt)))
 
   const counts = Object.fromEntries(VIEWS.map((v) => [v.id, dossiers.filter(v.filter).length]))
-  const hasFilters = q || type !== ALL || status !== ALL || gest !== ALL || cabinet !== ALL || expert !== ALL || rep !== ALL
+  const hasFilters = q || [type, status, gest, cabinet, expert, rep].some((f) => f.length > 0)
 
   function setView(v: View) {
     const p = new URLSearchParams(params)
@@ -142,36 +140,42 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
         <FilterPill
           value={type}
           onChange={setType}
-          options={[{ value: ALL, label: "Type" }, ...Object.entries(DOSSIER_TYPES).map(([value, t]) => ({ value, label: t.label }))]}
+          label="Type"
+          options={[...Object.entries(DOSSIER_TYPES).map(([value, t]) => ({ value, label: t.label }))]}
         />
         <FilterPill
           value={status}
           onChange={setStatus}
-          options={[{ value: ALL, label: "Statut" }, ...Object.entries(STATUSES).map(([value, s]) => ({ value, label: s.label }))]}
+          label="Statut"
+          options={[...Object.entries(STATUSES).map(([value, s]) => ({ value, label: s.label }))]}
         />
         <FilterPill
           value={gest}
           onChange={setGest}
-          options={[{ value: ALL, label: "Gestionnaire" }, ...USERS.filter((u) => u.role === "gestionnaire").map((u) => ({ value: u.id, label: fullName(u) }))]}
+          label="Gestionnaire"
+          options={[...USERS.filter((u) => u.role === "gestionnaire").map((u) => ({ value: u.id, label: fullName(u) }))]}
         />
         <FilterPill
           value={cabinet}
           onChange={(c) => {
             setCabinet(c)
             // L'expert choisi n'appartient plus au cabinet : on le retire
-            if (c !== ALL && expert !== ALL && getUser(expert)?.structure !== c) setExpert(ALL)
+            if (c.length > 0) setExpert((ex) => ex.filter((id) => c.includes(getUser(id)?.structure ?? "")))
           }}
-          options={[{ value: ALL, label: "Cabinet" }, ...CABINETS.map((c) => ({ value: c, label: c }))]}
+          label="Cabinet"
+          options={[...CABINETS.map((c) => ({ value: c, label: c }))]}
         />
         <FilterPill
           value={expert}
           onChange={setExpert}
-          options={[{ value: ALL, label: "Expert" }, ...cabinetExperts.map((u) => ({ value: u.id, label: fullName(u) }))]}
+          label="Expert"
+          options={[...cabinetExperts.map((u) => ({ value: u.id, label: fullName(u) }))]}
         />
         <FilterPill
           value={rep}
           onChange={setRep}
-          options={[{ value: ALL, label: "Réparateur" }, ...USERS.filter((u) => u.role === "reparateur").map((u) => ({ value: u.id, label: u.structure }))]}
+          label="Réparateur"
+          options={[...USERS.filter((u) => u.role === "reparateur").map((u) => ({ value: u.id, label: u.structure }))]}
         />
         {hasFilters && (
           <Button
@@ -180,12 +184,12 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
             className="ml-auto"
             onClick={() => {
               setQ("")
-              setType(ALL)
-              setStatus(ALL)
-              setGest(ALL)
-              setCabinet(ALL)
-              setExpert(ALL)
-              setRep(ALL)
+              setType([])
+              setStatus([])
+              setGest([])
+              setCabinet([])
+              setExpert([])
+              setRep([])
             }}
           >
             <X /> Effacer
@@ -313,16 +317,43 @@ function ViewCard({
   )
 }
 
-/** Filtre en pastille : le libellé du filtre s'affiche tant qu'aucune valeur n'est choisie */
-function FilterPill({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+/** Filtre en pastille multi-sélection : le libellé reste affiché, une bulle indique le nombre de valeurs cochées */
+function FilterPill({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: string[]
+  onChange: (v: string[]) => void
+  options: { value: string; label: string }[]
+}) {
+  const toggle = (v: string, checked: boolean) => onChange(checked ? [...value, v] : value.filter((x) => x !== v))
   return (
-    <SimpleSelect
-      value={value}
-      onChange={(v) => onChange(v ?? ALL)}
-      options={options}
-      size="sm"
-      className={cn("w-auto max-w-56 rounded-full px-3", value !== ALL && "border-foreground font-medium")}
-    />
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "flex h-8 items-center gap-1.5 rounded-full border border-input bg-card pr-2.5 pl-3 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30",
+          value.length > 0 && "border-foreground font-medium"
+        )}
+      >
+        {label}
+        {value.length > 0 && (
+          <span className="inline-flex size-5 items-center justify-center rounded-full bg-foreground text-[11px] font-semibold text-background tabular-nums">
+            {value.length}
+          </span>
+        )}
+        <ChevronDown className="size-4 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-auto min-w-48">
+        {options.map((o) => (
+          <DropdownMenuCheckboxItem key={o.value} checked={value.includes(o.value)} onCheckedChange={(c) => toggle(o.value, c)}>
+            {o.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

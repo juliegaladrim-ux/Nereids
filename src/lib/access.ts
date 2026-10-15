@@ -25,8 +25,6 @@ export function matchesSearch(d: Dossier, q: string, names: (id?: string) => str
   const hay = [
     d.ref,
     d.refs.sinistre,
-    d.refs.interne,
-    d.refs.expert,
     d.vehicule.immat,
     d.vehicule.immat.replace(/-/g, ""),
     `${d.client.firstName} ${d.client.lastName}`,

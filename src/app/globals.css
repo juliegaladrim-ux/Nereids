@@ -68,6 +68,20 @@
   --color-tone-done-bg: var(--tone-done-bg);
   --color-tone-muted: var(--tone-muted);
   --color-tone-muted-bg: var(--tone-muted-bg);
+
+  /* Couleurs d'identification des rôles */
+  --color-role-admin: var(--role-admin);
+  --color-role-admin-bg: var(--role-admin-bg);
+  --color-role-gestionnaire: var(--role-gestionnaire);
+  --color-role-gestionnaire-bg: var(--role-gestionnaire-bg);
+  --color-role-expert: var(--role-expert);
+  --color-role-expert-bg: var(--role-expert-bg);
+  --color-role-reparateur: var(--role-reparateur);
+  --color-role-reparateur-bg: var(--role-reparateur-bg);
+  --color-role-suiveur: var(--role-suiveur);
+  --color-role-suiveur-bg: var(--role-suiveur-bg);
+  --color-role-client: var(--role-client);
+  --color-role-client-bg: var(--role-client-bg);
 }
 
 :root {
@@ -131,6 +145,20 @@
   --tone-done-bg: #e2f6ec;
   --tone-muted: #5a5d5f;
   --tone-muted-bg: #ecedee;
+
+  /* Couleur d'identification par rôle (avatars, étiquettes) — même code partout dans le dossier */
+  --role-admin: #f4f4f2;
+  --role-admin-bg: #1d1d1b;
+  --role-gestionnaire: #3b2a85;
+  --role-gestionnaire-bg: #dcd2fb;
+  --role-expert: #7d1a45;
+  --role-expert-bg: #fcc9dd;
+  --role-reparateur: #14562f;
+  --role-reparateur-bg: #bdebcc;
+  --role-suiveur: #1c3f82;
+  --role-suiveur-bg: #c9dcfc;
+  --role-client: #5a4100;
+  --role-client-bg: #fbe08a;
 }
 
 .dark {
@@ -186,6 +214,19 @@
   --tone-done-bg: oklch(0.3 0.05 155);
   --tone-muted: oklch(0.75 0 0);
   --tone-muted-bg: oklch(0.3 0 0);
+
+  --role-admin: #1d1d1b;
+  --role-admin-bg: #e8e8e4;
+  --role-gestionnaire: #1c1240;
+  --role-gestionnaire-bg: #b9a8f5;
+  --role-expert: #3d0a20;
+  --role-expert-bg: #f3a3c3;
+  --role-reparateur: #08301a;
+  --role-reparateur-bg: #95dcae;
+  --role-suiveur: #0c1f45;
+  --role-suiveur-bg: #a3c3f7;
+  --role-client: #2e2100;
+  --role-client-bg: #f1cf5e;
 }
 
 @layer base {

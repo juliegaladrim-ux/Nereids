@@ -47,6 +47,7 @@ import {
   type SinistreType,
   type TimelineEvent,
   type User,
+  dossierRef,
 } from "@/lib/data"
 import { nextDossierRef, useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -219,7 +220,7 @@ export function CreateDossier() {
 
     const d: Dossier = {
       id: ref,
-      ref,
+      ref: dossierRef(f.client, now, [...allUsers(), ...added].find((u) => u.id === f.expert)?.structure),
       type: f.type!,
       sinistreType: f.sinistreType,
       litigeType: f.litigeType,

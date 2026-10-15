@@ -26,6 +26,7 @@ import {
   CLOSING_REASONS,
   DOC_CATEGORIES,
   STATUSES,
+  STATUS_ORDER,
   daysFromNow,
   defaultPilotage,
   fullName,
@@ -34,6 +35,7 @@ import {
   type Dossier,
   type StatusId,
   type User,
+  withRef,
 } from "@/lib/data"
 import { useStore } from "@/lib/store"
 import { fromDateInput, toDateInput } from "./dossier-edit"
@@ -52,13 +54,23 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
     if (!status || status === dossier.status) return onOpenChange(false)
     const s = status as StatusId
     const p = defaultPilotage(s, dossier.type)
+    // Passé l'étape « En attente PV », l'expert a déposé son PV : on le simule s'il manque
+    const rank = (x: StatusId) => STATUS_ORDER.indexOf(x)
+    const expert = dossier.intervenants.expert ?? "u-expert"
+    const now = new Date().toISOString()
+    const pv =
+      rank(dossier.status) <= rank("attente_pv") && rank(s) > rank("attente_pv") && s !== "cloture" && s !== "archive" && !dossier.documents.some((x) => x.category === "pv")
+        ? { id: `d${Date.now()}`, name: "PV d'expertise.pdf", category: "pv" as const, addedBy: expert, addedAt: now, docDate: now, size: "310 Ko" }
+        : undefined
     updateDossier(dossier.id, (d) => ({
       ...d,
       status: s,
       pilotage: { ...p, echeance: p.delayDays ? daysFromNow(p.delayDays) : undefined },
       // Réouverture : la clôture précédente ne s'applique plus
       cloture: s === "cloture" || s === "archive" ? d.cloture : undefined,
+      ...(pv && { documents: [...d.documents, pv], expertise: { ...d.expertise, pvDocId: pv.id } }),
     }))
+    if (pv) addEvent(dossier.id, { kind: "document", author: expert, title: "PV d'expertise déposé", docIds: [pv.id] })
     addEvent(dossier.id, { kind: "status", author: user.id, title: `Statut → ${STATUSES[s].label}`, body: obs || undefined })
     toast.success("Statut mis à jour", { description: "Les intervenants concernés ont été notifiés." })
     setObs("")
@@ -185,7 +197,8 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
     const changed = (Object.keys(v) as (keyof AssignValue)[]).filter((k) => v[k] !== initial[k])
     if (!changed.length) return onOpenChange(false)
     const becomesReady = dossier.status === "nouveau" && v.gestionnaire && v.expert
-    updateDossier(dossier.id, (d) => ({
+    const expert = added.find((u) => u.id === v.expert) ?? getUser(v.expert ?? undefined)
+    updateDossier(dossier.id, (d) => withRef({
       ...d,
       intervenants: {
         gestionnaire: v.gestionnaire ?? undefined,
@@ -197,7 +210,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
       ...(becomesReady
         ? { status: "en_etude" as const, pilotage: { ...defaultPilotage("en_etude", d.type), echeance: daysFromNow(3) } }
         : {}),
-    }))
+    }, expert))
     addEvent(dossier.id, {
       kind: "assignation",
       author: user.id,

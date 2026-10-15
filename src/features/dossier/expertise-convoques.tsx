@@ -2,12 +2,15 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { Building2, Copy, Hash, Mail, MapPin, Phone, UserRound } from "lucide-react"
+import { Building2, Copy, Hash, Mail, MapPin, Phone, Plus, UserRound, X } from "lucide-react"
 
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { convocationSent, defaultConvoques, fullName, getUser, type Dossier, type User } from "@/lib/data"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useRole } from "@/components/app-shell/role-context"
+import { allExpertises, clientConvoqueId, expertisePeople, fullName, getUser, setExpertise, type Dossier, type User } from "@/lib/data"
+import { useStore } from "@/lib/store"
 
 /** Ordre d'affichage : le client d'abord, puis ceux qui représentent ou accueillent */
 const ORDER: Record<string, number> = { client: 0, expert: 1, reparateur: 2, suiveur: 3, gestionnaire: 4, admin: 5 }
@@ -21,26 +24,62 @@ function roleLabel(u: User): string {
   return "Nereids"
 }
 
-/** Fiches des personnes convoquées à l'expertise : identité, rôle, coordonnées complètes */
-export function ConvoquesCard({ dossier: d }: { dossier: Dossier }) {
-  const sent = convocationSent(d)
-  // Le client est toujours convoqué, qu'il ait un compte ou non : ses coordonnées viennent du dossier
+/** Fiches des personnes convoquées à une expertise (n° index + 1) : identité, rôle, coordonnées complètes */
+export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Dossier; index?: number; canAdd?: boolean }) {
+  const { user } = useRole()
+  const { updateDossier, addEvent } = useStore()
+  const e = allExpertises(d)[index]
+  const sent = e.convoques.length > 0
+  const ids = expertisePeople(d, index)
+  const clientId = clientConvoqueId(d)
+  // Le client n'a pas toujours de compte : ses coordonnées viennent du dossier
   const clientUser = getUser(d.client.userId)
   const client: User = {
-    id: d.client.userId ?? "client",
+    id: clientId,
     role: "client",
     ...d.client,
     address: d.client.address ?? clientUser?.address,
     structure: "Particulier",
     fonction: "",
   }
-  const people = [
-    client,
-    ...(sent ? d.expertise.convoques : defaultConvoques(d))
+  // Expertise n°1 : le client est toujours convoqué ; expertises suivantes : seulement s'il a été ajouté
+  const withClient = index === 0 || ids.includes(clientId)
+  const others = ids
+    .map((id) => getUser(id))
+    .filter((u): u is User => !!u && u.role !== "client")
+    .sort((a, b) => ORDER[a.role] - ORDER[b.role])
+  const people = [...(withClient ? [client] : []), ...others]
+
+  // Personnes du dossier pas encore dans la liste
+  const candidates = [
+    ...(withClient ? [] : [client]),
+    ...[d.intervenants.gestionnaire, d.intervenants.expert, d.intervenants.reparateur, ...d.intervenants.suiveurs]
       .map((id) => getUser(id))
-      .filter((u): u is User => !!u && u.role !== "client")
-      .sort((a, b) => ORDER[a.role] - ORDER[b.role]),
+      .filter((u): u is User => !!u && !ids.includes(u.id)),
   ]
+
+  function addPerson(u: User, undo = false) {
+    updateDossier(d.id, (x) =>
+      setExpertise(x, index, (cur) =>
+        cur.convoques.length ? { ...cur, convoques: [...cur.convoques, u.id] } : { ...cur, aConvoquer: [...expertisePeople(x, index), u.id] },
+      ),
+    )
+    const n = allExpertises(d).length > 1 ? ` n°${index + 1}` : ""
+    if (!undo) addEvent(d.id, { kind: "expertise", author: user.id, title: `${fullName(u)} ajouté(e) aux convoqués de l'expertise${n}` })
+  }
+
+  function removePerson(u: User) {
+    updateDossier(d.id, (x) =>
+      setExpertise(x, index, (cur) =>
+        cur.convoques.length
+          ? { ...cur, convoques: cur.convoques.filter((id) => id !== u.id) }
+          : { ...cur, aConvoquer: expertisePeople(x, index).filter((id) => id !== u.id) },
+      ),
+    )
+    const n = allExpertises(d).length > 1 ? ` n°${index + 1}` : ""
+    addEvent(d.id, { kind: "expertise", author: user.id, title: `${fullName(u)} retiré(e) des convoqués de l'expertise${n}` })
+    toast.success(`${fullName(u)} retiré(e)`, { action: { label: "Annuler", onClick: () => addPerson(u, true) } })
+  }
 
   return (
     <Card size="sm">
@@ -48,13 +87,36 @@ export function ConvoquesCard({ dossier: d }: { dossier: Dossier }) {
         <CardTitle>
           {sent ? "Personnes convoquées" : "Personnes à convoquer"} <span className="font-normal text-muted-foreground">· {people.length}</span>
         </CardTitle>
+        {canAdd && candidates.length > 0 && (
+          <CardAction>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="xs" variant="outline" />}>
+                <Plus /> Ajouter
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                {candidates.map((u) => (
+                  <DropdownMenuItem key={u.id} onClick={() => addPerson(u)}>
+                    <UserAvatar user={u} className="size-6" />
+                    <span className="min-w-0 flex-1 truncate">{fullName(u)}</span>
+                    <span className="text-xs text-muted-foreground">{roleLabel(u)}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent>
+        {people.length === 0 && (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Aucune personne à convoquer pour l&apos;instant.{canAdd && " Ajoutez-les avec le bouton « Ajouter »."}
+          </p>
+        )}
         <ul className="flex flex-col divide-y">
           {people.map((u) => {
-            const hosts = !!d.expertise.lieu && u.role !== "client" && d.expertise.lieu.includes(u.structure)
+            const hosts = !!e.lieu && u.role !== "client" && e.lieu.includes(u.structure)
             const represents = u.role === "expert" || u.role === "suiveur" ? fullName(client) : undefined
-            const ref = u.role === "expert" ? d.refs.expert : u.role === "suiveur" ? d.suiveurRefs?.[u.id] : undefined
+            const ref = u.role === "suiveur" ? d.suiveurRefs?.[u.id] : undefined
             const company = u.structure && u.structure !== "Particulier" ? u.structure : undefined
             return (
               <li key={u.id} className="grid gap-x-6 gap-y-3 py-4 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -62,7 +124,15 @@ export function ConvoquesCard({ dossier: d }: { dossier: Dossier }) {
                 <div className="flex min-w-0 gap-3">
                   <UserAvatar user={u} className="size-10" />
                   <div className="flex min-w-0 flex-col gap-1">
-                    <p className="truncate font-medium">{fullName(u)}</p>
+                    <p className="flex min-w-0 items-center gap-1">
+                      <span className="truncate font-medium">{fullName(u)}</span>
+                      {/* Le client reste toujours convoqué à la 1re expertise */}
+                      {canAdd && !(index === 0 && u.role === "client") && (
+                        <Button variant="ghost" size="icon-xs" className="text-muted-foreground" aria-label={`Retirer ${fullName(u)}`} onClick={() => removePerson(u)}>
+                          <X />
+                        </Button>
+                      )}
+                    </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Tag>{roleLabel(u)}</Tag>
                       {hosts && (

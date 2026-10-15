@@ -27,6 +27,7 @@ import {
   type SinistreType,
   type StatusId,
   type TimelineEvent,
+  withRef,
 } from "./data"
 
 export type Scenario = {
@@ -251,7 +252,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
       ? { invitedAt: createdAt, activatedAt: createdAt, submittedAt: createdAt }
       : d.clientAccess
 
-  return withConsultations({
+  return withConsultations(withRef({
     ...d,
     type: s.type,
     sinistreType: s.type === "sinistre" ? s.sinistreType : undefined,
@@ -263,14 +264,16 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
     compagnie,
     tiers: s.type === "litige_auto" ? d.tiers : undefined,
     description: d.type === s.type ? d.description : undefined,
-    refs: { ...d.refs, expert: expert ? (d.refs.expert ?? "EXP-26-051") : undefined },
+    refs: d.refs,
     intervenants: { gestionnaire, expert, reparateur, suiveurs: d.intervenants.suiveurs },
     pilotage,
     expertise,
+    // 2e expertise de démo seulement si la 1re est programmée
+    autresExpertises: expertise.date ? (d.autresExpertises ?? [{ convoques: [], aConvoquer: [] }]) : undefined,
     documents,
     timeline,
     cloture,
     horsPerimetre: hors || undefined,
     clientAccess,
-  })
+  }))
 }

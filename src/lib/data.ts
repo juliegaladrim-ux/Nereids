@@ -93,6 +93,9 @@ export const STATUSES: Record<StatusId, { label: string; tone: StatusTone }> = {
   archive: { label: "Archivé", tone: "muted" },
 }
 
+/** Ordre d'avancement des statuts (sert à savoir si une étape est atteinte, ex. « En attente PV ») */
+export const STATUS_ORDER = Object.keys(STATUSES) as StatusId[]
+
 export const ACTIVE_STATUSES = (Object.keys(STATUSES) as StatusId[]).filter(
   (s) => s !== "cloture" && s !== "archive",
 )
@@ -250,6 +253,8 @@ export type Expertise = {
   lieu?: string
   /** Personnes à qui la convocation a été envoyée — vide = convocation pas encore faite */
   convoques: string[]
+  /** Personnes à convoquer, ajoutées à la main avant l'envoi (à défaut : client, réparateur, expert) */
+  aConvoquer?: string[]
   pvDocId?: string
   rapportDocId?: string
   realisee?: boolean
@@ -268,7 +273,7 @@ export type Dossier = {
   vehicule: { marque: string; modele: string; immat: string; vin?: string }
   compagnie?: { nom: string; email?: string; reference?: string }
   tiers?: { nom: string; phone?: string; email?: string }[]
-  refs: { sinistre?: string; interne?: string; expert?: string }
+  refs: { sinistre?: string }
   region: string
   intervenants: Intervenants
   /** Les 3 questions du CDC §2 */
@@ -279,7 +284,10 @@ export type Dossier = {
     quiDoitAgir: RoleId | "nereids"
     echeance?: string // ISO — si dépassée → retard
   }
+  /** Expertise n°1 (celle affichée en en-tête, calendrier, scénario) */
   expertise: Expertise
+  /** Expertises suivantes : n°2, n°3… ajoutées par l'admin ou l'expert */
+  autresExpertises?: Expertise[]
   documents: DocumentItem[]
   timeline: TimelineEvent[]
   description?: string
@@ -400,6 +408,31 @@ export const convocationSent = (d: Dossier) => d.expertise.convoques.length > 0
 export const defaultConvoques = (d: Dossier) =>
   [d.client.userId, d.intervenants.reparateur, d.intervenants.expert].filter((u): u is string => !!u)
 
+/** Identifiant du client dans les listes de convocation (il n'a pas toujours de compte) */
+export const clientConvoqueId = (d: Dossier) => d.client.userId ?? "client"
+
+/** Toutes les expertises du dossier, n°1 en premier */
+export const allExpertises = (d: Dossier): Expertise[] => [d.expertise, ...(d.autresExpertises ?? [])]
+
+/** Remplace l'expertise n° index + 1 */
+export function setExpertise(d: Dossier, index: number, patch: (e: Expertise) => Expertise): Dossier {
+  if (index === 0) return { ...d, expertise: patch(d.expertise) }
+  return { ...d, autresExpertises: (d.autresExpertises ?? []).map((e, i) => (i === index - 1 ? patch(e) : e)) }
+}
+
+/** Personnes convoquées (ou à convoquer) pour une expertise donnée */
+export function expertisePeople(d: Dossier, index: number): string[] {
+  const e = allExpertises(d)[index]
+  if (e.convoques.length) return e.convoques
+  // Expertise n°1 : liste par défaut ; expertises suivantes : liste à remplir
+  return e.aConvoquer ?? (index === 0 ? defaultConvoques(d) : [])
+}
+
+/** Proto : une 2e expertise vide (à compléter) dès que la 1re a eu lieu ou est programmée */
+export function withDemoExpertise(d: Dossier): Dossier {
+  return d.expertise.date && !d.autresExpertises ? { ...d, autresExpertises: [{ convoques: [], aConvoquer: [] }] } : d
+}
+
 export function isLate(d: Dossier): boolean {
   if (d.status === "cloture" || d.status === "archive") return false
   return !!d.pilotage.echeance && new Date(d.pilotage.echeance).getTime() < Date.now()
@@ -482,6 +515,25 @@ export function fullName(u?: { firstName: string; lastName: string }): string {
   return u ? `${u.firstName} ${u.lastName}` : "—"
 }
 
+const letters = (s = "") => s.normalize("NFD").replace(/[^A-Za-z]/g, "").toUpperCase()
+
+/**
+ * Référence dossier : initiales du client, année, 3 premières lettres du cabinet de l'expert
+ * (ex. Julie Martin, 2026, Cabinet Delorme → JM-2026-DEL). Sans expert : JM-2026.
+ */
+export function dossierRef(client: { firstName: string; lastName: string }, createdAt: string, cabinet?: string): string {
+  const initials = letters(client.firstName).charAt(0) + letters(client.lastName).charAt(0)
+  const year = new Date(createdAt).getFullYear()
+  const cab = letters(cabinet?.replace(/^\s*(cabinet|société)\s+/i, "")).slice(0, 3)
+  return [initials, year, cab].filter(Boolean).join("-")
+}
+
+/** Recalcule la référence d'un dossier d'après son client et le cabinet de son expert */
+export const withRef = <T extends Pick<Dossier, "client" | "createdAt" | "intervenants">>(d: T, expert = getUser(d.intervenants.expert)) => ({
+  ...d,
+  ref: dossierRef(d.client, d.createdAt, expert?.structure),
+})
+
 export const REGIONS = ["Auvergne-Rhône-Alpes", "Provence-Alpes-Côte d'Azur", "Île-de-France", "Occitanie"]
 
 // ─── Dossiers fictifs ────────────────────────────────────────────────────────
@@ -537,7 +589,7 @@ export function seedDossiers(): Dossier[] {
       client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr", address: "38 rue Gambetta, 43200 Yssingeaux" },
       vehicule: { marque: "Peugeot", modele: "308 SW", immat: "GH-482-KL", vin: "VF3LBYHZPKS123456" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-77812-S" },
-      refs: { sinistre: "SIN-2026-55481", interne: "HY-3381", expert: "DEL-26-118" },
+      refs: { sinistre: "SIN-2026-55481" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", reparateur: "u-rep", suiveurs: ["u-suiveur"] },
       suiveurRefs: { "u-suiveur": "PJ-55-2026-0981" },
@@ -650,7 +702,7 @@ export function seedDossiers(): Dossier[] {
       client: { firstName: "Mehdi", lastName: "Saïdi", phone: "06 55 44 33 22", email: "mehdi.saidi@mail.fr", address: "21 avenue de la Libération, 43000 Le Puy-en-Velay", userId: "u-client" },
       vehicule: { marque: "Peugeot", modele: "208", immat: "FX-219-PB", vin: "VR3UPHNKSLT204417" },
       compagnie: { nom: "Auto Sélection Lyon", email: "sav@autoselection-lyon.fr" },
-      refs: { interne: "HY-3290", expert: "GAR-26-051" },
+      refs: {},
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert2", suiveurs: [] },
       pilotage: {
@@ -691,7 +743,7 @@ export function seedDossiers(): Dossier[] {
       vehicule: { marque: "Peugeot", modele: "208", immat: "FX-219-PB" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-61204-S" },
       tiers: [{ nom: "M. Laurent Petit (assuré chez Assurances Atlantique)" }],
-      refs: { sinistre: "SIN-2025-31877", expert: "DEL-25-402" },
+      refs: { sinistre: "SIN-2025-31877" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", reparateur: "u-rep", suiveurs: [] },
       pilotage: { ouEnEst: "Dossier clôturé.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" },
@@ -728,7 +780,7 @@ export function seedDossiers(): Dossier[] {
       vehicule: { marque: "Citroën", modele: "C4 Picasso", immat: "DJ-085-XN" },
       compagnie: { nom: "Protec Juris", email: "dossiers@protecjuris.fr", reference: "PJ-55-2026-1209" },
       tiers: [{ nom: "Garage du Lignon (réparateur mis en cause)", phone: "04 71 00 11 22" }],
-      refs: { interne: "HY-3302", expert: "DEL-26-097" },
+      refs: {},
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", suiveurs: ["u-suiveur"] },
       suiveurRefs: { "u-suiveur": "PJ-55-2026-1209" },
@@ -768,7 +820,7 @@ export function seedDossiers(): Dossier[] {
       client: { firstName: "Julien", lastName: "Arnaud", phone: "06 71 82 93 04", email: "julien.arnaud@mail.fr", address: "17 rue Paul Bert, 42000 Saint-Étienne" },
       vehicule: { marque: "Toyota", modele: "Yaris Hybride", immat: "FN-512-QS" },
       compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-76201-S" },
-      refs: { sinistre: "SIN-2026-51209", expert: "GAR-26-044" },
+      refs: { sinistre: "SIN-2026-51209" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest2", expert: "u-expert2", reparateur: "u-rep2", suiveurs: [] },
       pilotage: {
@@ -799,7 +851,7 @@ export function seedDossiers(): Dossier[] {
       client: { firstName: "Nathalie", lastName: "Giraud", phone: "06 40 50 60 70", email: "n.giraud@mail.fr", address: "2 place de l'Église, 42500 Le Chambon-Feugerolles" },
       vehicule: { marque: "Dacia", modele: "Duster", immat: "EZ-904-LM" },
       compagnie: { nom: "Garantia Assurances", email: "reclamations@garantia.fr", reference: "GA-2026-11873" },
-      refs: { sinistre: "GA-SIN-90311", expert: "DEL-26-071" },
+      refs: { sinistre: "GA-SIN-90311" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", suiveurs: ["u-suiveur"] },
       suiveurRefs: { "u-suiveur": "PJ-55-2026-0712" },
@@ -831,7 +883,7 @@ export function seedDossiers(): Dossier[] {
       client: { firstName: "Hugo", lastName: "Leroy", phone: "06 12 98 34 76", email: "hugo.leroy@mail.fr", address: "48 cours Fauriel, 42100 Saint-Étienne" },
       vehicule: { marque: "Peugeot", modele: "2008", immat: "GB-311-DF" },
       compagnie: { nom: "Mutuelle du Centre", email: "recours@mutuelle-centre.fr", reference: "MDC-REC-3381" },
-      refs: { sinistre: "MDC-SIN-41007", expert: "MEU-26-022" },
+      refs: { sinistre: "MDC-SIN-41007" },
       region: "Provence-Alpes-Côte d'Azur",
       intervenants: { gestionnaire: "u-gest3", expert: "u-expert3", reparateur: "u-rep", suiveurs: [] },
       pilotage: {
@@ -891,7 +943,7 @@ export function seedDossiers(): Dossier[] {
       client: { firstName: "Léa", lastName: "Dupuis", phone: "06 23 45 67 89", email: "lea.dupuis@mail.fr", address: "9 rue de la Gare, 43600 Sainte-Sigolène" },
       vehicule: { marque: "Fiat", modele: "500", immat: "GD-118-VC" },
       compagnie: { nom: "Garantia Assurances", email: "recours@garantia.fr", reference: "GA-REC-7720" },
-      refs: { sinistre: "GA-SIN-88120", expert: "GAR-26-051" },
+      refs: { sinistre: "GA-SIN-88120" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest2", expert: "u-expert2", reparateur: "u-rep2", suiveurs: [] },
       pilotage: {
@@ -992,7 +1044,7 @@ export function seedDossiers(): Dossier[] {
       cloture: { motif: "Accord trouvé", at: daysFromNow(-70) },
     },
   ]
-  return all.map(withAttachments).map(withConsultations)
+  return all.map(withAttachments).map(withConsultations).map((d) => withRef(withDemoExpertise(d)))
 }
 
 /** Étapes du workflow par type — utilisé pour la frise de progression */

@@ -91,8 +91,6 @@ function GlobalSearch() {
                     ...(isClient
                       ? []
                       : [
-                          d.refs.interne,
-                          d.refs.expert,
                           d.client.firstName,
                           d.client.lastName,
                           d.compagnie?.nom,
@@ -219,7 +217,7 @@ function Notifications() {
                 <div className="min-w-0 flex-1">
                   <p className={cn("text-sm", n.unread && (!read || n.toDo) && "font-medium")}>{n.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {n.dossier} · {relativeDays(n.at)}
+                    {dossiers.find((d) => d.id === n.dossier)?.ref ?? n.dossier} · {relativeDays(n.at)}
                   </p>
                 </div>
                 {n.unread && (!read || n.toDo) && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" />}

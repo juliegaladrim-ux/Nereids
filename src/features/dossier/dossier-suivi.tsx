@@ -13,7 +13,9 @@ import {
   Eye,
   FilePlus2,
   FileText,
+  Flag,
   FolderPlus,
+  HandCoins,
   ImageIcon,
   MessageSquare,
   Paperclip,
@@ -24,6 +26,7 @@ import {
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { useDocPreview } from "@/components/doc-preview"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -31,7 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
-import { ACTOR_LABELS, DOC_CATEGORIES, fullName, getUser, type Dossier, type TimelineEvent, type TimelineKind } from "@/lib/data"
+import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -49,12 +52,27 @@ const KIND_ICONS: Record<TimelineKind, LucideIcon> = {
   consultation: Eye,
 }
 
-type Filter = "messages" | "documents" | "etapes" | "consultations"
-const FILTERS: { id: Filter; label: string; kinds: TimelineKind[]; adminOnly?: boolean }[] = [
-  { id: "messages", label: "Messages", kinds: ["message", "relance"] },
-  { id: "documents", label: "Documents", kinds: ["document"] },
-  { id: "etapes", label: "Étapes & statuts", kinds: ["status", "creation", "assignation", "expertise", "system"] },
-  { id: "consultations", label: "Consultations", kinds: ["consultation"], adminOnly: true },
+/** Jalons de résolution (ex-onglet Résolution) : réclamation, accord / paiement, clôture — mis en avant dans le fil */
+const MILESTONES: { status: StatusId; icon: LucideIcon }[] = [
+  { status: "reclamation_envoyee", icon: Send },
+  { status: "attente_paiement", icon: HandCoins },
+  { status: "cloture", icon: Flag },
+]
+const milestone = (e: TimelineEvent) =>
+  e.kind === "status" ? MILESTONES.find((m) => e.title === `Statut → ${STATUSES[m.status].label}`) : undefined
+const RESOLUTION_DOCS = ["Pré-rapport", "Rapport d'expertise"].map((c) => `Document ajouté — ${c}`)
+
+type Filter = "messages" | "documents" | "etapes" | "resolution" | "consultations"
+const FILTERS: { id: Filter; label: string; match: (e: TimelineEvent) => boolean; adminOnly?: boolean }[] = [
+  { id: "messages", label: "Messages", match: (e) => e.kind === "message" || e.kind === "relance" },
+  { id: "documents", label: "Documents", match: (e) => e.kind === "document" },
+  { id: "etapes", label: "Étapes & statuts", match: (e) => ["status", "creation", "assignation", "expertise", "system"].includes(e.kind) },
+  {
+    id: "resolution",
+    label: "Relances & résolution",
+    match: (e) => e.kind === "relance" || !!milestone(e) || e.title === `Statut → ${STATUSES.attente_retour.label}` || RESOLUTION_DOCS.includes(e.title),
+  },
+  { id: "consultations", label: "Consultations", match: (e) => e.kind === "consultation", adminOnly: true },
 ]
 
 const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants"] }[] = [
@@ -66,13 +84,13 @@ const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants
   { id: "all" },
 ]
 
-export function DossierSuivi({ dossier }: { dossier: Dossier }) {
+export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onEditCloture?: () => void }) {
   const { role, user } = useRole()
   const rights = dossierRights(role.id, user.id)
   const filters = FILTERS.filter((f) => !f.adminOnly || role.id === "admin")
   // Filtres cumulables : aucune sélection = « Tout »
   const [selected, setSelected] = React.useState<Filter[]>([])
-  const kinds = selected.length ? filters.filter((f) => selected.includes(f.id)).flatMap((f) => f.kinds) : undefined
+  const active = filters.filter((f) => selected.includes(f.id))
   const closed = dossier.status === "cloture" || dossier.status === "archive"
   // Prochaine étape attendue, en tête du fil (vue « Tout » ou avec « Étapes & statuts »)
   const showNext = !closed && (!selected.length || selected.includes("etapes"))
@@ -88,9 +106,10 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
   const yourTurn = quiDoitAgir === role.id || (role.id === "admin" && quiDoitAgir === "nereids")
   const events = [...dossier.timeline]
     .filter(rights.canSeeEvent)
-    .filter((e) => !kinds || kinds.includes(e.kind))
+    .filter((e) => !active.length || active.some((f) => f.match(e)))
     // Un message qui reçoit une réponse remonte en tête du fil
     .sort((a, b) => (b.reply?.at ?? b.at).localeCompare(a.reply?.at ?? a.at))
+  const lastClosing = events.find((e) => milestone(e)?.status === "cloture")
 
   return (
     <div className="flex flex-col gap-4">
@@ -128,7 +147,8 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
           </li>
         )}
         {events.map((e, i) => {
-          const Icon = KIND_ICONS[e.kind]
+          const step = milestone(e)
+          const Icon = step?.icon ?? KIND_ICONS[e.kind]
           const author = e.author === "system" ? undefined : getUser(e.author)
           const isMsg = e.kind === "message"
           const line = i < events.length - 1 && <span className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />
@@ -157,8 +177,8 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
               {isMsg && author ? (
                 <UserAvatar user={author} className="size-8" />
               ) : (
-                <span className="z-10 grid size-8 shrink-0 place-items-center rounded-full border bg-background">
-                  <Icon className="size-3.5 text-muted-foreground" />
+                <span className={cn("z-10 grid size-8 shrink-0 place-items-center rounded-full border bg-background", step && "border-brand/40 bg-brand-soft")}>
+                  <Icon className={cn("size-3.5 text-muted-foreground", step && "text-brand-ink")} />
                 </span>
               )}
               <div className="min-w-0 flex-1 pt-1">
@@ -186,6 +206,11 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
                   </p>
                 )}
                 {isMsg && <Reply dossier={dossier} event={e} />}
+                {step?.status === "cloture" && onEditCloture && dossier.cloture && e.id === lastClosing?.id && (
+                  <Button variant="link" size="xs" className="mt-1 h-auto p-0" onClick={onEditCloture}>
+                    Modifier la clôture
+                  </Button>
+                )}
               </div>
             </li>
           )
@@ -199,11 +224,13 @@ export function DossierSuivi({ dossier }: { dossier: Dossier }) {
 /** Pièces jointes d'un message (les documents restent aussi dans l'onglet Documents) */
 function Attachments({ dossier, event }: { dossier: Dossier; event: TimelineEvent }) {
   const docs = (event.docIds ?? []).map((id) => dossier.documents.find((d) => d.id === id)).filter((d) => !!d)
+  const preview = useDocPreview()
   if (!docs.length) return null
   return (
     <div className="mt-2 flex flex-wrap gap-2">
       {docs.map((doc) => (
-        <div key={doc.id} className="flex max-w-full min-w-0 items-center gap-3 rounded-xl border bg-card py-2 pr-2 pl-2.5 sm:max-w-sm">
+        <div key={doc.id} className="relative flex max-w-full min-w-0 items-center gap-3 rounded-xl border bg-card py-2 pr-2 pl-2.5 hover:bg-muted/50 sm:max-w-sm">
+          <button type="button" className="absolute inset-0 cursor-pointer rounded-xl" aria-label={`Aperçu de ${doc.name}`} onClick={() => preview.open(doc)} />
           {/* Même aspect que les lignes de l'onglet Documents */}
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
             {doc.category === "photos" ? <ImageIcon className="size-4 text-muted-foreground" /> : <FileText className="size-4 text-muted-foreground" />}
@@ -214,11 +241,12 @@ function Attachments({ dossier, event }: { dossier: Dossier; event: TimelineEven
               {DOC_CATEGORIES[doc.category]} · {doc.size}
             </p>
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
+          <Button variant="ghost" size="icon-sm" className="relative" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
             <Download />
           </Button>
         </div>
       ))}
+      {preview.dialog}
     </div>
   )
 }
