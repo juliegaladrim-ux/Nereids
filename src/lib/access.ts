@@ -55,8 +55,12 @@ const CLIENT_DOC_CATEGORIES: DocCategory[] = [
 ]
 
 export type DossierRights = {
-  /** Pilotage : statut, relance, assignation, clôture, archivage, expertise, références… */
+  /** Pilotage : relance, infos internes (M/D/R, échéances), modification des blocs, expertise, références… */
   pilot: boolean
+  /** Statut, clôture et archivage : réservés à Nereids (CDC v1 §1-2) */
+  changeStatus: boolean
+  /** Assigner les intervenants, ouvrir les comptes intervenants : réservé à Nereids (CDC v1 §1) */
+  assign: boolean
   /** Blocs d'infos modifiables (client : ses coordonnées uniquement) */
   canEdit: (section: string) => boolean
   docCategories: DocCategory[]
@@ -85,6 +89,8 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
           !!e.recipients?.some((r) => r === "client" || r === "all")),
       pickRecipients: false,
       ownRef: false,
+      changeStatus: false,
+      assign: false,
     }
   }
   // Intervenant suiveur (avocat, protection juridique) : consultation, messages et pièces, aucun pilotage
@@ -101,6 +107,24 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
           !!e.recipients?.some((r) => r === "suiveur" || r === "all")),
       pickRecipients: true,
       ownRef: true,
+      changeStatus: false,
+      assign: false,
+    }
+  }
+  // Gestionnaire Help You : même base que l'admin sur ses dossiers (CDC v1 §1, §12.2) —
+  // modifie, dépose, relance, échange ; statut, clôture, archivage et assignation restent à Nereids
+  if (role === "gestionnaire") {
+    return {
+      pilot: true,
+      // La clôture (motif, date) est saisie par Nereids
+      canEdit: (s) => s !== "cloture",
+      docCategories: Object.keys(DOC_CATEGORIES) as DocCategory[],
+      canManageDoc: () => true,
+      canSeeEvent: (e) => e.kind !== "consultation",
+      pickRecipients: true,
+      ownRef: false,
+      changeStatus: false,
+      assign: false,
     }
   }
   return {
@@ -112,5 +136,7 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
     canSeeEvent: (e) => e.kind !== "consultation" || role === "admin",
     pickRecipients: true,
     ownRef: false,
+    changeStatus: true,
+    assign: true,
   }
 }

@@ -63,11 +63,11 @@ export const ROLES: Role[] = [
     short: "Gestionnaire",
     description: "Crée et suit les dossiers Help You, dépose les documents, relance et échange.",
     userId: "u-gest",
-    ready: false,
+    ready: true,
     canCreateDossier: true,
-    home: "tableau-de-bord",
+    // Même base que l'admin (pas de tableau de bord) : arrive sur ses dossiers en cours
+    home: "dossiers",
     nav: [
-      { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
       { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
       { label: "Archives", path: "archives", icon: Archive },
     ],

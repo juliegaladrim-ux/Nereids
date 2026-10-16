@@ -8,7 +8,7 @@ import { DossiersList } from "@/features/admin/dossiers-list"
 
 export default function ArchivesPage() {
   const { role } = useRole()
-  if (role.id !== "admin") return <RoleEmptyState page="archives" />
+  if (role.id !== "admin" && role.id !== "gestionnaire") return <RoleEmptyState page="archives" />
   return (
     <Suspense>
       <DossiersList mode="archives" />

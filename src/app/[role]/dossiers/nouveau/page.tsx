@@ -6,6 +6,6 @@ import { CreateDossier } from "@/features/admin/create-dossier"
 
 export default function NewDossierPage() {
   const { role } = useRole()
-  if (role.id === "admin") return <CreateDossier />
+  if (role.id === "admin" || role.id === "gestionnaire") return <CreateDossier />
   return <RoleEmptyState page="nouveau" />
 }

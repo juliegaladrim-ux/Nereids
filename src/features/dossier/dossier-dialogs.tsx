@@ -281,13 +281,13 @@ const LABELS: Record<keyof AssignValue, string> = {
 // ─── Relancer ────────────────────────────────────────────────────────────────
 
 export function RelanceDialog({ dossier, open, onOpenChange }: DialogProps) {
-  const { user } = useRole()
+  const { user, role } = useRole()
   const { addEvent, updateDossier } = useStore()
   const who = dossier.pilotage.quiDoitAgir
   const target =
     who === "expert" ? getUser(dossier.intervenants.expert) : who === "reparateur" ? getUser(dossier.intervenants.reparateur) : who === "gestionnaire" ? getUser(dossier.intervenants.gestionnaire) : undefined
   const [msg, setMsg] = React.useState(
-    `Bonjour${target ? ` ${target.firstName}` : who === "client" ? ` ${dossier.client.firstName}` : ""},\n\nSauf erreur de notre part, nous sommes toujours en attente de : ${dossier.pilotage.attente.toLowerCase()} pour le dossier ${dossier.ref} (${dossier.vehicule.immat}).\n\nMerci de faire le nécessaire dans les meilleurs délais.\n\nBien cordialement,\n${user.firstName} ${user.lastName} — Nereids`,
+    `Bonjour${target ? ` ${target.firstName}` : who === "client" ? ` ${dossier.client.firstName}` : ""},\n\nSauf erreur de notre part, nous sommes toujours en attente de : ${dossier.pilotage.attente.toLowerCase()} pour le dossier ${dossier.ref} (${dossier.vehicule.immat}).\n\nMerci de faire le nécessaire dans les meilleurs délais.\n\nBien cordialement,\n${user.firstName} ${user.lastName} — ${role.id === "gestionnaire" ? user.structure : "Nereids"}`,
   )
 
   function send() {

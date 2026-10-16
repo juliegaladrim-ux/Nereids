@@ -168,8 +168,8 @@ export function DossierDetail({ id }: { id: string }) {
     toast.success("Invitation envoyée", { description: `${d!.client.firstName} ${d!.client.lastName} peut maintenant suivre son dossier.` })
   }
   const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
-  // Expertises multiples et convoqués : admin et expert
-  const canManageExpertise = role.id === "admin" || role.id === "expert"
+  // Expertises multiples et convoqués : admin, expert et gestionnaire (CDC v2 : expertise à planifier, convocations)
+  const canManageExpertise = role.id === "admin" || role.id === "expert" || role.id === "gestionnaire"
 
   /** Le client indique son garage : message à Nereids, qui l'ajoute comme intervenant */
   function suggestReparateur() {
@@ -407,10 +407,12 @@ export function DossierDetail({ id }: { id: string }) {
                 <BellRing /> Relancer
               </Button>
             )}
-            <Button variant="outline" onClick={() => setDialog("status")}>
-              <Pencil /> Modifier le statut
-            </Button>
-            {d.status === "cloture" && (
+            {rights.changeStatus && (
+              <Button variant="outline" onClick={() => setDialog("status")}>
+                <Pencil /> Modifier le statut
+              </Button>
+            )}
+            {rights.changeStatus && d.status === "cloture" && (
               <Button onClick={archive}>
                 <Archive /> Archiver
               </Button>
@@ -420,16 +422,18 @@ export function DossierDetail({ id }: { id: string }) {
                 <MoreHorizontal />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => setDialog("assign")}>
-                  <UserPlus /> Assigner les intervenants
-                </DropdownMenuItem>
+                {rights.assign && (
+                  <DropdownMenuItem onClick={() => setDialog("assign")}>
+                    <UserPlus /> Assigner les intervenants
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => openDoc()}>
                   <Plus /> Ajouter un document
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => toast.info("Export du dossier complet (ZIP) — simulation")}>
                   <Download /> Télécharger tout le dossier
                 </DropdownMenuItem>
-                {!closed && (
+                {rights.changeStatus && !closed && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onClick={() => setDialog("close")}>
@@ -462,7 +466,7 @@ export function DossierDetail({ id }: { id: string }) {
       )}
 
       {/* Admin : demandes d'ouverture de compte intervenant faites par le client */}
-      {rights.pilot &&
+      {rights.assign &&
         pendingRequests.map((r) => (
           <SuiveurRequestBanner key={r.id} request={r} onCreate={() => createSuiveur(r.id)} onRefuse={() => refuseSuiveur(r.id)} />
         ))}
@@ -528,7 +532,7 @@ export function DossierDetail({ id }: { id: string }) {
         <aside className="flex flex-col gap-4">
           <Intervenants
             dossier={d}
-            onAssign={rights.pilot ? () => setDialog("assign") : undefined}
+            onAssign={rights.assign ? () => setDialog("assign") : undefined}
             onEditIntervenant={role.id === "admin" ? setEditSlot : undefined}
             onRemoveIntervenant={role.id === "admin" ? setRemoveSlot : undefined}
             onSuggestReparateur={isClient && !closed && !d.intervenants.reparateur ? suggestReparateur : undefined}

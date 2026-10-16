@@ -26,7 +26,7 @@ import {
   type Dossier,
   type StatusId,
 } from "@/lib/data"
-import { matchesSearch } from "@/lib/access"
+import { matchesSearch, visibleDossiers } from "@/lib/access"
 import { formatDate, formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -51,8 +51,13 @@ const EXPERTS = USERS.filter((u) => u.role === "expert")
 const CABINETS = [...new Set(EXPERTS.map((u) => u.structure))].sort()
 
 export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives" }) {
-  const { href } = useRole()
-  const { dossiers } = useStore()
+  const { href, role, user } = useRole()
+  const { dossiers: all } = useStore()
+  // Gestionnaire Help You : uniquement ses dossiers (CDC §12.2), sans colonne ni filtre gestionnaire
+  const dossiers = visibleDossiers(all, role.id, user.id)
+  const isGest = role.id === "gestionnaire"
+  // L'assignation est faite par Nereids : pas de vue « À assigner » pour le gestionnaire
+  const views = isGest ? VIEWS.filter((v) => v.id !== "a-assigner") : VIEWS
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -81,7 +86,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
     .filter((d) => rep.length === 0 || rep.includes(d.intervenants.reparateur ?? ""))
     .sort((a, b) => (view === "expertises" ? (a.expertise.date ?? "").localeCompare(b.expertise.date ?? "") : b.createdAt.localeCompare(a.createdAt)))
 
-  const counts = Object.fromEntries(VIEWS.map((v) => [v.id, dossiers.filter(v.filter).length]))
+  const counts = Object.fromEntries(views.map((v) => [v.id, dossiers.filter(v.filter).length]))
   const hasFilters = q || [type, status, gest, cabinet, expert, rep].some((f) => f.length > 0)
 
   function setView(v: View) {
@@ -94,7 +99,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
   return (
     <>
       <PageHeader
-        title={mode === "archives" ? "Archives" : "Dossiers"}
+        title={mode === "archives" ? "Archives" : isGest ? "Mes dossiers" : "Dossiers"}
         description={
           mode === "archives"
             ? "Toujours consultables et téléchargeables."
@@ -110,8 +115,8 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
       />
 
       {mode === "actifs" && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          {VIEWS.map((v) => (
+        <div className={cn("mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3", isGest ? "lg:grid-cols-4" : "xl:grid-cols-5")}>
+          {views.map((v) => (
             <ViewCard
               key={v.id}
               label={v.label}
@@ -149,12 +154,14 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
           label="Statut"
           options={[...Object.entries(STATUSES).map(([value, s]) => ({ value, label: s.label }))]}
         />
-        <FilterPill
-          value={gest}
-          onChange={setGest}
-          label="Gestionnaire"
-          options={[...USERS.filter((u) => u.role === "gestionnaire").map((u) => ({ value: u.id, label: fullName(u) }))]}
-        />
+        {!isGest && (
+          <FilterPill
+            value={gest}
+            onChange={setGest}
+            label="Gestionnaire"
+            options={[...USERS.filter((u) => u.role === "gestionnaire").map((u) => ({ value: u.id, label: fullName(u) }))]}
+          />
+        )}
         <FilterPill
           value={cabinet}
           onChange={(c) => {
@@ -209,7 +216,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
               <TableHead>Véhicule</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Compagnie visée</TableHead>
-              <TableHead>Gestionnaire</TableHead>
+              {!isGest && <TableHead>Gestionnaire</TableHead>}
               <TableHead>Expert</TableHead>
               <TableHead className="pr-4">Expertise prévue</TableHead>
             </TableRow>
@@ -217,7 +224,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={isGest ? 7 : 8} className="py-10 text-center text-muted-foreground">
                   Aucun dossier ne correspond.
                 </TableCell>
               </TableRow>
@@ -256,7 +263,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{d.compagnie?.nom ?? "—"}</TableCell>
-                <TableCell>{d.intervenants.gestionnaire ? fullName(getUser(d.intervenants.gestionnaire)) : <Missing />}</TableCell>
+                {!isGest && <TableCell>{d.intervenants.gestionnaire ? fullName(getUser(d.intervenants.gestionnaire)) : <Missing />}</TableCell>}
                 <TableCell>{d.intervenants.expert ? fullName(getUser(d.intervenants.expert)) : <Missing />}</TableCell>
                 <TableCell className="pr-4">
                   {d.expertise.date ? (

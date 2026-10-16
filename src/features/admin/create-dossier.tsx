@@ -103,10 +103,12 @@ const FAKE_FILES: Partial<Record<DocCategory, string>> = {
 }
 
 export function CreateDossier() {
-  const { user, href } = useRole()
+  const { user, role, href } = useRole()
   const { dossiers, createDossier } = useStore()
   const router = useRouter()
-  const [f, setF] = React.useState<Form>(EMPTY)
+  // Gestionnaire Help You : le dossier lui est rattaché, l'assignation de l'expert reste à Nereids
+  const isGest = role.id === "gestionnaire"
+  const [f, setF] = React.useState<Form>(isGest ? { ...EMPTY, gestionnaire: user.id } : EMPTY)
   /** Experts / réparateurs saisis à la main (hors liste) */
   const [added, setAdded] = React.useState<User[]>([])
   const [creating, setCreating] = React.useState<NewRole | null>(null)
@@ -196,7 +198,7 @@ export function CreateDossier() {
     ]
     if (documents.length)
       timeline.push({ id: `e-${ref}-2`, at: now, kind: "document", author: user.id, title: `${documents.length} document(s) ajouté(s)` })
-    if (f.gestionnaire || f.expert || f.reparateur)
+    if (!isGest && (f.gestionnaire || f.expert || f.reparateur))
       timeline.push({
         id: `e-${ref}-3`,
         at: now,
@@ -252,7 +254,7 @@ export function CreateDossier() {
             }
           : {
               ouEnEst: "Dossier créé, en attente d'assignation.",
-              attente: "Assignation d'un gestionnaire et d'un expert",
+              attente: isGest ? "Assignation d'un expert" : "Assignation d'un gestionnaire et d'un expert",
               prochaineAction: "Assigner les intervenants",
               quiDoitAgir: "nereids",
               echeance: daysFromNow(1),
@@ -268,7 +270,9 @@ export function CreateDossier() {
     }
     createDossier(d)
     toast.success(`Dossier ${ref} créé`, {
-      description: [assigned && "Les intervenants assignés ont été notifiés.", invite ? "Le client a reçu une invitation par e-mail." : "Aucun compte client ouvert."].filter(Boolean).join(" ") || undefined,
+      description: [
+        assigned && "Les intervenants assignés ont été notifiés.",
+        isGest && !horsRecours && "Nereids est notifié pour assigner l'expert.", invite ? "Le client a reçu une invitation par e-mail." : "Aucun compte client ouvert."].filter(Boolean).join(" ") || undefined,
     })
     router.push(href(`dossiers/${ref}`))
   }
@@ -553,7 +557,8 @@ export function CreateDossier() {
                     </CardContent>
                   </Card>
 
-                  {/* 5. Intervenants */}
+                  {/* 5. Intervenants (assignés par Nereids pour un dossier créé par Help You) */}
+                  {!isGest && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">{sectionNum(5)} Intervenants</CardTitle>
@@ -568,6 +573,7 @@ export function CreateDossier() {
                       />
                     </CardContent>
                   </Card>
+                  )}
                 </>
               )}
             </>
@@ -594,7 +600,7 @@ export function CreateDossier() {
                   <>
                     {f.type !== "litige_auto" && <RecapItem optional ok={!!f.compagnie.nom} label={compagnieLabel(f.type!)} detail={f.compagnie.nom || undefined} />}
                     <RecapItem optional ok={missingDocs.length === 0} label="Pièces" detail={missingDocs.length ? `${missingDocs.length} manquante(s)` : "Complètes"} />
-                    <RecapItem optional ok={!!f.gestionnaire && !!f.expert} label="Intervenants" detail={f.gestionnaire && f.expert ? "Gestionnaire et expert" : "À assigner"} />
+                    {!isGest && <RecapItem optional ok={!!f.gestionnaire && !!f.expert} label="Intervenants" detail={f.gestionnaire && f.expert ? "Gestionnaire et expert" : "À assigner"} />}
                   </>
                 )}
               </ul>

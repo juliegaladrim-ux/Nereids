@@ -136,11 +136,11 @@ const NOTIFS: (Omit<Notif, "at"> & { days: number })[] = [
   { icon: FileText, title: "Devis déposé par Garage Benali", dossier: "NER-2026-0142", days: -6, unread: false },
 ]
 
-/** Suiveur : ce qui s'est passé récemment dans ses dossiers (hors ses propres actions) */
-function suiveurNotifs(dossiers: ReturnType<typeof useStore>["dossiers"], userId: string): Notif[] {
-  const rights = dossierRights("suiveur", userId)
+/** Suiveur, gestionnaire : ce qui s'est passé récemment dans ses dossiers (hors ses propres actions) */
+function recentNotifs(dossiers: ReturnType<typeof useStore>["dossiers"], role: "suiveur" | "gestionnaire", userId: string): Notif[] {
+  const rights = dossierRights(role, userId)
   const recent = daysFromNow(-3, 0)
-  return visibleDossiers(dossiers, "suiveur", userId)
+  return visibleDossiers(dossiers, role, userId)
     .flatMap((d) =>
       d.timeline
         .filter((e) => rights.canSeeEvent(e) && e.author !== userId && e.kind !== "creation")
@@ -185,7 +185,7 @@ function Notifications() {
     )
   const notifs: Notif[] = [
     ...replies,
-    ...(role.id === "suiveur" ? suiveurNotifs(dossiers, user.id) : [...requests, ...NOTIFS.map(({ days, ...n }) => ({ ...n, at: daysFromNow(days) }))]),
+    ...(role.id === "suiveur" || role.id === "gestionnaire" ? recentNotifs(dossiers, role.id, user.id) : [...requests, ...NOTIFS.map(({ days, ...n }) => ({ ...n, at: daysFromNow(days) }))]),
   ].sort((a, b) => Number(!!b.toDo) - Number(!!a.toDo) || b.at.localeCompare(a.at))
   const unread = read ? requests.length : notifs.filter((n) => n.unread).length
 

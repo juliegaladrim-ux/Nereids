@@ -20,12 +20,6 @@ const TITLES: Record<PageKey, string> = {
 
 /** Ce qui est prévu pour chaque espace (source : parcours FigJam + CDC) */
 const PLANNED: Partial<Record<RoleId, Partial<Record<PageKey, string[]>>>> = {
-  gestionnaire: {
-    "tableau-de-bord": ["Mes dossiers Help You uniquement", "Dossiers en retard et actions attendues", "Relances à envoyer"],
-    dossiers: ["Filtres : statut, type, expert, réparateur, période, en retard", "Recherche globale"],
-    dossier: ["Écrire dans le suivi, déposer des documents", "Voir l'action à réaliser", "Pas de changement de statut ni de clôture (réservé à Nereids)"],
-    nouveau: ["Même parcours de création que l'administrateur", "Nereids est notifié pour l'assignation"],
-  },
   expert: {
     "tableau-de-bord": ["Mes dossiers uniquement", "Dates d'expertise prévues en évidence"],
     dossiers: ["Filtre par statut : en étude, attente expertise, attente PV, attente rapport"],
