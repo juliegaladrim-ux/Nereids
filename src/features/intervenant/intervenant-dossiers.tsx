@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronRight, Search } from "lucide-react"
+import { CalendarDays, ChevronRight, Search } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
@@ -15,11 +15,21 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPill } from "@/features/admin/dossiers-list"
 import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, fullName, getUser, isLate, lateDays, type Dossier } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
-import { formatDate } from "@/lib/format"
+import { formatDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
 
 type View = "en_cours" | "termines"
 const isClosed = (d: Dossier) => d.status === "cloture" || d.status === "archive"
+
+/** Expertise à afficher : la prochaine non réalisée, sinon la dernière programmée */
+const shownExpertise = (d: Dossier) => {
+  const dated = [d.expertise, ...(d.autresExpertises ?? [])].filter((x) => x.date)
+  return dated.find((x) => !x.realisee) ?? dated.at(-1)
+}
+const expertiseDay = (iso: string) => {
+  const t = new Date(iso)
+  return `${t.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · ${t.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+}
 
 /**
  * Liste en tableau des intervenants extérieurs :
@@ -131,6 +141,7 @@ export function IntervenantDossiers() {
                 {rights.ownRef && <TableHead>Ma référence</TableHead>}
                 <TableHead>Dossier Nereids</TableHead>
                 <TableHead>Statut</TableHead>
+                {isRep && <TableHead>Expertise</TableHead>}
                 {isRep && <TableHead>Action attendue</TableHead>}
                 <TableHead className="pr-4">Dernière activité</TableHead>
               </TableRow>
@@ -139,6 +150,7 @@ export function IntervenantDossiers() {
               {rows.map((d) => {
                 const last = lastActivity(d)
                 const action = todo(d)
+                const exp = shownExpertise(d)
                 return (
                   <TableRow key={d.id} className="cursor-pointer" onClick={() => router.push(href(`dossiers/${d.id}`))}>
                     <TableCell className="pl-4">
@@ -160,6 +172,18 @@ export function IntervenantDossiers() {
                     <TableCell>
                       <StatusBadge status={d.status} />
                     </TableCell>
+                    {isRep && (
+                      <TableCell>
+                        {exp?.date ? (
+                          <>
+                            <div className="font-medium whitespace-nowrap first-letter:uppercase">{expertiseDay(exp.date)}</div>
+                            <div className="text-xs text-muted-foreground">{exp.realisee ? "Réalisée" : relativeDays(exp.date)}</div>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">Non programmée</span>
+                        )}
+                      </TableCell>
+                    )}
                     {isRep && (
                       <TableCell>
                         {action ? (
@@ -198,6 +222,7 @@ export function IntervenantDossiers() {
         {rows.map((d) => {
           const last = lastActivity(d)
           const action = isRep ? todo(d) : null
+          const exp = isRep ? shownExpertise(d) : undefined
           return (
             <li key={d.id}>
               <Link href={href(`dossiers/${d.id}`)} className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-brand/50">
@@ -216,6 +241,19 @@ export function IntervenantDossiers() {
                     <StatusBadge status={d.status} />
                     {action && isLate(d) && <LateBadge days={lateDays(d)} />}
                   </div>
+                  {isRep && (
+                    <p className="mt-2 flex items-center gap-1.5 text-sm">
+                      <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+                      {exp?.date ? (
+                        <>
+                          <span className="font-medium first-letter:uppercase">Expertise {expertiseDay(exp.date)}</span>
+                          <span className="text-muted-foreground">· {exp.realisee ? "réalisée" : relativeDays(exp.date)}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">Expertise non programmée</span>
+                      )}
+                    </p>
+                  )}
                   {action && (
                     <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-brand-soft px-2.5 py-1 text-sm font-semibold text-brand-ink">
                       <span className="size-1.5 rounded-full bg-brand" />À faire : {action}
