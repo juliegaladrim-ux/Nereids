@@ -25,11 +25,6 @@ const PLANNED: Partial<Record<RoleId, Partial<Record<PageKey, string[]>>>> = {
     dossiers: ["Filtre par statut : en étude, attente expertise, attente PV, attente rapport"],
     dossier: ["Valider / refuser le recours", "Organiser l'expertise (date, lieu, convocation)", "Déposer PV et rapports, modifier le statut", "Onglet tierce expertise (litige assurantiel)"],
   },
-  reparateur: {
-    "tableau-de-bord": ["Liste simple : client, véhicule, statut, action attendue", "Résumé de ma charge par statut"],
-    dossiers: ["Filtre : attente devis, attente réparation, en expertise, clôturé"],
-    dossier: ["Action mise en avant : « Déposer votre devis »", "Dépôt facture proforma, facture, photos (mobile)"],
-  },
   suiveur: {
     "tableau-de-bord": ["Dossiers suivis : réf. dossier, réf. PJ, client, statut, dernière mise à jour"],
     dossiers: ["Recherche par référence ou nom du client"],

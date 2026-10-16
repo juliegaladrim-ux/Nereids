@@ -10,6 +10,7 @@ export default function DossierPage({ params }: PageProps<"/[role]/dossiers/[id]
   const { id } = use(params)
   const { role } = useRole()
   // Fiche commune : chaque rôle la voit avec ses droits (lib/access.ts)
-  if (role.id === "admin" || role.id === "gestionnaire" || role.id === "client" || role.id === "suiveur") return <DossierDetail id={decodeURIComponent(id)} />
+  if (role.id === "admin" || role.id === "gestionnaire" || role.id === "client" || role.id === "suiveur" || role.id === "reparateur")
+    return <DossierDetail id={decodeURIComponent(id)} />
   return <RoleEmptyState page="dossier" />
 }

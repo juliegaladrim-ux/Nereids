@@ -92,13 +92,11 @@ export const ROLES: Role[] = [
     short: "Réparateur",
     description: "Dépose devis, factures et photos, échange dans le suivi.",
     userId: "u-rep",
-    ready: false,
+    ready: true,
     canCreateDossier: false,
-    home: "tableau-de-bord",
-    nav: [
-      { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
-      { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
-    ],
+    // Comme le suiveur : il arrive directement sur ses dossiers, présentés en tableau
+    home: "dossiers",
+    nav: [{ label: "Mes dossiers", path: "dossiers", icon: FolderOpen }],
   },
   {
     id: "suiveur",

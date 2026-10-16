@@ -54,6 +54,9 @@ const CLIENT_DOC_CATEGORIES: DocCategory[] = [
   "autre",
 ]
 
+/** Pièces que dépose le réparateur (CDC v1 §12.4) */
+const REPARATEUR_DOC_CATEGORIES: DocCategory[] = ["devis", "facture_proforma", "facture", "photos"]
+
 export type DossierRights = {
   /** Pilotage : relance, infos internes (M/D/R, échéances), modification des blocs, expertise, références… */
   pilot: boolean
@@ -107,6 +110,26 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
           !!e.recipients?.some((r) => r === "suiveur" || r === "all")),
       pickRecipients: true,
       ownRef: true,
+      changeStatus: false,
+      assign: false,
+    }
+  }
+  // Réparateur : ses dossiers uniquement, dépôt devis / facture proforma / facture / photos, échanges dans le suivi,
+  // téléchargement des documents (CDC v1 §1, §12.4) — aucun pilotage, statut ni modification des infos
+  if (role === "reparateur") {
+    return {
+      pilot: false,
+      canEdit: () => false,
+      docCategories: REPARATEUR_DOC_CATEGORIES,
+      canManageDoc: (doc) => doc.addedBy === userId,
+      canSeeEvent: (e) =>
+        e.kind !== "consultation" &&
+        ((e.kind !== "message" && e.kind !== "relance") ||
+          e.author === userId ||
+          !!e.recipients?.some((r) => r === "reparateur" || r === "all")),
+      // Coordination avec le gestionnaire et l'expert (proposition Galadrim, persona réparateur)
+      pickRecipients: true,
+      ownRef: false,
       changeStatus: false,
       assign: false,
     }

@@ -325,7 +325,7 @@ function ViewCard({
 }
 
 /** Filtre en pastille multi-sélection : le libellé reste affiché, une bulle indique le nombre de valeurs cochées */
-function FilterPill({
+export function FilterPill({
   label,
   value,
   onChange,

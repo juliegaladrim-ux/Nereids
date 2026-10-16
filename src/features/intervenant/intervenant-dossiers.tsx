@@ -8,11 +8,12 @@ import { ChevronRight, Search } from "lucide-react"
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
-import { StatusBadge } from "@/components/status-badge"
+import { LateBadge, StatusBadge } from "@/components/status-badge"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DOSSIER_TYPES, fullName, getUser, type Dossier } from "@/lib/data"
+import { FilterPill } from "@/features/admin/dossiers-list"
+import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, fullName, getUser, isLate, lateDays, type Dossier } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
 import { formatDate } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -21,22 +22,29 @@ type View = "en_cours" | "termines"
 const isClosed = (d: Dossier) => d.status === "cloture" || d.status === "archive"
 
 /**
- * « Dossiers suivis » de l'intervenant suiveur (avocat, protection juridique) :
- * il retrouve ses dossiers par sa propre référence ou le nom du client.
+ * Liste en tableau des intervenants extérieurs :
+ * - suiveur (avocat, protection juridique) : « Dossiers suivis », retrouvés par sa propre référence ou le nom du client ;
+ * - réparateur : « Mes dossiers », avec l'action qu'il doit réaliser et un filtre par statut (parcours réparateur).
  */
-export function SuiveurDossiers() {
+export function IntervenantDossiers() {
   const { role, user, href } = useRole()
   const { dossiers } = useStore()
   const router = useRouter()
   const rights = dossierRights(role.id, user.id)
+  const isRep = role.id === "reparateur"
+  const title = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
   const [view, setView] = React.useState<View>("en_cours")
   const [q, setQ] = React.useState("")
+  const [status, setStatus] = React.useState<string[]>([])
 
   const all = visibleDossiers(dossiers, role.id, user.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   const counts = { en_cours: all.filter((d) => !isClosed(d)).length, termines: all.filter(isClosed).length }
+  const inView = all.filter((d) => (view === "termines" ? isClosed(d) : !isClosed(d)))
+  // Statuts proposés : ceux présents dans l'onglet affiché
+  const statusOptions = STATUS_ORDER.filter((s) => inView.some((d) => d.status === s)).map((s) => ({ value: s, label: STATUSES[s].label }))
   const s = q.trim().toLowerCase()
-  const rows = all
-    .filter((d) => (view === "termines" ? isClosed(d) : !isClosed(d)))
+  const rows = inView
+    .filter((d) => !status.length || status.includes(d.status))
     .filter(
       (d) =>
         !s ||
@@ -47,7 +55,10 @@ export function SuiveurDossiers() {
           .includes(s),
     )
 
-  /** Dernier élément du suivi visible par le suiveur (ses actions techniques, comme l'activation du compte, n'en sont pas) */
+  /** Action attendue de l'intervenant connecté (sinon rien : les délais des autres ne le concernent pas) */
+  const todo = (d: Dossier) => (!isClosed(d) && d.pilotage.quiDoitAgir === role.id ? d.pilotage.prochaineAction : null)
+
+  /** Dernier élément du suivi visible par l'intervenant (ses actions techniques, comme l'activation du compte, n'en sont pas) */
   const lastActivity = (d: Dossier) => {
     const e = [...d.timeline]
       .filter((x) => rights.canSeeEvent(x) && !(x.author === user.id && x.kind === "system"))
@@ -60,37 +71,50 @@ export function SuiveurDossiers() {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
-      <PageHeader title="Dossiers suivis" description={`${user.structure} · ${all.length} dossier${all.length > 1 ? "s" : ""}`} />
+      <PageHeader title={title} description={`${user.structure} · ${all.length} dossier${all.length > 1 ? "s" : ""}`} />
 
-      <Tabs value={view} onValueChange={(v) => setView(v as View)} className="mb-3">
-          <TabsList variant="line">
-            {(
-              [
-                ["en_cours", "En cours"],
-                ["termines", "Terminés"],
-              ] as const
-            ).map(([id, label]) => (
-              <TabsTrigger key={id} value={id} className="px-3">
-                {label}
-                <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-brand-ink">
-                  {counts[id]}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      <Tabs
+        value={view}
+        onValueChange={(v) => {
+          setView(v as View)
+          setStatus([])
+        }}
+        className="mb-3"
+      >
+        <TabsList variant="line">
+          {(
+            [
+              ["en_cours", "En cours"],
+              ["termines", "Terminés"],
+            ] as const
+          ).map(([id, label]) => (
+            <TabsTrigger key={id} value={id} className="px-3">
+              {label}
+              <span className="ml-1 rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums group-data-[variant=default]/tabs-list:in-data-active:bg-card group-data-[variant=default]/tabs-list:in-data-active:text-brand-ink">
+                {counts[id]}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
       </Tabs>
 
-      {/* Recherche dans une barre blanche */}
-      <div className="mb-3 rounded-xl border bg-card p-2.5">
-        <div className="relative sm:w-80">
+      {/* Recherche (et filtre statut pour le réparateur) dans une barre blanche */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5">
+        <div className="relative w-full sm:w-80">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ma réf., réf. dossier, client, immat.…" className="h-8 rounded-full pl-9" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={rights.ownRef ? "Ma réf., réf. dossier, client, immat.…" : "Client, réf. dossier, immat.…"}
+            className="h-8 rounded-full pl-9"
+          />
         </div>
+        {isRep && statusOptions.length > 1 && <FilterPill label="Statut" value={status} onChange={setStatus} options={statusOptions} />}
       </div>
 
       {rows.length === 0 && (
         <p className="rounded-xl border bg-card py-10 text-center text-muted-foreground">
-          {s ? "Aucun dossier ne correspond à cette recherche." : view === "termines" ? "Aucun dossier terminé." : "Aucun dossier en cours."}
+          {s || status.length ? "Aucun dossier ne correspond à cette recherche." : view === "termines" ? "Aucun dossier terminé." : "Aucun dossier en cours."}
         </p>
       )}
 
@@ -104,15 +128,17 @@ export function SuiveurDossiers() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="pl-4">Client</TableHead>
-                <TableHead>Ma référence</TableHead>
+                {rights.ownRef && <TableHead>Ma référence</TableHead>}
                 <TableHead>Dossier Nereids</TableHead>
                 <TableHead>Statut</TableHead>
+                {isRep && <TableHead>Action attendue</TableHead>}
                 <TableHead className="pr-4">Dernière activité</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((d) => {
                 const last = lastActivity(d)
+                const action = todo(d)
                 return (
                   <TableRow key={d.id} className="cursor-pointer" onClick={() => router.push(href(`dossiers/${d.id}`))}>
                     <TableCell className="pl-4">
@@ -124,7 +150,9 @@ export function SuiveurDossiers() {
                         {d.vehicule.marque} {d.vehicule.modele}
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{d.suiveurRefs?.[user.id] ?? <span className="font-normal text-muted-foreground">—</span>}</TableCell>
+                    {rights.ownRef && (
+                      <TableCell className="font-medium">{d.suiveurRefs?.[user.id] ?? <span className="font-normal text-muted-foreground">—</span>}</TableCell>
+                    )}
                     <TableCell>
                       <div>{d.ref}</div>
                       <div className="text-xs text-muted-foreground">{DOSSIER_TYPES[d.type].label}</div>
@@ -132,6 +160,21 @@ export function SuiveurDossiers() {
                     <TableCell>
                       <StatusBadge status={d.status} />
                     </TableCell>
+                    {isRep && (
+                      <TableCell>
+                        {action ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-2 rounded-md bg-brand-soft px-2.5 py-1 text-sm font-semibold text-brand-ink">
+                              <span className="size-1.5 rounded-full bg-brand" />
+                              {action}
+                            </span>
+                            {isLate(d) && <LateBadge days={lateDays(d)} />}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="pr-4">
                       {last ? (
                         <>
@@ -154,6 +197,7 @@ export function SuiveurDossiers() {
       <ul className="flex flex-col gap-3 lg:hidden">
         {rows.map((d) => {
           const last = lastActivity(d)
+          const action = isRep ? todo(d) : null
           return (
             <li key={d.id}>
               <Link href={href(`dossiers/${d.id}`)} className="flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-brand/50">
@@ -168,9 +212,15 @@ export function SuiveurDossiers() {
                     {d.suiveurRefs?.[user.id] ? `Ma réf. ${d.suiveurRefs[user.id]} · ` : ""}
                     {d.ref}
                   </p>
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <StatusBadge status={d.status} />
+                    {action && isLate(d) && <LateBadge days={lateDays(d)} />}
                   </div>
+                  {action && (
+                    <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-brand-soft px-2.5 py-1 text-sm font-semibold text-brand-ink">
+                      <span className="size-1.5 rounded-full bg-brand" />À faire : {action}
+                    </p>
+                  )}
                   {last && (
                     <p className="mt-2 truncate text-sm text-muted-foreground">
                       {last.mine ? `${last.title} (vous)` : last.title} · {formatDate(last.at)}
