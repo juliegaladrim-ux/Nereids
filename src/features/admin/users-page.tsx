@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { USERS, allUsers, fullName, getUser, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
+import { USERS, allUsers, fullName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
 import { formatDate } from "@/lib/format"
 import { ROLES, type RoleId } from "@/lib/roles"
 import { useStore } from "@/lib/store"
@@ -24,17 +24,17 @@ import { cn } from "@/lib/utils"
 
 // ─── Statut du compte (CDC §16) ─────────────────────────────────────────────────
 
-type AccountStatus = "actif" | "invite" | "sans_compte"
+type AccountStatus = "actif" | "invite"
 
 const STATUS: Record<AccountStatus, { label: string; className: string; dot: string }> = {
   actif: { label: "Actif", className: "bg-tone-done-bg text-tone-done", dot: "bg-tone-done" },
   invite: { label: "Invité", className: "bg-tone-waiting-bg text-tone-waiting", dot: "bg-tone-waiting" },
-  // Client pour qui Nereids n'a pas ouvert de compte (CR 05/10)
-  sans_compte: { label: "Sans compte", className: "bg-tone-muted-bg text-tone-muted", dot: "bg-tone-muted" },
 }
 
 const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.id, r.id === "admin" ? "Admin Nereids" : r.short])) as Record<RoleId, string>
 const ROLE_ORDER = ROLES.map((r) => r.id)
+/** Les clients particuliers ne sont pas listés ici : ils sont invités et suivis depuis leur dossier */
+const LISTED_ROLES = ROLES.filter((r) => r.id !== "client")
 
 /** Utilisateurs de démo : comptes déjà actifs (sauf compte invité explicite, ex. le suiveur à activer) */
 const SEED_IDS = new Set(USERS.map((u) => u.id))
@@ -43,10 +43,7 @@ type Row = {
   key: string
   user: User
   status: AccountStatus
-  invitedAt?: string
   dossiers: Dossier[]
-  /** Client : ses coordonnées sont celles saisies dans ses dossiers */
-  isClient: boolean
 }
 
 const involves = (d: Dossier, id: string) =>
@@ -59,14 +56,6 @@ function intervenantStatus(id: string, a?: Account): AccountStatus {
   return SEED_IDS.has(id) ? "actif" : "invite"
 }
 
-function clientStatus(ds: Dossier[]): { status: AccountStatus; invitedAt?: string } {
-  const invited = ds.find((d) => d.clientAccess && !d.clientAccess.activatedAt)
-  if (ds.some((d) => d.clientAccess?.activatedAt)) return { status: "actif" }
-  if (invited) return { status: "invite", invitedAt: invited.clientAccess!.invitedAt }
-  if (ds.length > 0 && ds.every((d) => d.noClientAccount)) return { status: "sans_compte" }
-  return { status: "actif" }
-}
-
 function buildRows(dossiers: Dossier[], accounts: Record<string, Account>): Row[] {
   const rows: Row[] = allUsers()
     .filter((u) => u.role !== "client")
@@ -74,37 +63,8 @@ function buildRows(dossiers: Dossier[], accounts: Record<string, Account>): Row[
       key: u.id,
       user: u,
       status: intervenantStatus(u.id, accounts[u.id]),
-      invitedAt: accounts[u.id]?.invitedAt,
       dossiers: dossiers.filter((d) => involves(d, u.id)),
-      isClient: false,
     }))
-
-  // Clients : un par compte (userId) ou, à défaut, par e-mail saisi dans le dossier
-  const clientUsers = allUsers().filter((x) => x.role === "client")
-  const clients = new Map<string, Dossier[]>()
-  for (const d of [...dossiers].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
-    const email = d.client.email.trim().toLowerCase()
-    const key =
-      d.client.userId ??
-      (email && clientUsers.find((u) => u.email.toLowerCase() === email)?.id) ??
-      `c:${email || `${d.client.firstName} ${d.client.lastName}`.toLowerCase()}`
-    clients.set(key, [...(clients.get(key) ?? []), d])
-  }
-  for (const u of clientUsers.filter((x) => !clients.has(x.id))) clients.set(u.id, [])
-
-  for (const [key, ds] of clients) {
-    const c = ds[0]?.client
-    const base = getUser(key)
-    const user: User = {
-      id: key,
-      role: "client",
-      structure: "Particulier",
-      fonction: "",
-      ...base,
-      ...(c && { firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone, address: c.address ?? base?.address }),
-    } as User
-    rows.push({ key, user, ...clientStatus(ds), dossiers: ds, isClient: true })
-  }
 
   return rows.sort(
     (a, b) =>
@@ -149,7 +109,7 @@ export function UsersPage() {
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, e-mail, structure…" className="h-8 rounded-full pl-9" />
         </div>
-        <FilterPill value={roles} onChange={setRoles} label="Rôle" options={ROLES.map((r) => ({ value: r.id, label: ROLE_LABEL[r.id] }))} />
+        <FilterPill value={roles} onChange={setRoles} label="Rôle" options={LISTED_ROLES.map((r) => ({ value: r.id, label: ROLE_LABEL[r.id] }))} />
         <FilterPill
           value={statuses}
           onChange={setStatuses}
@@ -208,8 +168,8 @@ export function UsersPage() {
                 </TableCell>
                 <TableCell>{ROLE_LABEL[r.user.role]}</TableCell>
                 <TableCell>
-                  {r.isClient ? <span className="text-muted-foreground">Particulier</span> : r.user.structure || "—"}
-                  {!r.isClient && r.user.fonction && <div className="text-xs text-muted-foreground">{r.user.fonction}</div>}
+                  {r.user.structure || "—"}
+                  {r.user.fonction && <div className="text-xs text-muted-foreground">{r.user.fonction}</div>}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{r.user.phone || "—"}</TableCell>
                 <TableCell className="tabular-nums">
@@ -274,14 +234,12 @@ function UserFields({
   setV,
   missing,
   tried,
-  isClient,
   role,
 }: {
   v: FormValues
   setV: React.Dispatch<React.SetStateAction<FormValues>>
   missing: Partial<Record<keyof FormValues, boolean>>
   tried: boolean
-  isClient?: boolean
   role: RoleId | null
 }) {
   const field = (k: keyof FormValues, label: string, type = "text") => {
@@ -297,12 +255,8 @@ function UserFields({
     <div className="grid gap-4 sm:grid-cols-2">
       {field("firstName", role === "reparateur" ? "Prénom (optionnel)" : "Prénom")}
       {field("lastName", role === "reparateur" ? "Nom (optionnel)" : "Nom")}
-      {!isClient && (
-        <>
-          <div className="sm:col-span-2">{field("structure", role === "reparateur" ? "Garage" : "Structure")}</div>
-          <div className="sm:col-span-2">{field("fonction", "Fonction (optionnel)")}</div>
-        </>
-      )}
+      <div className="sm:col-span-2">{field("structure", role === "reparateur" ? "Garage" : "Structure")}</div>
+      <div className="sm:col-span-2">{field("fonction", "Fonction (optionnel)")}</div>
       <div className="sm:col-span-2">{field("email", "E-mail", "email")}</div>
       <div className="sm:col-span-2">{field("phone", "Téléphone (optionnel)", "tel")}</div>
     </div>
@@ -360,7 +314,7 @@ function AddUser({ onDone }: { onDone: () => void }) {
               placeholder="Choisir"
               value={role}
               onChange={(r) => r && chooseRole(r as RoleId)}
-              options={ROLES.filter((r) => r.id !== "client").map((r) => ({ value: r.id, label: r.label }))}
+              options={LISTED_ROLES.map((r) => ({ value: r.id, label: r.label }))}
             />
             <FieldDescription>Les clients sont invités depuis leur dossier.</FieldDescription>
           </Field>
@@ -381,8 +335,8 @@ function AddUser({ onDone }: { onDone: () => void }) {
 
 function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
   const { href } = useRole()
-  const { accounts, updateAccount, updateDossier } = useStore()
-  const { user, isClient } = row
+  const { accounts, updateAccount } = useStore()
+  const { user } = row
   const [v, setV] = React.useState<FormValues>(toForm(user))
   const [tried, setTried] = React.useState(false)
   const missing = missingFields(user.role, v)
@@ -393,32 +347,22 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
     setTried(true)
     if (Object.values(missing).some(Boolean)) return
     const patch = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x.trim()])) as FormValues
-    if (isClient) {
-      // Coordonnées du client : celles de ses dossiers
-      const { firstName, lastName, phone, email } = patch
-      for (const d of row.dossiers) updateDossier(d.id, (x) => ({ ...x, client: { ...x.client, firstName, lastName, phone, email } }))
-    } else {
-      const now = new Date().toISOString()
-      updateAccount(user.id, (a) => ({
-        // Compte de démo déjà actif : la modification ne le repasse pas en « Invité »
-        ...(a ?? (SEED_IDS.has(user.id) ? { invitedAt: now, activatedAt: now } : { invitedAt: now })),
-        profile: { ...a?.profile, ...patch },
-      }))
-    }
+    const now = new Date().toISOString()
+    updateAccount(user.id, (a) => ({
+      // Compte de démo déjà actif : la modification ne le repasse pas en « Invité »
+      ...(a ?? (SEED_IDS.has(user.id) ? { invitedAt: now, activatedAt: now } : { invitedAt: now })),
+      profile: { ...a?.profile, ...patch },
+    }))
     toast.success("Utilisateur modifié")
     onDone()
   }
 
   function resend() {
-    const now = new Date().toISOString()
-    if (isClient) {
-      for (const d of row.dossiers.filter((x) => x.clientAccess && !x.clientAccess.activatedAt))
-        updateDossier(d.id, (x) => ({ ...x, clientAccess: { ...x.clientAccess!, invitedAt: now } }))
-    } else updateAccount(user.id, (a) => ({ ...a, invitedAt: now }))
+    updateAccount(user.id, (a) => ({ ...a, invitedAt: new Date().toISOString() }))
     toast.success("Invitation renvoyée", { description: user.email })
   }
 
-  const invitedAt = isClient ? row.invitedAt : accounts[user.id]?.invitedAt
+  const invitedAt = accounts[user.id]?.invitedAt
 
   return (
     <form onSubmit={save} noValidate className="flex h-full flex-col">
@@ -444,7 +388,7 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
           )}
         </div>
 
-        <UserFields v={v} setV={setV} missing={missing} tried={tried} isClient={isClient} role={user.role} />
+        <UserFields v={v} setV={setV} missing={missing} tried={tried} role={user.role} />
 
         {user.role !== "admin" && (
           <div className="mt-6 border-t pt-5">
