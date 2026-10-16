@@ -25,7 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -103,17 +103,76 @@ const FAKE_FILES: Partial<Record<DocCategory, string>> = {
   rapport_compagnie: "Rapport compagnie.pdf",
 }
 
+// ─── Données fictives pour les champs laissés vides ─────────────────────────
+const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]
+const digits = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("")
+const letters = (n: number) => Array.from({ length: n }, () => pick("ABCDEFGHJKLMNPQRSTVWXYZ".split(""))).join("")
+const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "")
+
+const FIRST_NAMES = ["Camille", "Lucas", "Manon", "Hugo", "Léa", "Thomas", "Chloé", "Nicolas", "Sarah", "Julien", "Inès", "Antoine"]
+const LAST_NAMES = ["Martin", "Bernard", "Dubois", "Moreau", "Laurent", "Girard", "Roux", "Fournier", "Morel", "Lefèvre", "Mercier", "Blanc"]
+const VEHICULES: [string, string][] = [
+  ["Peugeot", "308"], ["Renault", "Clio"], ["Citroën", "C3"], ["Volkswagen", "Golf"], ["Toyota", "Yaris"],
+  ["Dacia", "Sandero"], ["BMW", "Série 1"], ["Audi", "A3"], ["Tesla", "Model 3"], ["Fiat", "500"],
+]
+const COMPAGNIES = ["AXA", "Allianz", "MAIF", "MACIF", "Groupama", "Matmut", "GMF", "Generali"]
+const TIERS = ["Garage du Centre", "Auto Services Lyon", "Carrosserie Martin", "Vendeur particulier"]
+const DESCRIPTIONS = [
+  "Choc arrière à un feu rouge, pare-choc et hayon endommagés.",
+  "Réparation non conforme après passage au garage, bruit persistant au freinage.",
+  "Indemnisation proposée jugée insuffisante par le client.",
+  "Accrochage en stationnement, portière avant gauche enfoncée.",
+]
+
+function withRandomDefaults(f: Form): Form {
+  const type = f.type ?? pick(Object.keys(DOSSIER_TYPES) as DossierType[])
+  const firstName = f.client.firstName.trim() || pick(FIRST_NAMES)
+  const lastName = f.client.lastName.trim() || pick(LAST_NAMES)
+  const [marque, modele] = pick(VEHICULES)
+  const compagnie = pick(COMPAGNIES)
+  return {
+    ...f,
+    type,
+    sinistreType: type === "sinistre" ? (f.sinistreType ?? pick(Object.keys(SINISTRE_TYPES) as SinistreType[])) : undefined,
+    litigeType: type === "litige_assurantiel" ? (f.litigeType ?? pick(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[])) : undefined,
+    client: {
+      firstName,
+      lastName,
+      phone: f.client.phone.trim() || `06 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`,
+      email: f.client.email.trim() || `${slug(firstName)}.${slug(lastName)}@gmail.com`,
+    },
+    vehicule: {
+      marque: f.vehicule.marque.trim() || marque,
+      modele: f.vehicule.modele.trim() || (f.vehicule.marque.trim() ? "" : modele),
+      immat: f.vehicule.immat.trim() || `${letters(2)}-${digits(3)}-${letters(2)}`,
+      vin: f.vehicule.vin.trim() || `VF${letters(1)}${digits(14)}`,
+    },
+    compagnie: {
+      nom: f.compagnie.nom.trim() || compagnie,
+      email: f.compagnie.email.trim() || `sinistres@${slug(f.compagnie.nom.trim() || compagnie)}.fr`,
+      reference: f.compagnie.reference.trim() || `SIN-${digits(8)}`,
+    },
+    tiers: f.tiers.some((t) => t.nom.trim())
+      ? f.tiers
+      : [{ nom: pick(TIERS), phone: `04 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`, email: "" }],
+    probleme: {
+      description: f.probleme.description.trim() || pick(DESCRIPTIONS),
+      date: f.probleme.date || daysFromNow(-Math.floor(Math.random() * 60) - 1).slice(0, 10),
+    },
+  }
+}
+
 export function CreateDossier() {
   const { user, role, href } = useRole()
   const { dossiers, createDossier, inviteUser } = useStore()
   const router = useRouter()
   // Gestionnaire Help You : le dossier lui est rattaché, l'assignation de l'expert reste à Nereids
   const isGest = role.id === "gestionnaire"
-  const [f, setF] = React.useState<Form>(isGest ? { ...EMPTY, gestionnaire: user.id } : EMPTY)
+  const [form, setF] = React.useState<Form>(isGest ? { ...EMPTY, gestionnaire: user.id } : EMPTY)
+  const f = form
   /** Experts / réparateurs saisis à la main (hors liste) */
   const [added, setAdded] = React.useState<User[]>([])
   const [creating, setCreating] = React.useState<NewRole | null>(null)
-  const [submitted, setSubmitted] = React.useState(false)
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
   const setIn = <K extends "client" | "vehicule" | "compagnie" | "probleme">(k: K, field: keyof Form[K], v: string) =>
@@ -127,7 +186,7 @@ export function CreateDossier() {
   const docsExpected = f.type ? expectedDocs(f.type, f.litigeType) : []
   const minPhotos = f.litigeType === "imputable" ? 3 : 1
 
-  // Validation minimale (CDC §4.2 étape 1 : données minimales)
+  // Complétude affichée dans les étapes (non bloquante : les vides sont remplis à la création)
   const errors = {
     type: !typeComplete,
     clientNom: !f.client.lastName.trim() || !f.client.firstName.trim(),
@@ -137,7 +196,6 @@ export function CreateDossier() {
     immat: !f.vehicule.immat.trim(),
     marque: !f.vehicule.marque.trim(),
   }
-  const isValid = !Object.values(errors).some(Boolean)
 
   const missingDocs = docsExpected.filter((c) => {
     const n = f.docs[c]?.length ?? 0
@@ -155,12 +213,14 @@ export function CreateDossier() {
   }
 
   function submit() {
-    setSubmitted(true)
-    if (!isValid) {
-      toast.error("Il manque des informations obligatoires")
-      document.querySelector("[data-invalid=true]")?.scrollIntoView({ behavior: "smooth", block: "center" })
-      return
-    }
+    // Proto : aucun champ bloquant, les champs laissés vides sont remplis avec des données fictives
+    const f = withRandomDefaults(form)
+    const horsRecours = f.type === "sinistre" && !!f.sinistreType && !SINISTRE_TYPES[f.sinistreType].recours
+    const minPhotos = f.litigeType === "imputable" ? 3 : 1
+    const missingDocs = expectedDocs(f.type!, f.litigeType).filter((c) => {
+      const n = f.docs[c]?.length ?? 0
+      return c === "photos" ? n < minPhotos : n === 0
+    })
     const now = new Date().toISOString()
     const ref = nextDossierRef(dossiers)
     const assigned = !!f.gestionnaire && !!f.expert
@@ -310,7 +370,7 @@ export function CreateDossier() {
               <CardTitle className="flex items-center gap-2">{sectionNum(1)} Type de dossier</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
-              <div className="grid gap-3 sm:grid-cols-3" data-invalid={submitted && !f.type}>
+              <div className="grid gap-3 sm:grid-cols-3">
                 {(Object.keys(DOSSIER_TYPES) as DossierType[]).map((t) => {
                   const Icon = TYPE_ICONS[t]
                   return (
@@ -325,12 +385,11 @@ export function CreateDossier() {
                   )
                 })}
               </div>
-              {submitted && !f.type && <FieldError>Choisissez un type de dossier.</FieldError>}
 
               {f.type === "sinistre" && (
                 <div className="flex flex-col gap-3">
                   <p className="text-sm font-medium">Type de sinistre</p>
-                  <div className="grid gap-2 sm:grid-cols-3" data-invalid={submitted && !f.sinistreType}>
+                  <div className="grid gap-2 sm:grid-cols-3">
                     {(Object.keys(SINISTRE_TYPES) as SinistreType[]).map((s) => (
                       <ChoiceCard key={s} compact selected={f.sinistreType === s} onClick={() => set("sinistreType", s)} title={SINISTRE_TYPES[s].label} description={SINISTRE_TYPES[s].recours ? "Recours direct" : undefined} />
                     ))}
@@ -350,7 +409,7 @@ export function CreateDossier() {
               {f.type === "litige_assurantiel" && (
                 <div className="flex flex-col gap-3">
                   <p className="text-sm font-medium">Type de litige</p>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-invalid={submitted && !f.litigeType}>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[]).map((l) => (
                       <ChoiceCard key={l} compact selected={f.litigeType === l} onClick={() => set("litigeType", l)} title={LITIGE_ASSUR_TYPES[l].label} description={LITIGE_ASSUR_TYPES[l].hint} />
                     ))}
@@ -370,27 +429,23 @@ export function CreateDossier() {
                 <CardContent>
                   <FieldGroup>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Field data-invalid={submitted && !f.client.firstName.trim()}>
-                        <FieldLabel htmlFor="c-first">Prénom *</FieldLabel>
+                      <Field>
+                        <FieldLabel htmlFor="c-first">Prénom</FieldLabel>
                         <Input id="c-first" value={f.client.firstName} onChange={(e) => setIn("client", "firstName", e.target.value)} />
                       </Field>
-                      <Field data-invalid={submitted && !f.client.lastName.trim()}>
-                        <FieldLabel htmlFor="c-last">Nom *</FieldLabel>
+                      <Field>
+                        <FieldLabel htmlFor="c-last">Nom</FieldLabel>
                         <Input id="c-last" value={f.client.lastName} onChange={(e) => setIn("client", "lastName", e.target.value)} />
                       </Field>
-                      <Field data-invalid={submitted && errors.clientContact}>
+                      <Field>
                         <FieldLabel htmlFor="c-phone">Téléphone</FieldLabel>
                         <Input id="c-phone" type="tel" value={f.client.phone} onChange={(e) => setIn("client", "phone", e.target.value)} />
                       </Field>
-                      <Field data-invalid={submitted && (errors.clientContact || errors.clientEmail)}>
-                        <FieldLabel htmlFor="c-mail">E-mail{f.clientAccount && " *"}</FieldLabel>
+                      <Field>
+                        <FieldLabel htmlFor="c-mail">E-mail</FieldLabel>
                         <Input id="c-mail" type="email" value={f.client.email} onChange={(e) => setIn("client", "email", e.target.value)} />
                       </Field>
                     </div>
-                    {submitted && errors.clientContact && <FieldError>Indiquez au moins un téléphone ou un e-mail.</FieldError>}
-                    {submitted && !errors.clientContact && errors.clientEmail && (
-                      <FieldError>Indiquez l&apos;e-mail du client pour lui ouvrir un compte, ou désactivez l&apos;ouverture du compte.</FieldError>
-                    )}
 
                     <Field orientation="horizontal" className="rounded-lg border p-3">
                       <Switch id="c-account" checked={f.clientAccount} onCheckedChange={(v) => set("clientAccount", v)} />
@@ -405,16 +460,16 @@ export function CreateDossier() {
                     </Field>
 
                     <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
-                      <Field data-invalid={submitted && errors.immat}>
-                        <FieldLabel htmlFor="v-immat">Immatriculation *</FieldLabel>
+                      <Field>
+                        <FieldLabel htmlFor="v-immat">Immatriculation</FieldLabel>
                         <Input id="v-immat" className="font-mono uppercase" placeholder="AB-123-CD" value={f.vehicule.immat} onChange={(e) => setIn("vehicule", "immat", e.target.value)} />
                       </Field>
                       <Field>
                         <FieldLabel htmlFor="v-vin">VIN</FieldLabel>
                         <Input id="v-vin" className="font-mono uppercase" placeholder="Si disponible" value={f.vehicule.vin} onChange={(e) => setIn("vehicule", "vin", e.target.value)} />
                       </Field>
-                      <Field data-invalid={submitted && errors.marque}>
-                        <FieldLabel htmlFor="v-marque">Marque *</FieldLabel>
+                      <Field>
+                        <FieldLabel htmlFor="v-marque">Marque</FieldLabel>
                         <Input id="v-marque" value={f.vehicule.marque} onChange={(e) => setIn("vehicule", "marque", e.target.value)} />
                       </Field>
                       <Field>
