@@ -467,8 +467,8 @@ export const USERS: User[] = [
   { id: "u-rep", role: "reparateur", firstName: "Luc", lastName: "Benali", email: "contact@garage-benali.fr", phone: "04 71 22 33 44", structure: "Garage Benali Carrosserie", fonction: "Gérant", address: "12 rue des Forges, 43200 Yssingeaux", region: "Auvergne-Rhône-Alpes", load: 7 },
   { id: "u-rep2", role: "reparateur", firstName: "Laura", lastName: "Chevalier", email: "atelier@carrosserie-chevalier.fr", phone: "04 77 22 33 44", structure: "Carrosserie Chevalier", fonction: "Cheffe d'atelier", address: "233 rue de la Rive, 42320 La Grand-Croix", region: "Auvergne-Rhône-Alpes", load: 4 },
 
-  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste", address: "9 rue de Châteaudun, 75009 Paris" },
-  { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat", address: "4 quai Jules Courmont, 69002 Lyon" },
+  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste", address: "9 rue de Châteaudun, 75009 Paris", region: "Île-de-France" },
+  { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat", address: "4 quai Jules Courmont, 69002 Lyon", region: "Auvergne-Rhône-Alpes" },
 
   // Autres clients des dossiers de démo (sans compte actif dans le proto)
   { id: "u-c-lefevre", role: "client", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", phone: "06 98 76 54 32", structure: "Particulier", fonction: "", address: "38 rue Gambetta, 43200 Yssingeaux" },

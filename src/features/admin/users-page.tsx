@@ -182,6 +182,7 @@ export function UsersPage() {
               <TableHead>Rôle</TableHead>
               <TableHead>Structure</TableHead>
               <TableHead>Téléphone</TableHead>
+              {group === "intervenants" && <TableHead>Zone d&apos;intervention</TableHead>}
               <TableHead>Dossiers en cours</TableHead>
               <TableHead className="pr-4">Statut du compte</TableHead>
             </TableRow>
@@ -189,7 +190,7 @@ export function UsersPage() {
           <TableBody>
             {visible.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={group === "intervenants" ? 7 : 6} className="py-10 text-center text-muted-foreground">
                   Aucun utilisateur ne correspond.
                 </TableCell>
               </TableRow>
@@ -211,6 +212,16 @@ export function UsersPage() {
                   {r.user.fonction && <div className="text-xs text-muted-foreground">{r.user.fonction}</div>}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{r.user.phone || "—"}</TableCell>
+                {group === "intervenants" && (
+                  <TableCell>
+                    {r.user.region ?? <span className="text-muted-foreground">—</span>}
+                    {r.user.region && (
+                      <div className="text-xs text-muted-foreground">
+                        {r.user.departements?.length ? r.user.departements.map((d) => d.split(" ")[0]).join(", ") : "Toute la région"}
+                      </div>
+                    )}
+                  </TableCell>
+                )}
                 <TableCell className="tabular-nums">
                   {r.user.role === "admin" ? <span className="text-muted-foreground">Tous</span> : r.dossiers.filter(isActive).length}
                 </TableCell>
