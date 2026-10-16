@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserAvatar } from "@/components/user-avatar"
@@ -234,13 +234,14 @@ export function UsersPage() {
         </Table>
       </div>
 
-      <Sheet open={adding} onOpenChange={setAdding}>
-        <SheetContent className="w-full gap-0 sm:max-w-md">{adding && <AddUser group={group} onDone={() => setAdding(false)} />}</SheetContent>
-      </Sheet>
+      {/* Modales centrées, comme partout dans le proto (ajout d'un intervenant depuis un dossier, etc.) */}
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent className="sm:max-w-md">{adding && <AddUser group={group} onDone={() => setAdding(false)} />}</DialogContent>
+      </Dialog>
 
-      <Sheet open={!!open} onOpenChange={(o) => !o && setOpenKey(null)}>
-        <SheetContent className="w-full gap-0 sm:max-w-md">{open && <EditUser key={open.key} row={open} onDone={() => setOpenKey(null)} />}</SheetContent>
-      </Sheet>
+      <Dialog open={!!open} onOpenChange={(o) => !o && setOpenKey(null)}>
+        <DialogContent className="sm:max-w-md">{open && <EditUser key={open.key} row={open} onDone={() => setOpenKey(null)} />}</DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -280,13 +281,12 @@ function AddUser({ group, onDone }: { group: Group; onDone: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} noValidate className="flex h-full flex-col">
-      <SheetHeader className="border-b p-5">
-        <SheetTitle className="text-lg font-semibold">{GROUPS[group].add}</SheetTitle>
-        <SheetDescription>Il recevra une invitation par e-mail pour activer son compte.</SheetDescription>
-      </SheetHeader>
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="grid gap-4">
+    <form onSubmit={submit} noValidate className="grid gap-5">
+      <DialogHeader>
+        <DialogTitle>{GROUPS[group].add}</DialogTitle>
+        <DialogDescription>Il recevra une invitation par e-mail pour activer son compte.</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4">
           <Field data-invalid={invalidRole || undefined}>
             <FieldLabel htmlFor="user-role">Rôle</FieldLabel>
             <SimpleSelect
@@ -298,17 +298,16 @@ function AddUser({ group, onDone }: { group: Group; onDone: () => void }) {
             />
             {group === "intervenants" && <FieldDescription>Les clients sont invités depuis leur dossier.</FieldDescription>}
           </Field>
-          <UserFields v={v} setV={setV} missing={missing} tried={tried} role={role} />
-        </div>
+        <UserFields v={v} setV={setV} missing={missing} tried={tried} role={role} />
       </div>
-      <SheetFooter className="flex-row justify-end border-t p-4">
+      <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
           Annuler
         </Button>
         <Button type="submit">
           <Send /> Envoyer l&apos;invitation
         </Button>
-      </SheetFooter>
+      </DialogFooter>
     </form>
   )
 }
@@ -345,16 +344,14 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
   const invitedAt = accounts[user.id]?.invitedAt
 
   return (
-    <form onSubmit={save} noValidate className="flex h-full flex-col">
-      <SheetHeader className="flex-row items-center gap-3 border-b p-5 pr-12">
-        <UserAvatar user={user} className="size-11 text-sm" />
-        <div className="min-w-0">
-          <SheetTitle className="truncate text-lg font-semibold">{fullName(user)}</SheetTitle>
-          <SheetDescription>{ROLES.find((r) => r.id === user.role)?.label}</SheetDescription>
-        </div>
-      </SheetHeader>
+    <form onSubmit={save} noValidate className="grid gap-5">
+      <DialogHeader>
+        <UserAvatar user={user} className="mb-1 size-11 text-sm" />
+        <DialogTitle>{fullName(user)}</DialogTitle>
+        <DialogDescription>{ROLES.find((r) => r.id === user.role)?.label}</DialogDescription>
+      </DialogHeader>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div>
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-3 py-2.5">
           <span className="text-sm text-muted-foreground">Statut du compte</span>
           <AccountBadge status={row.status} />
@@ -396,12 +393,12 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
         )}
       </div>
 
-      <SheetFooter className="flex-row justify-end border-t p-4">
+      <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
           Annuler
         </Button>
         <Button type="submit">Enregistrer</Button>
-      </SheetFooter>
+      </DialogFooter>
     </form>
   )
 }
