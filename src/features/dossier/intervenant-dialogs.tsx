@@ -56,7 +56,7 @@ type Props = { dossier: Dossier; slot: IntervenantSlot | null; onOpenChange: (o:
 
 export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props) {
   const { user } = useRole()
-  const { updateDossier, addEvent } = useStore()
+  const { updateDossier, addEvent, inviteUser } = useStore()
   const current = slot ? currentId(d, slot) : undefined
   const [v, setV] = React.useState<string | null>(current ?? null)
   // Intervenant saisi à la main (expert ou réparateur hors liste), comme dans « Assigner »
@@ -93,10 +93,12 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
     const next = role === "expert" ? withRef(assign(d, slot, v), after) : assign(d, slot, v)
     const becomesReady = d.status === "nouveau" && !!next.intervenants.gestionnaire && !!next.intervenants.expert
     updateDossier(d.id, (x) => {
-      const assigned = assign({ ...x, extraIntervenants: [...(x.extraIntervenants ?? []), ...extra] }, slot, v)
+      const assigned = assign(x, slot, v)
       const y = role === "expert" ? withRef(assigned, after) : assigned
       return becomesReady ? { ...y, status: "en_etude" as const, pilotage: { ...defaultPilotage("en_etude", y.type), echeance: daysFromNow(3) } } : y
     })
+    // Intervenant ajouté à la main : invité comme depuis « Utilisateurs »
+    extra.forEach(inviteUser)
     addEvent(d.id, {
       kind: "assignation",
       author: user.id,

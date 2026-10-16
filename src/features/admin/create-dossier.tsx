@@ -49,6 +49,7 @@ import {
   type User,
   dossierRef,
 } from "@/lib/data"
+import { NewUserForm } from "@/features/admin/user-form"
 import { nextDossierRef, useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -104,7 +105,7 @@ const FAKE_FILES: Partial<Record<DocCategory, string>> = {
 
 export function CreateDossier() {
   const { user, role, href } = useRole()
-  const { dossiers, createDossier } = useStore()
+  const { dossiers, createDossier, inviteUser } = useStore()
   const router = useRouter()
   // Gestionnaire Help You : le dossier lui est rattaché, l'assignation de l'expert reste à Nereids
   const isGest = role.id === "gestionnaire"
@@ -241,7 +242,6 @@ export function CreateDossier() {
         reparateur: f.reparateur ?? undefined,
         suiveurs: [],
       },
-      extraIntervenants: added.filter((u) => u.id === f.expert || u.id === f.reparateur),
       pilotage: horsRecours
         ? { ouEnEst: "Dossier enregistré, hors module recours direct.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" }
         : assigned
@@ -269,6 +269,8 @@ export function CreateDossier() {
       cloture: horsRecours ? { motif: "Hors périmètre", at: now } : undefined,
     }
     createDossier(d)
+    // Intervenant ajouté à la main : invité comme depuis « Utilisateurs »
+    added.filter((u) => u.id === f.expert || u.id === f.reparateur).forEach(inviteUser)
     toast.success(`Dossier ${ref} créé`, {
       description: [
         assigned && "Les intervenants assignés ont été notifiés.",
@@ -770,63 +772,16 @@ export const NEW_LABELS: Record<NewRole, { title: string; submit: string }> = {
 }
 
 /**
- * Saisie d'un expert ou d'un réparateur absent de la liste.
+ * Saisie d'un expert ou d'un réparateur absent de la liste : même formulaire que l'onglet « Utilisateurs ».
  * Le bouton d'envoi est dans le pied de la modale du parent (attribut form={NEW_INTERVENANT_FORM}).
  */
 export function NewIntervenantForm({ role, onAdd }: { role: NewRole; onAdd: (u: User) => void }) {
-  const [v, setV] = React.useState({ structure: "", firstName: "", lastName: "", phone: "", email: "" })
-  const [tried, setTried] = React.useState(false)
-  const isExpert = role === "expert"
-  const missing: Partial<Record<keyof typeof v, boolean>> = {
-    structure: !isExpert && !v.structure.trim(),
-    firstName: isExpert && !v.firstName.trim(),
-    lastName: isExpert && !v.lastName.trim(),
-    email: !/^\S+@\S+\.\S+$/.test(v.email.trim()),
-  }
-  const field = (k: keyof typeof v, label: string, type = "text") => {
-    const invalid = tried && missing[k] ? true : undefined
-    return (
-      <Field data-invalid={invalid}>
-        <FieldLabel htmlFor={`new-${k}`}>{label}</FieldLabel>
-        <Input id={`new-${k}`} type={type} value={v[k]} aria-invalid={invalid} onChange={(e) => setV((p) => ({ ...p, [k]: e.target.value }))} />
-      </Field>
-    )
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setTried(true)
-    if (Object.values(missing).some(Boolean)) return
-    onAdd({
-      id: `u-m-${Date.now().toString(36)}`,
-      role,
-      firstName: v.firstName.trim(),
-      lastName: v.lastName.trim(),
-      email: v.email.trim(),
-      phone: v.phone.trim(),
-      structure: v.structure.trim() || (isExpert ? "Expert indépendant" : "Réparateur"),
-      fonction: isExpert ? "Expert automobile" : "",
-    })
-  }
-
   return (
-    <form id={NEW_INTERVENANT_FORM} onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-      {isExpert ? (
-        <>
-          {field("firstName", "Prénom")}
-          {field("lastName", "Nom")}
-          <div className="sm:col-span-2">{field("structure", "Cabinet (optionnel)")}</div>
-        </>
-      ) : (
-        <>
-          <div className="sm:col-span-2">{field("structure", "Garage")}</div>
-          {field("firstName", "Prénom du contact (optionnel)")}
-          {field("lastName", "Nom du contact (optionnel)")}
-        </>
-      )}
-      {field("email", "E-mail", "email")}
-      {field("phone", "Téléphone (optionnel)", "tel")}
-      <p className="text-sm text-muted-foreground sm:col-span-2">Il recevra une invitation par e-mail une fois l&apos;assignation enregistrée.</p>
-    </form>
+    <NewUserForm
+      role={role}
+      formId={NEW_INTERVENANT_FORM}
+      onAdd={onAdd}
+      note="Il recevra une invitation par e-mail une fois l'assignation enregistrée et apparaîtra dans « Utilisateurs »."
+    />
   )
 }

@@ -174,7 +174,7 @@ export function CloseDialog({ dossier, open, onOpenChange }: DialogProps) {
 
 export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
   const { user } = useRole()
-  const { updateDossier, addEvent } = useStore()
+  const { updateDossier, addEvent, inviteUser } = useStore()
   const initial: AssignValue = {
     gestionnaire: dossier.intervenants.gestionnaire ?? null,
     expert: dossier.intervenants.expert ?? null,
@@ -206,11 +206,12 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
         reparateur: v.reparateur ?? undefined,
         suiveurs: d.intervenants.suiveurs,
       },
-      extraIntervenants: [...(d.extraIntervenants ?? []), ...added.filter((u) => u.id === v.expert || u.id === v.reparateur)],
       ...(becomesReady
         ? { status: "en_etude" as const, pilotage: { ...defaultPilotage("en_etude", d.type), echeance: daysFromNow(3) } }
         : {}),
     }, expert))
+    // Intervenant ajouté à la main : invité comme depuis « Utilisateurs »
+    added.filter((u) => u.id === v.expert || u.id === v.reparateur).forEach(inviteUser)
     addEvent(dossier.id, {
       kind: "assignation",
       author: user.id,

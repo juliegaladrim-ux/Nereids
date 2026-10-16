@@ -11,6 +11,7 @@ import {
   withConsultations,
   demoDocDate,
   type Account,
+  type User,
   type Dossier,
   type TimelineEvent,
   withDemoExpertise,
@@ -42,6 +43,8 @@ type Store = {
   /** Comptes intervenants invités par e-mail (activation, coordonnées vérifiées) */
   accounts: Record<string, Account>
   updateAccount: (userId: string, patch: (a: Account | undefined) => Account) => void
+  /** Nouvel utilisateur invité par e-mail (onglet « Utilisateurs » ou intervenant ajouté lors d'une assignation) */
+  inviteUser: (u: User) => void
   /** Remet un compte dans son état de départ (pour rejouer l'activation) */
   resetAccount: (userId: string) => void
   reset: () => void
@@ -162,6 +165,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setDossiers((all) => (all ?? []).map((d) => (d.id === id ? { ...d, notes: d.notes?.filter((n) => n.id !== noteId) } : d))),
       accounts,
       updateAccount: (userId, patch) => setAccounts((all) => ({ ...all, [userId]: patch(all[userId]) })),
+      inviteUser: (u) => setAccounts((all) => ({ ...all, [u.id]: { invitedAt: new Date().toISOString(), user: u } })),
       resetAccount: (userId) =>
         setAccounts((all) => {
           const seed = seedAccounts()[userId]
