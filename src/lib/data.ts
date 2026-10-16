@@ -498,7 +498,13 @@ export function allUsers(): User[] {
 }
 
 /** Compte d'un intervenant invité par e-mail : invitation → activation (mot de passe + vérification des infos) */
-export type Account = { invitedAt: string; activatedAt?: string; profile?: Partial<User> }
+export type Account = {
+  invitedAt: string
+  activatedAt?: string
+  profile?: Partial<User>
+  /** Utilisateur ajouté par Nereids depuis « Utilisateurs » (invité par e-mail) */
+  user?: User
+}
 
 /** Intervenant suiveur de démo : invité, pas encore activé (parcours d'activation rejouable) */
 export const SUIVEUR_ACTIVATION_USER = "u-suiveur"

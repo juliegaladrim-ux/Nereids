@@ -97,13 +97,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Les coordonnées vérifiées à l'activation remplacent celles saisies par Nereids
   registerProfiles(Object.fromEntries(Object.entries(accounts).flatMap(([id, a]) => (a.profile ? [[id, a.profile]] : []))))
 
-  // Les comptes suiveurs créés depuis une demande client deviennent des utilisateurs à part entière
+  // Les comptes suiveurs créés depuis une demande client (et ceux ajoutés dans « Utilisateurs ») deviennent des utilisateurs à part entière
   if (dossiers)
     registerUsers(
       dossiers.flatMap((d) => [
         ...(d.suiveurRequests ?? []).filter((r) => r.status === "created").map(suiveurFromRequest),
         ...(d.extraIntervenants ?? []),
-      ]),
+      ]).concat(Object.values(accounts).flatMap((a) => (a.user ? [a.user] : []))),
     )
 
   const value = React.useMemo<Store | null>(
