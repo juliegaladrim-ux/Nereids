@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Plus, Search, Send, X } from "lucide-react"
+import { ChevronDown, Plus, Search, Send, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { useRole } from "@/components/app-shell/role-context"
@@ -10,13 +10,15 @@ import { PageHeader } from "@/components/page-header"
 import { SimpleSelect } from "@/components/simple-select"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { USERS, allUsers, fullName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
+import { REGION_DEPARTEMENTS, USERS, allUsers, fullName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
 import { formatDate } from "@/lib/format"
 import { ROLES, type RoleId } from "@/lib/roles"
 import { useStore } from "@/lib/store"
@@ -33,8 +35,24 @@ const STATUS: Record<AccountStatus, { label: string; className: string; dot: str
 
 const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.id, r.id === "admin" ? "Admin Nereids" : r.short])) as Record<RoleId, string>
 const ROLE_ORDER = ROLES.map((r) => r.id)
-/** Les clients particuliers ne sont pas listés ici : ils sont invités et suivis depuis leur dossier */
-const LISTED_ROLES = ROLES.filter((r) => r.id !== "client")
+/**
+ * Deux groupes : l'équipe qui pilote les dossiers (Nereids + Help You) et les intervenants externes.
+ * Les clients particuliers ne sont pas listés : ils sont invités et suivis depuis leur dossier.
+ */
+type Group = "equipe" | "intervenants"
+const GROUPS: Record<Group, { label: string; roles: RoleId[]; add: string }> = {
+  equipe: {
+    label: "Équipe",
+    roles: ["admin", "gestionnaire"],
+    add: "Ajouter un membre",
+  },
+  intervenants: {
+    label: "Intervenants",
+    roles: ["expert", "reparateur", "suiveur"],
+    add: "Ajouter un intervenant",
+  },
+}
+const groupRoles = (g: Group) => ROLES.filter((r) => GROUPS[g].roles.includes(r.id))
 
 /** Utilisateurs de démo : comptes déjà actifs (sauf compte invité explicite, ex. le suiveur à activer) */
 const SEED_IDS = new Set(USERS.map((u) => u.id))
@@ -79,6 +97,7 @@ export function UsersPage() {
   const { dossiers, accounts } = useStore()
   const rows = buildRows(dossiers, accounts)
 
+  const [group, setGroup] = React.useState<Group>("equipe")
   const [q, setQ] = React.useState("")
   const [roles, setRoles] = React.useState<string[]>([])
   const [statuses, setStatuses] = React.useState<string[]>([])
@@ -87,7 +106,8 @@ export function UsersPage() {
   const open = rows.find((r) => r.key === openKey)
 
   const query = q.trim().toLowerCase()
-  const visible = rows
+  const inGroup = (g: Group) => rows.filter((r) => GROUPS[g].roles.includes(r.user.role))
+  const visible = inGroup(group)
     .filter((r) => !query || [fullName(r.user), r.user.email, r.user.structure, r.user.phone].some((v) => v?.toLowerCase().includes(query)))
     .filter((r) => roles.length === 0 || roles.includes(r.user.role))
     .filter((r) => statuses.length === 0 || statuses.includes(r.status))
@@ -99,17 +119,36 @@ export function UsersPage() {
         title="Utilisateurs"
         actions={
           <Button onClick={() => setAdding(true)}>
-            <Plus /> Ajouter un utilisateur
+            <Plus /> {GROUPS[group].add}
           </Button>
         }
       />
+
+      <Tabs
+        value={group}
+        onValueChange={(g) => {
+          setGroup(g as Group)
+          // Les rôles filtrés n'existent pas dans l'autre groupe
+          setRoles([])
+        }}
+        className="mb-4"
+      >
+        <TabsList variant="line">
+          {(Object.keys(GROUPS) as Group[]).map((g) => (
+            <TabsTrigger key={g} value={g}>
+              {GROUPS[g].label}
+              <span className="text-xs font-medium text-muted-foreground tabular-nums">{inGroup(g).length}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5">
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, e-mail, structure…" className="h-8 rounded-full pl-9" />
         </div>
-        <FilterPill value={roles} onChange={setRoles} label="Rôle" options={LISTED_ROLES.map((r) => ({ value: r.id, label: ROLE_LABEL[r.id] }))} />
+        <FilterPill value={roles} onChange={setRoles} label="Rôle" options={groupRoles(group).map((r) => ({ value: r.id, label: ROLE_LABEL[r.id] }))} />
         <FilterPill
           value={statuses}
           onChange={setStatuses}
@@ -185,7 +224,7 @@ export function UsersPage() {
       </div>
 
       <Sheet open={adding} onOpenChange={setAdding}>
-        <SheetContent className="w-full gap-0 sm:max-w-md">{adding && <AddUser onDone={() => setAdding(false)} />}</SheetContent>
+        <SheetContent className="w-full gap-0 sm:max-w-md">{adding && <AddUser group={group} onDone={() => setAdding(false)} />}</SheetContent>
       </Sheet>
 
       <Sheet open={!!open} onOpenChange={(o) => !o && setOpenKey(null)}>
@@ -207,7 +246,18 @@ function AccountBadge({ status }: { status: AccountStatus }) {
 
 // ─── Formulaire (CDC §16 : nom, prénom, fonction, structure, téléphone, e-mail) ───
 
-type FormValues = { firstName: string; lastName: string; fonction: string; structure: string; phone: string; email: string }
+type FormValues = {
+  firstName: string
+  lastName: string
+  fonction: string
+  structure: string
+  phone: string
+  email: string
+  region: string
+  departements: string[]
+}
+
+type TextKey = Exclude<keyof FormValues, "region" | "departements">
 
 const toForm = (u?: Partial<User>): FormValues => ({
   firstName: u?.firstName ?? "",
@@ -216,7 +266,17 @@ const toForm = (u?: Partial<User>): FormValues => ({
   structure: u?.structure ?? "",
   phone: u?.phone ?? "",
   email: u?.email ?? "",
+  region: u?.region ?? "",
+  departements: u?.departements ?? [],
 })
+
+/** Zone d'intervention demandée à tous, sauf aux admins Nereids qui pilotent toute la France */
+const hasZone = (role: RoleId | null) => role !== "admin"
+
+function cleanValues(v: FormValues): Partial<User> {
+  const text = Object.fromEntries((["firstName", "lastName", "fonction", "structure", "phone", "email"] as TextKey[]).map((k) => [k, v[k].trim()]))
+  return { ...text, region: v.region || undefined, departements: v.region ? v.departements : undefined }
+}
 
 /** Réparateur : le garage suffit (comme à l'ajout d'un intervenant dans un dossier) ; sinon prénom + nom */
 function missingFields(role: RoleId | null, v: FormValues): Partial<Record<keyof FormValues, boolean>> {
@@ -226,6 +286,7 @@ function missingFields(role: RoleId | null, v: FormValues): Partial<Record<keyof
     firstName: !garage && !v.firstName.trim(),
     lastName: !garage && !v.lastName.trim(),
     email: !/^\S+@\S+\.\S+$/.test(v.email.trim()),
+    region: hasZone(role) && !v.region,
   }
 }
 
@@ -242,7 +303,7 @@ function UserFields({
   tried: boolean
   role: RoleId | null
 }) {
-  const field = (k: keyof FormValues, label: string, type = "text") => {
+  const field = (k: TextKey, label: string, type = "text") => {
     const invalid = tried && missing[k] ? true : undefined
     return (
       <Field data-invalid={invalid}>
@@ -259,14 +320,63 @@ function UserFields({
       <div className="sm:col-span-2">{field("fonction", "Fonction (optionnel)")}</div>
       <div className="sm:col-span-2">{field("email", "E-mail", "email")}</div>
       <div className="sm:col-span-2">{field("phone", "Téléphone (optionnel)", "tel")}</div>
+      {hasZone(role) && (
+        <>
+          <Field data-invalid={tried && missing.region ? true : undefined} className="sm:col-span-2">
+            <FieldLabel htmlFor="user-region">Région d&apos;intervention</FieldLabel>
+            <SimpleSelect
+              id="user-region"
+              placeholder="Choisir"
+              value={v.region || null}
+              // Les départements dépendent de la région : on les vide au changement
+              onChange={(r) => setV((p) => ({ ...p, region: r ?? "", departements: r === p.region ? p.departements : [] }))}
+              options={Object.keys(REGION_DEPARTEMENTS).map((r) => ({ value: r, label: r }))}
+            />
+          </Field>
+          <Field className="sm:col-span-2">
+            <FieldLabel htmlFor="user-dep">Départements d&apos;intervention</FieldLabel>
+            <DepartementsSelect region={v.region} value={v.departements} onChange={(departements) => setV((p) => ({ ...p, departements }))} />
+            <FieldDescription>Toute la région si aucun département n&apos;est choisi.</FieldDescription>
+          </Field>
+        </>
+      )}
     </div>
+  )
+}
+
+function DepartementsSelect({ region, value, onChange }: { region: string; value: string[]; onChange: (v: string[]) => void }) {
+  const options = REGION_DEPARTEMENTS[region] ?? []
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        id="user-dep"
+        disabled={!region}
+        className="flex h-10 w-full items-center justify-between gap-1.5 rounded-[6px] border border-input bg-card pr-2.5 pl-3 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className={cn("truncate", value.length === 0 && "text-muted-foreground")}>
+          {!region ? "Choisir d'abord la région" : value.length === 0 ? "Toute la région" : value.map((d) => d.split(" ")[0]).join(", ")}
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-h-72 w-(--anchor-width)">
+        {options.map((d) => (
+          <DropdownMenuCheckboxItem
+            key={d}
+            checked={value.includes(d)}
+            onCheckedChange={(c) => onChange(c ? options.filter((o) => o === d || value.includes(o)) : value.filter((x) => x !== d))}
+          >
+            {d}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
 /** Structure pré-remplie selon le rôle (les autres structures sont propres à chaque intervenant) */
 const DEFAULT_STRUCTURE: Partial<Record<RoleId, string>> = { admin: "Nereids", gestionnaire: "Help You" }
 
-function AddUser({ onDone }: { onDone: () => void }) {
+function AddUser({ group, onDone }: { group: Group; onDone: () => void }) {
   const { updateAccount } = useStore()
   const [role, setRole] = React.useState<RoleId | null>(null)
   const [v, setV] = React.useState<FormValues>(toForm())
@@ -287,12 +397,8 @@ function AddUser({ onDone }: { onDone: () => void }) {
     const user: User = {
       id: `u-n-${Date.now().toString(36)}`,
       role,
-      firstName: v.firstName.trim(),
-      lastName: v.lastName.trim(),
-      fonction: v.fonction.trim(),
-      structure: v.structure.trim(),
-      phone: v.phone.trim(),
-      email: v.email.trim(),
+      ...(cleanValues(v) as Omit<User, "id" | "role">),
+      ...(!hasZone(role) && { region: undefined, departements: undefined }),
     }
     updateAccount(user.id, () => ({ invitedAt: new Date().toISOString(), user }))
     toast.success("Invitation envoyée", { description: `${fullName(user)} recevra un e-mail pour activer son compte.` })
@@ -302,7 +408,7 @@ function AddUser({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={submit} noValidate className="flex h-full flex-col">
       <SheetHeader className="border-b p-5">
-        <SheetTitle className="text-lg font-semibold">Ajouter un utilisateur</SheetTitle>
+        <SheetTitle className="text-lg font-semibold">{GROUPS[group].add}</SheetTitle>
         <SheetDescription>Il recevra une invitation par e-mail pour activer son compte.</SheetDescription>
       </SheetHeader>
       <div className="flex-1 overflow-y-auto p-5">
@@ -314,9 +420,9 @@ function AddUser({ onDone }: { onDone: () => void }) {
               placeholder="Choisir"
               value={role}
               onChange={(r) => r && chooseRole(r as RoleId)}
-              options={LISTED_ROLES.map((r) => ({ value: r.id, label: r.label }))}
+              options={groupRoles(group).map((r) => ({ value: r.id, label: r.label }))}
             />
-            <FieldDescription>Les clients sont invités depuis leur dossier.</FieldDescription>
+            {group === "intervenants" && <FieldDescription>Les clients sont invités depuis leur dossier.</FieldDescription>}
           </Field>
           <UserFields v={v} setV={setV} missing={missing} tried={tried} role={role} />
         </div>
@@ -346,7 +452,7 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
     e.preventDefault()
     setTried(true)
     if (Object.values(missing).some(Boolean)) return
-    const patch = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x.trim()])) as FormValues
+    const patch = cleanValues(v)
     const now = new Date().toISOString()
     updateAccount(user.id, (a) => ({
       // Compte de démo déjà actif : la modification ne le repasse pas en « Invité »
