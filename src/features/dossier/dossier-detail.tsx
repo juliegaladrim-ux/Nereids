@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Check,
   ChevronLeft,
+  CircleCheck,
   CircleDashed,
   Clock,
   Copy,
@@ -474,11 +475,7 @@ export function DossierDetail({ id }: { id: string }) {
         ))}
 
       {/* Étapes du dossier — la prochaine action est dans le suivi, le retard dans le tag, les actions en haut */}
-      <Card size="sm" className="mb-6 border-brand/30 bg-brand-soft">
-        <CardContent>
-          <Progress dossier={d} />
-        </CardContent>
-      </Card>
+      <Progress dossier={d} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as string)} className="min-w-0">
@@ -612,8 +609,8 @@ function Count({ n }: { n: number }) {
 }
 
 /**
- * Progression fine : un point par étape, toutes nommées, l'étape en cours en gras.
- * La première étape est calée à gauche, la dernière à droite.
+ * Progression : bandeau bleu brand (étape en cours + dernière mise à jour) au-dessus de la frise,
+ * un point par étape, toutes nommées. La première étape est calée à gauche, la dernière à droite.
  */
 function Progress({ dossier }: { dossier: Dossier }) {
   const steps = WORKFLOW_STEPS[dossier.type]
@@ -630,15 +627,15 @@ function Progress({ dossier }: { dossier: Dossier }) {
   }, [current, last])
 
   return (
-    <div>
-      <p className="mb-3 flex items-baseline gap-2 text-sm">
-        <span className="font-semibold text-brand-ink tabular-nums">
-          {done ? "Terminé" : `Étape ${current + 1}/${steps.length}`}
-        </span>
+    <div className="mb-6 overflow-hidden rounded-xl border border-brand/40 bg-brand-soft">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-brand px-4 py-2.5 text-sm text-white">
+        {done ? <CircleCheck className="size-4 shrink-0" /> : <CircleDashed className="size-4 shrink-0" />}
+        <span className="tabular-nums">{done ? "Terminé" : `Étape ${current + 1}/${steps.length}`}</span>
         <span className="font-semibold">{steps[current].label}</span>
-      </p>
+        <span className="ml-auto">Mis à jour le {formatDate(dossier.updatedAt)}</span>
+      </div>
       {/* Sur mobile, la frise défile horizontalement plutôt que de tasser les libellés */}
-      <div ref={ref} className="-mx-4 overflow-x-auto px-4 pt-1 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0">
+      <div ref={ref} className="overflow-x-auto px-4 pt-4 pb-3 [scrollbar-width:none]">
         <div className="relative mx-3" style={{ minWidth: steps.length * 80 }}>
           <div className="relative h-5">
             <span className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand/20" />
