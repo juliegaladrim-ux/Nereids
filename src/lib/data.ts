@@ -305,7 +305,7 @@ export type Dossier = {
   extraIntervenants?: User[]
   /** Référence de chaque intervenant suiveur dans son propre outil (réf. PJ, réf. cabinet), par userId */
   suiveurRefs?: Record<string, string>
-  /** Notes internes Nereids (onglet « Notes internes », admin uniquement) */
+  /** Notes internes (onglet « Notes internes », admin Nereids + gestionnaires Help You) */
   notes?: InternalNote[]
   /** Validation client (mission / devis / règlement) — alimentée par les automatisations ; absente = déduite du statut */
   validation?: ClientValidation

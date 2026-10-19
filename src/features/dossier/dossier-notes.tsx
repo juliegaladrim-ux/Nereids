@@ -13,7 +13,7 @@ import { fullName, getUser, type Dossier } from "@/lib/data"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
 
-/** Notes internes Nereids : prise de notes entre admins, jamais visible des intervenants ni du client */
+/** Notes internes : prise de notes entre Nereids et Help You, jamais visible des intervenants ni du client */
 export function DossierNotes({ dossier }: { dossier: Dossier }) {
   const { user } = useRole()
   const { addNote, deleteNote } = useStore()
@@ -30,7 +30,7 @@ export function DossierNotes({ dossier }: { dossier: Dossier }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Lock className="size-3" /> Visible uniquement par l&apos;équipe Nereids. Les intervenants et le client ne voient pas ces notes.
+        <Lock className="size-3" /> Visible uniquement par Nereids et Help You. Les intervenants et le client ne voient pas ces notes.
       </p>
 
       <Card size="sm">

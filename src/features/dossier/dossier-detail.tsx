@@ -94,6 +94,8 @@ export function DossierDetail({ id }: { id: string }) {
   const { href, user, role } = useRole()
   const { getDossier, updateDossier, addEvent, logConsultation } = useStore()
   const rights = dossierRights(role.id, user.id)
+  // Notes internes partagées entre Nereids et les gestionnaires Help You
+  const canSeeNotes = role.id === "admin" || role.id === "gestionnaire"
   const isClient = role.id === "client"
   const listLabel = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
   const found = getDossier(id)
@@ -487,7 +489,7 @@ export function DossierDetail({ id }: { id: string }) {
               <TabsTrigger value="documents">Documents <Count n={d.documents.length} /></TabsTrigger>
               <TabsTrigger value="expertise">Expertise</TabsTrigger>
               {d.type === "litige_assurantiel" && <TabsTrigger value="tierce">Tierce expertise</TabsTrigger>}
-              {role.id === "admin" && (
+              {canSeeNotes && (
                 <TabsTrigger value="notes">
                   Notes internes {!!d.notes?.length && <Count n={d.notes.length} />}
                 </TabsTrigger>
@@ -522,7 +524,7 @@ export function DossierDetail({ id }: { id: string }) {
           <TabsContent value="tierce">
             <TierceTab dossier={d} onAdd={closed && !rights.pilot ? undefined : openDoc} allowed={rights.docCategories} />
           </TabsContent>
-          {role.id === "admin" && (
+          {canSeeNotes && (
             <TabsContent value="notes">
               <DossierNotes dossier={d} />
             </TabsContent>
