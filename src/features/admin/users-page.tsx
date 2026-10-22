@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
 import { DEFAULT_STRUCTURE, UserFields, cleanValues, missingFields, newUser, toForm, type FormValues } from "@/features/admin/user-form"
-import { USERS, allUsers, fullName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
+import { USERS, allUsers, fullName, personneName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
 import { formatDate } from "@/lib/format"
 import { ROLES, type RoleId } from "@/lib/roles"
 import { useStore } from "@/lib/store"
@@ -380,7 +380,7 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
                       <span className="min-w-0">
                         <span className="block text-sm font-semibold text-brand-ink">{d.ref}</span>
                         <span className="block truncate text-xs text-muted-foreground">
-                          {d.client.firstName} {d.client.lastName} · {d.vehicule.marque} {d.vehicule.modele}
+                          {personneName(d.client)} · {d.vehicule.marque} {d.vehicule.modele}
                         </span>
                       </span>
                       <StatusBadge status={d.status as StatusId} />

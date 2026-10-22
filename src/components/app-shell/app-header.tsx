@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { daysFromNow, fullName, getUser } from "@/lib/data"
+import { daysFromNow, fullName, getUser, personneName } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
 import { relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -93,6 +93,7 @@ function GlobalSearch() {
                       : [
                           d.client.firstName,
                           d.client.lastName,
+                          d.client.societe,
                           d.compagnie?.nom,
                           fullName(getUser(d.intervenants.expert)),
                           fullName(getUser(d.intervenants.gestionnaire)),
@@ -107,7 +108,7 @@ function GlobalSearch() {
                 >
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="font-medium">
-                      {isClient ? `${d.vehicule.marque} ${d.vehicule.modele}` : `${d.client.firstName} ${d.client.lastName}`}{" "}
+                      {isClient ? `${d.vehicule.marque} ${d.vehicule.modele}` : personneName(d.client)}{" "}
                       <span className="font-normal text-muted-foreground">· {d.vehicule.immat}</span>
                     </span>
                     <span className="text-xs text-muted-foreground">

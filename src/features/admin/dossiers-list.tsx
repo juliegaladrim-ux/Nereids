@@ -17,12 +17,15 @@ import {
   DOSSIER_TYPES,
   STATUSES,
   USERS,
+  dossierCategory,
+  dossierDepartement,
   fullName,
   getUser,
   hasUpcomingExpertise,
   isLate,
   lateDays,
   needsAssignment,
+  personneName,
   type Dossier,
   type StatusId,
 } from "@/lib/data"
@@ -56,8 +59,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
   // Gestionnaire Help You : uniquement ses dossiers (CDC §12.2), sans colonne ni filtre gestionnaire
   const dossiers = visibleDossiers(all, role.id, user.id)
   const isGest = role.id === "gestionnaire"
-  // L'assignation est faite par Nereids : pas de vue « À assigner » pour le gestionnaire
-  const views = isGest ? VIEWS.filter((v) => v.id !== "a-assigner") : VIEWS
+  const views = VIEWS
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -115,7 +117,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
       />
 
       {mode === "actifs" && (
-        <div className={cn("mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3", isGest ? "lg:grid-cols-4" : "xl:grid-cols-5")}>
+        <div className={cn("mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3", "xl:grid-cols-5")}>
           {views.map((v) => (
             <ViewCard
               key={v.id}
@@ -214,8 +216,9 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
               <TableHead className="pl-4">Dossier</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Véhicule</TableHead>
+              <TableHead>Catégorie</TableHead>
+              <TableHead>Département</TableHead>
               <TableHead>Statut</TableHead>
-              <TableHead>Compagnie visée</TableHead>
               {!isGest && <TableHead>Gestionnaire</TableHead>}
               <TableHead>Expert</TableHead>
               <TableHead className="pr-4">Expertise prévue</TableHead>
@@ -224,7 +227,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={isGest ? 7 : 8} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={isGest ? 8 : 9} className="py-10 text-center text-muted-foreground">
                   Aucun dossier ne correspond.
                 </TableCell>
               </TableRow>
@@ -239,20 +242,21 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                   <Link href={href(`dossiers/${d.id}`)} className="font-semibold text-brand-ink hover:underline" onClick={(e) => e.stopPropagation()}>
                     {d.ref}
                   </Link>
-                  <div className="text-xs text-muted-foreground">
-                    {DOSSIER_TYPES[d.type].short} · créé le {formatDate(d.createdAt)}
-                  </div>
+                  <div className="text-xs text-muted-foreground">créé le {formatDate(d.createdAt)}</div>
                   {d.refs.sinistre && <div className="text-xs text-muted-foreground">Sin. {d.refs.sinistre}</div>}
                 </TableCell>
-                <TableCell>
-                  {d.client.firstName} {d.client.lastName}
-                </TableCell>
+                <TableCell>{personneName(d.client)}</TableCell>
                 <TableCell>
                   <Immat value={d.vehicule.immat} />
                   <div className="mt-1 text-xs text-muted-foreground">
                     {d.vehicule.marque} {d.vehicule.modele}
                   </div>
                 </TableCell>
+                <TableCell className="max-w-48 whitespace-normal">
+                  {dossierCategory(d).type}
+                  {dossierCategory(d).detail && <div className="text-xs text-muted-foreground">{dossierCategory(d).detail}</div>}
+                </TableCell>
+                <TableCell className="max-w-40 whitespace-normal">{dossierDepartement(d) ?? <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">
                     <StatusBadge status={d.status as StatusId} />
@@ -262,7 +266,6 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{d.compagnie?.nom ?? "—"}</TableCell>
                 {!isGest && <TableCell>{d.intervenants.gestionnaire ? fullName(getUser(d.intervenants.gestionnaire)) : <Missing />}</TableCell>}
                 <TableCell>{d.intervenants.expert ? fullName(getUser(d.intervenants.expert)) : <Missing />}</TableCell>
                 <TableCell className="pr-4">

@@ -28,6 +28,7 @@ export function matchesSearch(d: Dossier, q: string, names: (id?: string) => str
     d.vehicule.immat,
     d.vehicule.immat.replace(/-/g, ""),
     `${d.client.firstName} ${d.client.lastName}`,
+    d.client.societe,
     d.compagnie?.nom,
     names(d.intervenants.expert),
     names(d.intervenants.gestionnaire),
@@ -60,9 +61,11 @@ const REPARATEUR_DOC_CATEGORIES: DocCategory[] = ["devis", "facture_proforma", "
 export type DossierRights = {
   /** Pilotage : relance, infos internes (M/D/R, échéances), modification des blocs, expertise, références… */
   pilot: boolean
-  /** Statut, clôture et archivage : réservés à Nereids (CDC v1 §1-2) */
+  /** Statut et archivage : réservés à Nereids (CDC v1 §1-2) */
   changeStatus: boolean
-  /** Assigner les intervenants, ouvrir les comptes intervenants : réservé à Nereids (CDC v1 §1) */
+  /** Clôturer le dossier (motif, date) : Nereids et gestionnaires Help You (point client 22/10) */
+  close: boolean
+  /** Assigner les intervenants, ouvrir les comptes intervenants : Nereids et gestionnaires Help You (point client 22/10) */
   assign: boolean
   /** Blocs d'infos modifiables (client : ses coordonnées uniquement) */
   canEdit: (section: string) => boolean
@@ -93,6 +96,7 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
       pickRecipients: false,
       ownRef: false,
       changeStatus: false,
+      close: false,
       assign: false,
     }
   }
@@ -111,6 +115,7 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
       pickRecipients: true,
       ownRef: true,
       changeStatus: false,
+      close: false,
       assign: false,
     }
   }
@@ -131,23 +136,25 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
       pickRecipients: true,
       ownRef: false,
       changeStatus: false,
+      close: false,
       assign: false,
     }
   }
   // Gestionnaire Help You : même base que l'admin sur ses dossiers (CDC v1 §1, §12.2) —
-  // modifie, dépose, relance, échange ; statut, clôture, archivage et assignation restent à Nereids
+  // modifie, dépose, relance, échange, assigne les intervenants et clôture (point client 22/10) ;
+  // le changement de statut et l'archivage restent à Nereids
   if (role === "gestionnaire") {
     return {
       pilot: true,
-      // La clôture (motif, date) est saisie par Nereids
-      canEdit: (s) => s !== "cloture",
+      canEdit: () => true,
       docCategories: Object.keys(DOC_CATEGORIES) as DocCategory[],
       canManageDoc: () => true,
       canSeeEvent: (e) => e.kind !== "consultation",
       pickRecipients: true,
       ownRef: false,
       changeStatus: false,
-      assign: false,
+      close: true,
+      assign: true,
     }
   }
   return {
@@ -160,6 +167,7 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
     pickRecipients: true,
     ownRef: false,
     changeStatus: true,
+    close: true,
     assign: true,
   }
 }

@@ -24,6 +24,7 @@ import { SimpleSelect } from "@/components/simple-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -33,17 +34,21 @@ import {
   DOC_CATEGORIES,
   DOSSIER_TYPES,
   LITIGE_ASSUR_TYPES,
+  REGION_DEPARTEMENTS,
   SINISTRE_TYPES,
   USERS,
   allUsers,
   compagnieLabel,
   daysFromNow,
+  departementRegion,
   expectedDocs,
   fullName,
+  personneName,
   type DocCategory,
   type Dossier,
   type DossierType,
   type LitigeAssurantielType,
+  type Personne,
   type SinistreType,
   type TimelineEvent,
   type User,
@@ -53,13 +58,32 @@ import { NewUserForm } from "@/features/admin/user-form"
 import { nextDossierRef, useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
+/** Client ou propriétaire en cours de saisie */
+type PersonneForm = {
+  kind: "physique" | "morale"
+  firstName: string
+  lastName: string
+  societe: string
+  siret: string
+  phone: string
+  email: string
+  address: string
+}
+
+const EMPTY_PERSONNE: PersonneForm = { kind: "physique", firstName: "", lastName: "", societe: "", siret: "", phone: "", email: "", address: "" }
+
 type Form = {
   type?: DossierType
   sinistreType?: SinistreType
   litigeType?: LitigeAssurantielType
-  client: { firstName: string; lastName: string; phone: string; email: string }
+  /** Département d'intervention (la région en est déduite) */
+  departement: string | null
+  client: PersonneForm
+  /** Le client est-il le propriétaire du véhicule ? Coché par défaut */
+  clientProprietaire: boolean
+  proprietaire: PersonneForm
   vehicule: { marque: string; modele: string; immat: string; vin: string }
-  compagnie: { nom: string; email: string; reference: string }
+  compagnie: { nom: string; email: string; phone: string; address: string; reference: string }
   tiers: { nom: string; phone: string; email: string }[]
   probleme: { description: string; date: string }
   docs: Partial<Record<DocCategory, string[]>>
@@ -72,9 +96,12 @@ type Form = {
 }
 
 const EMPTY: Form = {
-  client: { firstName: "", lastName: "", phone: "", email: "" },
+  departement: null,
+  client: EMPTY_PERSONNE,
+  clientProprietaire: true,
+  proprietaire: EMPTY_PERSONNE,
   vehicule: { marque: "", modele: "", immat: "", vin: "" },
-  compagnie: { nom: "", email: "", reference: "" },
+  compagnie: { nom: "", email: "", phone: "", address: "", reference: "" },
   tiers: [{ nom: "", phone: "", email: "" }],
   probleme: { description: "", date: "" },
   docs: {},
@@ -117,6 +144,47 @@ const VEHICULES: [string, string][] = [
 ]
 const COMPAGNIES = ["AXA", "Allianz", "MAIF", "MACIF", "Groupama", "Matmut", "GMF", "Generali"]
 const TIERS = ["Garage du Centre", "Auto Services Lyon", "Carrosserie Martin", "Vendeur particulier"]
+const SOCIETES = ["Transports Vial", "Ambulances du Velay", "Taxi Forez", "BTP Rhône Services", "Location Auto 43"]
+const ADRESSES = [
+  "12 rue de la République, 43000 Le Puy-en-Velay",
+  "5 avenue de la Libération, 42000 Saint-Étienne",
+  "28 boulevard Gambetta, 43200 Yssingeaux",
+  "3 place Bellecour, 69002 Lyon",
+]
+
+/** Personne laissée incomplète : on remplit les vides avec des données fictives */
+function personneDefaults(p: PersonneForm): PersonneForm {
+  const firstName = p.firstName.trim() || pick(FIRST_NAMES)
+  const lastName = p.lastName.trim() || pick(LAST_NAMES)
+  const societe = p.societe.trim() || pick(SOCIETES)
+  const morale = p.kind === "morale"
+  return {
+    ...p,
+    firstName: morale ? "" : firstName,
+    lastName: morale ? "" : lastName,
+    societe: morale ? societe : "",
+    siret: morale ? p.siret.trim() || `${digits(3)} ${digits(3)} ${digits(3)} ${digits(5)}` : "",
+    phone: p.phone.trim() || `06 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`,
+    email: p.email.trim() || (morale ? `contact@${slug(societe)}.fr` : `${slug(firstName)}.${slug(lastName)}@gmail.com`),
+    address: p.address.trim() || pick(ADRESSES),
+  }
+}
+
+const toPersonne = (p: PersonneForm): Personne => ({
+  kind: p.kind === "morale" ? "morale" : undefined,
+  firstName: p.firstName,
+  lastName: p.lastName,
+  societe: p.societe || undefined,
+  siret: p.siret || undefined,
+  phone: p.phone,
+  email: p.email,
+  address: p.address || undefined,
+})
+
+const DEPARTEMENTS = Object.values(REGION_DEPARTEMENTS)
+  .flat()
+  .sort()
+  .map((d) => ({ value: d, label: d }))
 const DESCRIPTIONS = [
   "Choc arrière à un feu rouge, pare-choc et hayon endommagés.",
   "Réparation non conforme après passage au garage, bruit persistant au freinage.",
@@ -126,8 +194,6 @@ const DESCRIPTIONS = [
 
 function withRandomDefaults(f: Form): Form {
   const type = f.type ?? pick(Object.keys(DOSSIER_TYPES) as DossierType[])
-  const firstName = f.client.firstName.trim() || pick(FIRST_NAMES)
-  const lastName = f.client.lastName.trim() || pick(LAST_NAMES)
   const [marque, modele] = pick(VEHICULES)
   const compagnie = pick(COMPAGNIES)
   return {
@@ -135,12 +201,9 @@ function withRandomDefaults(f: Form): Form {
     type,
     sinistreType: type === "sinistre" ? (f.sinistreType ?? pick(Object.keys(SINISTRE_TYPES) as SinistreType[])) : undefined,
     litigeType: type === "litige_assurantiel" ? (f.litigeType ?? pick(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[])) : undefined,
-    client: {
-      firstName,
-      lastName,
-      phone: f.client.phone.trim() || `06 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`,
-      email: f.client.email.trim() || `${slug(firstName)}.${slug(lastName)}@gmail.com`,
-    },
+    departement: f.departement ?? "43 Haute-Loire",
+    client: personneDefaults(f.client),
+    proprietaire: f.clientProprietaire ? f.proprietaire : personneDefaults(f.proprietaire),
     vehicule: {
       marque: f.vehicule.marque.trim() || marque,
       modele: f.vehicule.modele.trim() || (f.vehicule.marque.trim() ? "" : modele),
@@ -150,6 +213,8 @@ function withRandomDefaults(f: Form): Form {
     compagnie: {
       nom: f.compagnie.nom.trim() || compagnie,
       email: f.compagnie.email.trim() || `sinistres@${slug(f.compagnie.nom.trim() || compagnie)}.fr`,
+      phone: f.compagnie.phone.trim() || `09 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`,
+      address: f.compagnie.address.trim() || `${1 + Math.floor(Math.random() * 90)} rue de la Bourse, 75002 Paris`,
       reference: f.compagnie.reference.trim() || `SIN-${digits(8)}`,
     },
     tiers: f.tiers.some((t) => t.nom.trim())
@@ -175,7 +240,7 @@ export function CreateDossier() {
   const [creating, setCreating] = React.useState<NewRole | null>(null)
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
-  const setIn = <K extends "client" | "vehicule" | "compagnie" | "probleme">(k: K, field: keyof Form[K], v: string) =>
+  const setIn = <K extends "vehicule" | "compagnie" | "probleme">(k: K, field: keyof Form[K], v: string) =>
     setF((p) => ({ ...p, [k]: { ...p[k], [field]: v } }))
 
   const horsRecours = f.type === "sinistre" && !!f.sinistreType && !SINISTRE_TYPES[f.sinistreType].recours
@@ -189,7 +254,7 @@ export function CreateDossier() {
   // Complétude affichée dans les étapes (non bloquante : les vides sont remplis à la création)
   const errors = {
     type: !typeComplete,
-    clientNom: !f.client.lastName.trim() || !f.client.firstName.trim(),
+    clientNom: f.client.kind === "morale" ? !f.client.societe.trim() : !f.client.lastName.trim() || !f.client.firstName.trim(),
     clientContact: !f.client.phone.trim() && !f.client.email.trim(),
     // L'invitation part par e-mail : pas de compte sans adresse
     clientEmail: f.clientAccount && !f.client.email.trim(),
@@ -259,7 +324,7 @@ export function CreateDossier() {
     ]
     if (documents.length)
       timeline.push({ id: `e-${ref}-2`, at: now, kind: "document", author: user.id, title: `${documents.length} document(s) ajouté(s)` })
-    if (!isGest && (f.gestionnaire || f.expert || f.reparateur))
+    if (f.gestionnaire || f.expert || f.reparateur)
       timeline.push({
         id: `e-${ref}-3`,
         at: now,
@@ -290,12 +355,14 @@ export function CreateDossier() {
       status,
       createdAt: now,
       updatedAt: now,
-      client: { ...f.client },
+      client: toPersonne(f.client),
+      proprietaire: f.clientProprietaire ? undefined : toPersonne(f.proprietaire),
       vehicule: { ...f.vehicule, immat: f.vehicule.immat.toUpperCase(), vin: f.vehicule.vin || undefined },
       compagnie: f.compagnie.nom ? { ...f.compagnie } : undefined,
       tiers: f.type === "litige_auto" ? f.tiers.filter((t) => t.nom).map((t) => ({ nom: t.nom, phone: t.phone || undefined, email: t.email || undefined })) : undefined,
       refs: { sinistre: f.compagnie.reference || undefined },
-      region: "Auvergne-Rhône-Alpes",
+      region: departementRegion(f.departement!) ?? "Auvergne-Rhône-Alpes",
+      departement: f.departement!,
       intervenants: {
         gestionnaire: f.gestionnaire ?? undefined,
         expert: f.expert ?? undefined,
@@ -314,7 +381,7 @@ export function CreateDossier() {
             }
           : {
               ouEnEst: "Dossier créé, en attente d'assignation.",
-              attente: isGest ? "Assignation d'un expert" : "Assignation d'un gestionnaire et d'un expert",
+              attente: f.gestionnaire ? "Assignation d'un expert" : "Assignation d'un gestionnaire et d'un expert",
               prochaineAction: "Assigner les intervenants",
               quiDoitAgir: "nereids",
               echeance: daysFromNow(1),
@@ -334,7 +401,7 @@ export function CreateDossier() {
     toast.success(`Dossier ${ref} créé`, {
       description: [
         assigned && "Les intervenants assignés ont été notifiés.",
-        isGest && !horsRecours && "Nereids est notifié pour assigner l'expert.", invite ? "Le client a reçu une invitation par e-mail." : "Aucun compte client ouvert."].filter(Boolean).join(" ") || undefined,
+        isGest && !horsRecours && !assigned && "Nereids est notifié pour assigner l'expert.", invite ? "Le client a reçu une invitation par e-mail." : "Aucun compte client ouvert."].filter(Boolean).join(" ") || undefined,
     })
     router.push(href(`dossiers/${ref}`))
   }
@@ -416,6 +483,13 @@ export function CreateDossier() {
                   </div>
                 </div>
               )}
+
+              {typeComplete && (
+                <Field className="sm:max-w-sm">
+                  <FieldLabel htmlFor="dep">Département d&apos;intervention</FieldLabel>
+                  <SimpleSelect id="dep" placeholder="Choisir un département" options={DEPARTEMENTS} value={f.departement} onChange={(v) => set("departement", v)} />
+                </Field>
+              )}
             </CardContent>
           </Card>
 
@@ -428,24 +502,7 @@ export function CreateDossier() {
                 </CardHeader>
                 <CardContent>
                   <FieldGroup>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field>
-                        <FieldLabel htmlFor="c-first">Prénom</FieldLabel>
-                        <Input id="c-first" value={f.client.firstName} onChange={(e) => setIn("client", "firstName", e.target.value)} />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="c-last">Nom</FieldLabel>
-                        <Input id="c-last" value={f.client.lastName} onChange={(e) => setIn("client", "lastName", e.target.value)} />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="c-phone">Téléphone</FieldLabel>
-                        <Input id="c-phone" type="tel" value={f.client.phone} onChange={(e) => setIn("client", "phone", e.target.value)} />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="c-mail">E-mail</FieldLabel>
-                        <Input id="c-mail" type="email" value={f.client.email} onChange={(e) => setIn("client", "email", e.target.value)} />
-                      </Field>
-                    </div>
+                    <PersonneFields id="c" value={f.client} onChange={(v) => set("client", v)} />
 
                     <Field orientation="horizontal" className="rounded-lg border p-3">
                       <Switch id="c-account" checked={f.clientAccount} onCheckedChange={(v) => set("clientAccount", v)} />
@@ -477,6 +534,20 @@ export function CreateDossier() {
                         <Input id="v-modele" value={f.vehicule.modele} onChange={(e) => setIn("vehicule", "modele", e.target.value)} />
                       </Field>
                     </div>
+
+                    {/* Propriétaire : le client par défaut, sinon on saisit ses coordonnées */}
+                    <Field orientation="horizontal">
+                      <Checkbox id="v-proprio" checked={f.clientProprietaire} onCheckedChange={(v) => set("clientProprietaire", !!v)} />
+                      <FieldLabel htmlFor="v-proprio" className="font-normal">
+                        Le client est le propriétaire du véhicule
+                      </FieldLabel>
+                    </Field>
+                    {!f.clientProprietaire && (
+                      <div className="flex flex-col gap-4 rounded-lg border p-4">
+                        <p className="text-sm font-medium">Propriétaire du véhicule</p>
+                        <PersonneFields id="p" value={f.proprietaire} onChange={(v) => set("proprietaire", v)} />
+                      </div>
+                    )}
                   </FieldGroup>
                 </CardContent>
               </Card>
@@ -528,18 +599,26 @@ export function CreateDossier() {
                         )}
 
                         {f.type !== "litige_auto" && (
-                          <div className="grid gap-4 sm:grid-cols-3">
+                          <div className="grid gap-4 sm:grid-cols-2">
                             <Field>
                               <FieldLabel htmlFor="co-nom">Nom de la compagnie</FieldLabel>
                               <Input id="co-nom" value={f.compagnie.nom} onChange={(e) => setIn("compagnie", "nom", e.target.value)} />
                             </Field>
                             <Field>
+                              <FieldLabel htmlFor="co-ref">Référence sinistre</FieldLabel>
+                              <Input id="co-ref" value={f.compagnie.reference} onChange={(e) => setIn("compagnie", "reference", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="co-phone">Téléphone</FieldLabel>
+                              <Input id="co-phone" type="tel" value={f.compagnie.phone} onChange={(e) => setIn("compagnie", "phone", e.target.value)} />
+                            </Field>
+                            <Field>
                               <FieldLabel htmlFor="co-mail">E-mail</FieldLabel>
                               <Input id="co-mail" type="email" value={f.compagnie.email} onChange={(e) => setIn("compagnie", "email", e.target.value)} />
                             </Field>
-                            <Field>
-                              <FieldLabel htmlFor="co-ref">Référence sinistre</FieldLabel>
-                              <Input id="co-ref" value={f.compagnie.reference} onChange={(e) => setIn("compagnie", "reference", e.target.value)} />
+                            <Field className="sm:col-span-2">
+                              <FieldLabel htmlFor="co-address">Adresse postale</FieldLabel>
+                              <Input id="co-address" value={f.compagnie.address} onChange={(e) => setIn("compagnie", "address", e.target.value)} />
                             </Field>
                           </div>
                         )}
@@ -614,8 +693,7 @@ export function CreateDossier() {
                     </CardContent>
                   </Card>
 
-                  {/* 5. Intervenants (assignés par Nereids pour un dossier créé par Help You) */}
-                  {!isGest && (
+                  {/* 5. Intervenants (Nereids ou gestionnaire Help You, point client 22/10) */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">{sectionNum(5)} Intervenants</CardTitle>
@@ -630,7 +708,6 @@ export function CreateDossier() {
                       />
                     </CardContent>
                   </Card>
-                  )}
                 </>
               )}
             </>
@@ -642,22 +719,33 @@ export function CreateDossier() {
           <Card size="sm">
             <CardContent className="text-sm">
               <ul className="flex flex-col gap-1">
-                <RecapItem ok={typeComplete} label="Type de dossier" detail={f.type ? DOSSIER_TYPES[f.type].label : undefined} />
+                <RecapItem
+                  ok={typeComplete}
+                  label="Type de dossier"
+                  detail={[f.type && DOSSIER_TYPES[f.type].label, f.departement].filter(Boolean).join(" · ") || undefined}
+                />
                 <RecapItem
                   ok={!errors.clientNom && !errors.clientContact && !errors.clientEmail}
                   label="Client"
                   detail={
-                    [f.client.lastName && `${f.client.firstName} ${f.client.lastName}`, typeComplete && (f.clientAccount ? "Compte ouvert" : "Sans compte")]
+                    [(f.client.lastName || f.client.societe) && personneName(f.client), typeComplete && (f.clientAccount ? "Compte ouvert" : "Sans compte")]
                       .filter(Boolean)
                       .join(" · ") || undefined
                   }
                 />
-                <RecapItem ok={!errors.immat && !errors.marque} label="Véhicule" detail={f.vehicule.immat ? `${f.vehicule.immat.toUpperCase()} ${f.vehicule.marque}` : undefined} />
+                <RecapItem
+                  ok={!errors.immat && !errors.marque}
+                  label="Véhicule"
+                  detail={
+                    [f.vehicule.immat && `${f.vehicule.immat.toUpperCase()} ${f.vehicule.marque}`, !f.clientProprietaire && "Autre propriétaire"].filter(Boolean).join(" · ") ||
+                    undefined
+                  }
+                />
                 {!horsRecours && typeComplete && (
                   <>
                     {f.type !== "litige_auto" && <RecapItem optional ok={!!f.compagnie.nom} label={compagnieLabel(f.type!)} detail={f.compagnie.nom || undefined} />}
                     <RecapItem optional ok={missingDocs.length === 0} label="Pièces" detail={missingDocs.length ? `${missingDocs.length} manquante(s)` : "Complètes"} />
-                    {!isGest && <RecapItem optional ok={!!f.gestionnaire && !!f.expert} label="Intervenants" detail={f.gestionnaire && f.expert ? "Gestionnaire et expert" : "À assigner"} />}
+                    <RecapItem optional ok={!!f.gestionnaire && !!f.expert} label="Intervenants" detail={f.gestionnaire && f.expert ? "Gestionnaire et expert" : "À assigner"} />
                   </>
                 )}
               </ul>
@@ -706,6 +794,56 @@ export function CreateDossier() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/** Client ou propriétaire : personne physique (prénom, nom) ou morale (société, SIRET), puis coordonnées */
+function PersonneFields({ id, value: p, onChange }: { id: string; value: PersonneForm; onChange: (p: PersonneForm) => void }) {
+  const set = (k: keyof PersonneForm, v: string) => onChange({ ...p, [k]: v })
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <ChoiceCard compact selected={p.kind === "physique"} onClick={() => set("kind", "physique")} title="Personne physique" />
+        <ChoiceCard compact selected={p.kind === "morale"} onClick={() => set("kind", "morale")} title="Personne morale" description="Société" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {p.kind === "morale" ? (
+          <>
+            <Field>
+              <FieldLabel htmlFor={`${id}-societe`}>Nom de la société</FieldLabel>
+              <Input id={`${id}-societe`} value={p.societe} onChange={(e) => set("societe", e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-siret`}>N° de SIRET</FieldLabel>
+              <Input id={`${id}-siret`} inputMode="numeric" placeholder="14 chiffres" value={p.siret} onChange={(e) => set("siret", e.target.value)} />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field>
+              <FieldLabel htmlFor={`${id}-first`}>Prénom</FieldLabel>
+              <Input id={`${id}-first`} value={p.firstName} onChange={(e) => set("firstName", e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-last`}>Nom</FieldLabel>
+              <Input id={`${id}-last`} value={p.lastName} onChange={(e) => set("lastName", e.target.value)} />
+            </Field>
+          </>
+        )}
+        <Field>
+          <FieldLabel htmlFor={`${id}-phone`}>Téléphone</FieldLabel>
+          <Input id={`${id}-phone`} type="tel" value={p.phone} onChange={(e) => set("phone", e.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-mail`}>E-mail</FieldLabel>
+          <Input id={`${id}-mail`} type="email" value={p.email} onChange={(e) => set("email", e.target.value)} />
+        </Field>
+        <Field className="sm:col-span-2">
+          <FieldLabel htmlFor={`${id}-address`}>Adresse postale</FieldLabel>
+          <Input id={`${id}-address`} placeholder="N°, rue, code postal, ville" value={p.address} onChange={(e) => set("address", e.target.value)} />
+        </Field>
+      </div>
     </div>
   )
 }

@@ -35,6 +35,7 @@ import {
   type Dossier,
   type StatusId,
   type User,
+  personneName,
   withRef,
 } from "@/lib/data"
 import { useStore } from "@/lib/store"
@@ -288,14 +289,14 @@ export function RelanceDialog({ dossier, open, onOpenChange }: DialogProps) {
   const target =
     who === "expert" ? getUser(dossier.intervenants.expert) : who === "reparateur" ? getUser(dossier.intervenants.reparateur) : who === "gestionnaire" ? getUser(dossier.intervenants.gestionnaire) : undefined
   const [msg, setMsg] = React.useState(
-    `Bonjour${target ? ` ${target.firstName}` : who === "client" ? ` ${dossier.client.firstName}` : ""},\n\nSauf erreur de notre part, nous sommes toujours en attente de : ${dossier.pilotage.attente.toLowerCase()} pour le dossier ${dossier.ref} (${dossier.vehicule.immat}).\n\nMerci de faire le nécessaire dans les meilleurs délais.\n\nBien cordialement,\n${user.firstName} ${user.lastName} — ${role.id === "gestionnaire" ? user.structure : "Nereids"}`,
+    `Bonjour${target ? ` ${target.firstName}` : who === "client" ? ` ${dossier.client.kind === "morale" ? "" : dossier.client.firstName}`.trimEnd() : ""},\n\nSauf erreur de notre part, nous sommes toujours en attente de : ${dossier.pilotage.attente.toLowerCase()} pour le dossier ${dossier.ref} (${dossier.vehicule.immat}).\n\nMerci de faire le nécessaire dans les meilleurs délais.\n\nBien cordialement,\n${user.firstName} ${user.lastName} — ${role.id === "gestionnaire" ? user.structure : "Nereids"}`,
   )
 
   function send() {
     addEvent(dossier.id, {
       kind: "relance",
       author: user.id,
-      title: `Relance envoyée — ${target ? fullName(target) : who === "client" ? `${dossier.client.firstName} ${dossier.client.lastName}` : "compagnie"}`,
+      title: `Relance envoyée — ${target ? fullName(target) : who === "client" ? personneName(dossier.client) : "compagnie"}`,
       body: msg.split("\n").filter(Boolean)[1],
       recipients: [who === "nereids" ? "admin" : who],
     })
@@ -310,7 +311,7 @@ export function RelanceDialog({ dossier, open, onOpenChange }: DialogProps) {
         <DialogHeader>
           <DialogTitle>Envoyer une relance</DialogTitle>
           <DialogDescription>
-            Destinataire : {target ? `${fullName(target)} (${target.structure})` : who === "client" ? `${dossier.client.firstName} ${dossier.client.lastName} (client)` : dossier.compagnie?.nom ?? "compagnie"}
+            Destinataire : {target ? `${fullName(target)} (${target.structure})` : who === "client" ? `${personneName(dossier.client)} (client)` : dossier.compagnie?.nom ?? "compagnie"}
           </DialogDescription>
         </DialogHeader>
         <Field>

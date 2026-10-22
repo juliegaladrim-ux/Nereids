@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, fullName, getUser, isLate, lateDays, type Dossier } from "@/lib/data"
+import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, fullName, getUser, isLate, lateDays, personneName, type Dossier } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
 import { formatDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -58,7 +58,7 @@ export function IntervenantDossiers() {
     .filter(
       (d) =>
         !s ||
-        [d.ref, d.suiveurRefs?.[user.id], d.refs.sinistre, d.vehicule.immat, d.vehicule.immat.replace(/-/g, ""), d.client.firstName, d.client.lastName]
+        [d.ref, d.suiveurRefs?.[user.id], d.refs.sinistre, d.vehicule.immat, d.vehicule.immat.replace(/-/g, ""), d.client.firstName, d.client.lastName, d.client.societe]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -155,7 +155,7 @@ export function IntervenantDossiers() {
                   <TableRow key={d.id} className="cursor-pointer" onClick={() => router.push(href(`dossiers/${d.id}`))}>
                     <TableCell className="pl-4">
                       <Link href={href(`dossiers/${d.id}`)} className="font-semibold text-brand-ink hover:underline" onClick={(e) => e.stopPropagation()}>
-                        {d.client.firstName} {d.client.lastName}
+                        {personneName(d.client)}
                       </Link>
                       <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                         <Immat value={d.vehicule.immat} />
@@ -229,7 +229,7 @@ export function IntervenantDossiers() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <p className="font-semibold">
-                      {d.client.firstName} {d.client.lastName}
+                      {personneName(d.client)}
                     </p>
                     <Immat value={d.vehicule.immat} />
                   </div>

@@ -271,12 +271,16 @@ export type Dossier = {
   status: StatusId
   createdAt: string
   updatedAt: string
-  client: { firstName: string; lastName: string; phone: string; email: string; address?: string; userId?: string }
+  client: Personne & { userId?: string }
+  /** Propriétaire du véhicule, s'il n'est pas le client (absent = le client est propriétaire) */
+  proprietaire?: Personne
   vehicule: { marque: string; modele: string; immat: string; vin?: string }
-  compagnie?: { nom: string; email?: string; reference?: string }
+  compagnie?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
   tiers?: { nom: string; phone?: string; email?: string }[]
   refs: { sinistre?: string }
   region: string
+  /** Département d'intervention (ex. « 43 Haute-Loire ») — à défaut, déduit du code postal du client */
+  departement?: string
   intervenants: Intervenants
   /** Les 3 questions du CDC §2 */
   pilotage: {
@@ -309,6 +313,44 @@ export type Dossier = {
   notes?: InternalNote[]
   /** Validation client (mission / devis / règlement) — alimentée par les automatisations ; absente = déduite du statut */
   validation?: ClientValidation
+}
+
+/** Client ou propriétaire : personne physique (prénom, nom) ou morale (société, SIRET) */
+export type Personne = {
+  /** Absent = personne physique */
+  kind?: "physique" | "morale"
+  firstName: string
+  lastName: string
+  societe?: string
+  siret?: string
+  phone: string
+  email: string
+  /** Adresse postale */
+  address?: string
+}
+
+/** Nom affiché : la société pour une personne morale, sinon prénom + nom */
+export function personneName(p: Pick<Personne, "kind" | "firstName" | "lastName" | "societe">): string {
+  if (p.kind === "morale") return p.societe || "Société"
+  return `${p.firstName} ${p.lastName}`.trim()
+}
+
+/** Département d'intervention du dossier : saisi à la création, sinon déduit du code postal du client */
+export function dossierDepartement(d: Pick<Dossier, "departement" | "client">): string | undefined {
+  if (d.departement) return d.departement
+  const cp = d.client.address?.match(/\b(\d{5})\b/)?.[1]
+  if (!cp) return undefined
+  const code = cp.startsWith("20") ? (Number(cp) < 20200 ? "2A" : "2B") : cp.slice(0, 2)
+  return Object.values(REGION_DEPARTEMENTS).flat().find((dep) => dep.startsWith(`${code} `))
+}
+
+/** Région d'un département (« 43 Haute-Loire » → Auvergne-Rhône-Alpes) */
+export const departementRegion = (dep: string) => Object.keys(REGION_DEPARTEMENTS).find((r) => REGION_DEPARTEMENTS[r].includes(dep))
+
+/** Catégorie du dossier : type + qualification (ex. « Sinistre » / « Non responsable, avec tiers ») */
+export function dossierCategory(d: Pick<Dossier, "type" | "sinistreType" | "litigeType">): { type: string; detail?: string } {
+  const detail = d.sinistreType ? SINISTRE_TYPES[d.sinistreType].label : d.litigeType ? LITIGE_ASSUR_TYPES[d.litigeType].label : undefined
+  return { type: DOSSIER_TYPES[d.type].label, detail }
 }
 
 /** rouge = rien d'envoyé · orange = envoyé, en attente · vert = signé / reçu */
@@ -526,8 +568,9 @@ const letters = (s = "") => s.normalize("NFD").replace(/[^A-Za-z]/g, "").toUpper
  * Référence dossier : initiales du client, année, 3 premières lettres du cabinet de l'expert
  * (ex. Julie Martin, 2026, Cabinet Delorme → JM-2026-DEL). Sans expert : JM-2026.
  */
-export function dossierRef(client: { firstName: string; lastName: string }, createdAt: string, cabinet?: string): string {
-  const initials = letters(client.firstName).charAt(0) + letters(client.lastName).charAt(0)
+export function dossierRef(client: Pick<Personne, "kind" | "firstName" | "lastName" | "societe">, createdAt: string, cabinet?: string): string {
+  // Personne morale : deux premières lettres de la société
+  const initials = client.kind === "morale" ? letters(client.societe).slice(0, 2) : letters(client.firstName).charAt(0) + letters(client.lastName).charAt(0)
   const year = new Date(createdAt).getFullYear()
   const cab = letters(cabinet?.replace(/^\s*(cabinet|société)\s+/i, "")).slice(0, 3)
   return [initials, year, cab].filter(Boolean).join("-")

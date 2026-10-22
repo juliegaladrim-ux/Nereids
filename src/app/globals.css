@@ -149,14 +149,15 @@
   /* Couleur d'identification par rôle (avatars, étiquettes) — même code partout dans le dossier */
   --role-admin: #f4f4f2;
   --role-admin-bg: #1d1d1b;
-  --role-gestionnaire: #3b2a85;
-  --role-gestionnaire-bg: #dcd2fb;
-  --role-expert: #7d1a45;
-  --role-expert-bg: #fcc9dd;
+  /* Code couleur validé en point client : expert bleu, gestionnaire Help You rose, client jaune, réparateur vert, admin noir */
+  --role-gestionnaire: #7d1a45;
+  --role-gestionnaire-bg: #fcc9dd;
+  --role-expert: #1c3f82;
+  --role-expert-bg: #c9dcfc;
   --role-reparateur: #14562f;
   --role-reparateur-bg: #bdebcc;
-  --role-suiveur: #1c3f82;
-  --role-suiveur-bg: #c9dcfc;
+  --role-suiveur: #3b2a85;
+  --role-suiveur-bg: #dcd2fb;
   --role-client: #5a4100;
   --role-client-bg: #fbe08a;
 }
@@ -217,14 +218,14 @@
 
   --role-admin: #1d1d1b;
   --role-admin-bg: #e8e8e4;
-  --role-gestionnaire: #1c1240;
-  --role-gestionnaire-bg: #b9a8f5;
-  --role-expert: #3d0a20;
-  --role-expert-bg: #f3a3c3;
+  --role-gestionnaire: #3d0a20;
+  --role-gestionnaire-bg: #f3a3c3;
+  --role-expert: #0c1f45;
+  --role-expert-bg: #a3c3f7;
   --role-reparateur: #08301a;
   --role-reparateur-bg: #95dcae;
-  --role-suiveur: #0c1f45;
-  --role-suiveur-bg: #a3c3f7;
+  --role-suiveur: #1c1240;
+  --role-suiveur-bg: #b9a8f5;
   --role-client: #2e2100;
   --role-client-bg: #f1cf5e;
 }

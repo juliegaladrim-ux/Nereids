@@ -51,6 +51,7 @@ import {
   DOSSIER_TYPES,
   LITIGE_ASSUR_TYPES,
   REGIONS,
+  REGION_DEPARTEMENTS,
   SINISTRE_TYPES,
   STATUS_ORDER,
   SUIVEUR_QUALITES,
@@ -59,17 +60,20 @@ import {
   compagnieLabel,
   allExpertises,
   docDate,
+  dossierDepartement,
   expertisePeople,
   expectedDocs,
   fullName,
   getUser,
   isLate,
   lateDays,
+  personneName,
   setExpertise,
   type DocCategory,
   type Dossier,
   type DossierType,
   type LitigeAssurantielType,
+  type Personne,
   type SinistreType,
   type SuiveurRequest,
 } from "@/lib/data"
@@ -78,7 +82,7 @@ import { formatDate, formatDateTime, formatLongDate, relativeDays } from "@/lib/
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { AddDocDialog, AssignDialog, CloseDialog, RelanceDialog, StatusDialog } from "./dossier-dialogs"
-import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditSection, type Values } from "./dossier-edit"
+import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditField, type EditSection, type Values } from "./dossier-edit"
 import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
@@ -168,7 +172,7 @@ export function DossierDetail({ id }: { id: string }) {
     }
     updateDossier(d!.id, (x) => ({ ...x, noClientAccount: undefined, clientAccess: { invitedAt: new Date().toISOString() } }))
     addEvent(d!.id, { kind: "system", author: user.id, title: "Compte client ouvert", body: `Invitation envoyée à ${d!.client.email}` })
-    toast.success("Invitation envoyée", { description: `${d!.client.firstName} ${d!.client.lastName} peut maintenant suivre son dossier.` })
+    toast.success("Invitation envoyée", { description: `${personneName(d!.client)} peut maintenant suivre son dossier.` })
   }
   const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
   // Expertises multiples et convoqués : admin, expert et gestionnaire (CDC v2 : expertise à planifier, convocations)
@@ -363,7 +367,7 @@ export function DossierDetail({ id }: { id: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
                 {/* Le client se repère à son véhicule, pas à son propre nom */}
-                {isClient ? `${d.vehicule.marque} ${d.vehicule.modele}` : `${d.client.firstName} ${d.client.lastName}`}
+                {isClient ? `${d.vehicule.marque} ${d.vehicule.modele}` : personneName(d.client)}
               </h1>
               <Immat value={d.vehicule.immat} className="h-7 text-sm" />
             </div>
@@ -436,7 +440,7 @@ export function DossierDetail({ id }: { id: string }) {
                 <DropdownMenuItem onClick={() => toast.info("Export du dossier complet (ZIP) — simulation")}>
                   <Download /> Télécharger tout le dossier
                 </DropdownMenuItem>
-                {rights.changeStatus && !closed && (
+                {rights.close && !closed && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onClick={() => setDialog("close")}>
@@ -532,8 +536,8 @@ export function DossierDetail({ id }: { id: string }) {
           <Intervenants
             dossier={d}
             onAssign={rights.assign ? () => setDialog("assign") : undefined}
-            onEditIntervenant={role.id === "admin" ? setEditSlot : undefined}
-            onRemoveIntervenant={role.id === "admin" ? setRemoveSlot : undefined}
+            onEditIntervenant={rights.assign ? setEditSlot : undefined}
+            onRemoveIntervenant={rights.assign ? setRemoveSlot : undefined}
             onSuggestReparateur={isClient && !closed && !d.intervenants.reparateur ? suggestReparateur : undefined}
             pending={pendingRequests}
             onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
@@ -723,7 +727,7 @@ function Intervenants({
             <UserAvatar user={dossier.client} role="client" />
             <div className="min-w-0 text-sm">
               <p className="truncate font-medium">
-                {dossier.client.firstName} {dossier.client.lastName}
+                {personneName(dossier.client)}
               </p>
               <p className="text-xs text-muted-foreground">Client</p>
             </div>
@@ -857,6 +861,21 @@ function InfoCard({ title, rows, onEdit }: { title: string; rows: [string, React
   )
 }
 
+/** Lignes d'identité d'un client : société + SIRET (personne morale) ou nom (personne physique), puis coordonnées */
+function personneRows(p: Personne): [string, React.ReactNode][] {
+  return [
+    ...(p.kind === "morale"
+      ? ([
+          ["Société", p.societe],
+          ["SIRET", p.siret],
+        ] as [string, React.ReactNode][])
+      : ([["Nom", personneName(p)]] as [string, React.ReactNode][])),
+    ["Téléphone", p.phone],
+    ["E-mail", p.email],
+    ["Adresse", p.address],
+  ]
+}
+
 /** Bouton « Modifier » discret dans l'en-tête d'une carte */
 function EditAction({ onClick, label }: { onClick: () => void; label: string }) {
   return (
@@ -914,9 +933,7 @@ function General({
       <InfoCard
         title="Client"
         rows={[
-          ["Nom", `${d.client.firstName} ${d.client.lastName}`],
-          ["Téléphone", d.client.phone],
-          ["E-mail", d.client.email],
+          ...personneRows(d.client),
           ...(showAccount && account ? [["Compte client", account] as [string, React.ReactNode]] : []),
         ]}
         onEdit={editable("client")}
@@ -927,6 +944,21 @@ function General({
           ["Marque / modèle", `${d.vehicule.marque} ${d.vehicule.modele}`],
           ["Immatriculation", <Immat key="i" value={d.vehicule.immat} />],
           ["VIN", d.vehicule.vin && <span key="v" className="font-mono text-xs">{d.vehicule.vin}</span>],
+          [
+            "Propriétaire",
+            d.proprietaire ? (
+              <span key="p" className="flex flex-col">
+                <span>{personneName(d.proprietaire)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {[d.proprietaire.kind === "morale" && d.proprietaire.siret && `SIRET ${d.proprietaire.siret}`, d.proprietaire.phone, d.proprietaire.email, d.proprietaire.address]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+            ) : (
+              "Le client"
+            ),
+          ],
         ]}
         onEdit={editable("vehicule")}
       />
@@ -934,7 +966,9 @@ function General({
         title={compagnieLabel(d.type)}
         rows={[
           ["Nom", d.compagnie?.nom],
+          ["Téléphone", d.compagnie?.phone],
           ["E-mail", d.compagnie?.email],
+          ["Adresse", d.compagnie?.address],
           ["Référence", d.compagnie?.reference],
         ]}
         onEdit={editable("compagnie")}
@@ -946,6 +980,7 @@ function General({
           ["Qualification", d.sinistreType ? SINISTRE_TYPES[d.sinistreType].label : d.litigeType ? LITIGE_ASSUR_TYPES[d.litigeType].label : "—"],
           ["Créé le", formatDate(d.createdAt)],
           ["Région", d.region],
+          ["Département d'intervention", dossierDepartement(d)],
         ]}
         onEdit={editable("dossier")}
       />
@@ -1359,6 +1394,58 @@ export function expertiseSection(d: Dossier, index: number, apply: (title: strin
   }
 }
 
+/** Champs d'une personne (client, propriétaire) : physique = prénom / nom, morale = société / SIRET */
+function personneFields(hidden: (v: Values) => boolean = () => false): EditField[] {
+  const morale = (v: Values) => v.kind === "morale"
+  return [
+    {
+      key: "kind",
+      label: "Type de personne",
+      type: "select",
+      full: true,
+      options: [
+        { value: "physique", label: "Personne physique" },
+        { value: "morale", label: "Personne morale (société)" },
+      ],
+      hidden,
+    },
+    { key: "firstName", label: "Prénom", hidden: (v) => hidden(v) || morale(v) },
+    { key: "lastName", label: "Nom", hidden: (v) => hidden(v) || morale(v) },
+    { key: "societe", label: "Nom de la société", hidden: (v) => hidden(v) || !morale(v) },
+    { key: "siret", label: "N° de SIRET", hidden: (v) => hidden(v) || !morale(v) },
+    { key: "phone", label: "Téléphone", type: "tel", hidden },
+    { key: "email", label: "E-mail", type: "email", hidden },
+    { key: "address", label: "Adresse postale", full: true, hidden },
+  ]
+}
+
+function personneInitial(p?: Personne): Values {
+  return {
+    kind: p?.kind ?? "physique",
+    firstName: p?.firstName ?? "",
+    lastName: p?.lastName ?? "",
+    societe: p?.societe ?? "",
+    siret: p?.siret ?? "",
+    phone: p?.phone ?? "",
+    email: p?.email ?? "",
+    address: p?.address ?? "",
+  }
+}
+
+function personneFromValues(v: Values): Personne {
+  const morale = v.kind === "morale"
+  return {
+    kind: morale ? "morale" : undefined,
+    firstName: morale ? "" : v.firstName,
+    lastName: morale ? "" : v.lastName,
+    societe: morale ? opt(v.societe) : undefined,
+    siret: morale ? opt(v.siret) : undefined,
+    phone: v.phone,
+    email: v.email,
+    address: opt(v.address),
+  }
+}
+
 function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (x: Dossier) => Dossier) => void): EditSection {
   const save = (title: string, patch: (x: Dossier, v: Values) => Dossier) => (v: Values) => apply(title, (x) => patch(x, v))
 
@@ -1366,14 +1453,9 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
     case "client":
       return {
         title: "Modifier le client",
-        fields: [
-          { key: "firstName", label: "Prénom" },
-          { key: "lastName", label: "Nom" },
-          { key: "phone", label: "Téléphone", type: "tel" },
-          { key: "email", label: "E-mail", type: "email" },
-        ],
-        initial: { firstName: d.client.firstName, lastName: d.client.lastName, phone: d.client.phone, email: d.client.email },
-        onSave: save("Client", (x, v) => ({ ...x, client: { ...x.client, ...v } })),
+        fields: personneFields(),
+        initial: personneInitial(d.client),
+        onSave: save("Client", (x, v) => ({ ...x, client: { ...x.client, ...personneFromValues(v) } })),
       }
     case "vehicule":
       return {
@@ -1383,11 +1465,30 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
           { key: "modele", label: "Modèle" },
           { key: "immat", label: "Immatriculation" },
           { key: "vin", label: "VIN" },
+          {
+            key: "proprio",
+            label: "Propriétaire du véhicule",
+            type: "select",
+            full: true,
+            options: [
+              { value: "client", label: "Le client" },
+              { value: "autre", label: "Une autre personne" },
+            ],
+          },
+          ...personneFields((v) => v.proprio !== "autre"),
         ],
-        initial: { ...d.vehicule, vin: d.vehicule.vin ?? "" },
+        initial: {
+          marque: d.vehicule.marque,
+          modele: d.vehicule.modele,
+          immat: d.vehicule.immat,
+          vin: d.vehicule.vin ?? "",
+          proprio: d.proprietaire ? "autre" : "client",
+          ...personneInitial(d.proprietaire),
+        },
         onSave: save("Véhicule", (x, v) => ({
           ...x,
           vehicule: { marque: v.marque, modele: v.modele, immat: v.immat.toUpperCase(), vin: opt(v.vin) },
+          proprietaire: v.proprio === "autre" ? personneFromValues(v) : undefined,
         })),
       }
     case "compagnie":
@@ -1395,13 +1496,23 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
         title: `Modifier — ${compagnieLabel(d.type)}`,
         fields: [
           { key: "nom", label: "Nom", full: true },
+          { key: "phone", label: "Téléphone", type: "tel" },
           { key: "email", label: "E-mail", type: "email" },
+          { key: "address", label: "Adresse postale", full: true },
           { key: "reference", label: "Référence" },
         ],
-        initial: { nom: d.compagnie?.nom ?? "", email: d.compagnie?.email ?? "", reference: d.compagnie?.reference ?? "" },
+        initial: {
+          nom: d.compagnie?.nom ?? "",
+          phone: d.compagnie?.phone ?? "",
+          email: d.compagnie?.email ?? "",
+          address: d.compagnie?.address ?? "",
+          reference: d.compagnie?.reference ?? "",
+        },
         onSave: save(compagnieLabel(d.type), (x, v) => ({
           ...x,
-          compagnie: opt(v.nom) || opt(v.email) || opt(v.reference) ? { nom: v.nom, email: opt(v.email), reference: opt(v.reference) } : undefined,
+          compagnie: Object.values(v).some((s) => opt(s))
+            ? { nom: v.nom, phone: opt(v.phone), email: opt(v.email), address: opt(v.address), reference: opt(v.reference) }
+            : undefined,
         })),
       }
     case "dossier":
@@ -1424,6 +1535,12 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
             hidden: (v) => v.type !== "litige_assurantiel",
           },
           { key: "region", label: "Région", type: "select", options: REGIONS.map((r) => ({ value: r, label: r })) },
+          {
+            key: "departement",
+            label: "Département d'intervention",
+            type: "select",
+            options: (v) => (REGION_DEPARTEMENTS[v.region] ?? []).map((dep) => ({ value: dep, label: dep })),
+          },
           { key: "createdAt", label: "Créé le", type: "date" },
         ],
         initial: {
@@ -1431,6 +1548,7 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
           sinistreType: d.sinistreType ?? "",
           litigeType: d.litigeType ?? "",
           region: d.region,
+          departement: dossierDepartement(d) ?? "",
           createdAt: toDateInput(d.createdAt),
         },
         onSave: save("Dossier", (x, v) => ({
@@ -1439,6 +1557,8 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
           sinistreType: v.type === "sinistre" ? ((opt(v.sinistreType) as SinistreType) ?? undefined) : undefined,
           litigeType: v.type === "litige_assurantiel" ? ((opt(v.litigeType) as LitigeAssurantielType) ?? undefined) : undefined,
           region: v.region,
+          // Département hors de la région choisie : on l'efface
+          departement: REGION_DEPARTEMENTS[v.region]?.includes(v.departement) ? v.departement : undefined,
           createdAt: fromDateInput(v.createdAt) ?? x.createdAt,
         })),
       }
