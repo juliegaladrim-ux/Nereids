@@ -17,6 +17,7 @@ import {
   expectedDocs,
   getUser,
   fullName,
+  personneName,
   withConsultations,
   demoDocDate,
   type DocCategory,
@@ -91,7 +92,9 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
   const reached = (x: StatusId) => !hors && rank(status) >= rank(x)
 
   // Intervenants : on garde ceux du dossier, sinon ceux de démo
-  const gestionnaire = reached("en_etude") ? (d.intervenants.gestionnaire ?? "u-gest") : undefined
+  // Le gestionnaire déjà rattaché reste au statut « Nouveau » (dossier créé par Help You, ou vu par le gestionnaire) :
+  // sinon le dossier disparaît de son espace
+  const gestionnaire = reached("en_etude") ? (d.intervenants.gestionnaire ?? "u-gest") : d.intervenants.gestionnaire
   const expert = reached("en_etude") ? (d.intervenants.expert ?? "u-expert") : undefined
   const reparateur = isSinistre && reached("recours_valide") ? (d.intervenants.reparateur ?? "u-rep") : undefined
   const clientId = d.client.userId
@@ -136,7 +139,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
           addEv(t, "document", depositor, `${initial.length} documents ajoutés`, initial.map((c) => DOC_CATEGORIES[c]).join(", "))
         }
         // Exemples de messages : un avec pièce jointe, un sans
-        const name = `${d.client.firstName} ${d.client.lastName}`
+        const name = personneName(d.client)
         const lettre = addDoc("Lettre de mission.pdf", "courrier", "u-admin", at(i, 11), "140 Ko")
         addEv(at(i, 11), "message", "u-admin", "Message", `Bonjour ${name}, bienvenue chez Nereids. Vous trouverez ci-joint la lettre de mission à signer : elle nous permet de démarrer votre dossier.`, ["client"], [lettre.id])
         // Le client invité n'écrit qu'une fois son compte activé
