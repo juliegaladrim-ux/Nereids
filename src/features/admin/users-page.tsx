@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -19,7 +20,7 @@ import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
 import { SimilarAlert, SuggestInput, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import { DEFAULT_STRUCTURE, UserFields, cleanValues, missingFields, newUser, toForm, type FormValues } from "@/features/admin/user-form"
-import { USERS, allUsers, fullName, personneName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
+import { SEED_LAST_LOGIN, USERS, allUsers, daysFromNow, fullName, personneName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
 import { searchPeople, similarPeople, toContact, useAnnuaire } from "@/lib/annuaire"
 import { formatDate } from "@/lib/format"
 import { PROFILES, ROLES, getProfile, userProfile, type ProfileId, type RoleId } from "@/lib/roles"
@@ -28,11 +29,12 @@ import { cn } from "@/lib/utils"
 
 // ─── Statut du compte (CDC §16) ─────────────────────────────────────────────────
 
-export type AccountStatus = "actif" | "invite"
+export type AccountStatus = "actif" | "inactif" | "invitation"
 
 const STATUS: Record<AccountStatus, { label: string; className: string; dot: string }> = {
   actif: { label: "Actif", className: "bg-tone-done-bg text-tone-done", dot: "bg-tone-done" },
-  invite: { label: "Invité", className: "bg-tone-waiting-bg text-tone-waiting", dot: "bg-tone-waiting" },
+  inactif: { label: "Inactif", className: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" },
+  invitation: { label: "Invitation envoyée", className: "bg-tone-waiting-bg text-tone-waiting", dot: "bg-tone-waiting" },
 }
 
 const profileShort = (u: User) => PROFILES.find((p) => p.id === userProfile(u))?.short ?? u.role
@@ -64,6 +66,9 @@ type Row = {
   key: string
   user: User
   status: AccountStatus
+  lastLoginAt?: string
+  /** Invitation envoyée, compte pas encore activé */
+  pending: boolean
   dossiers: Dossier[]
 }
 
@@ -72,9 +77,28 @@ const involves = (d: Dossier, id: string) =>
 
 const isActive = (d: Dossier) => d.status !== "cloture" && d.status !== "archive"
 
+/** Sans connexion depuis 6 mois, un compte activé passe « Inactif » */
+const INACTIVE_MONTHS = 6
+
+export function isDormant(lastLoginAt?: string): boolean {
+  if (!lastLoginAt) return false
+  const limit = new Date(lastLoginAt)
+  limit.setMonth(limit.getMonth() + INACTIVE_MONTHS)
+  return limit < new Date()
+}
+
+/** Dernière connexion : celle tracée sur le compte, sinon son activation (comptes de démo : récente, sauf exceptions) */
+export function lastLogin(id: string, a?: Account): string | undefined {
+  if (a?.lastLoginAt) return a.lastLoginAt
+  if (SEED_IDS.has(id) && (!a || a.activatedAt)) return daysFromNow(SEED_LAST_LOGIN[id] ?? -1)
+  return a?.activatedAt
+}
+
+export const isPending = (id: string, a?: Account) => (a ? !a.activatedAt : !SEED_IDS.has(id))
+
 export function intervenantStatus(id: string, a?: Account): AccountStatus {
-  if (a) return a.activatedAt ? "actif" : "invite"
-  return SEED_IDS.has(id) ? "actif" : "invite"
+  if (isPending(id, a)) return "invitation"
+  return isDormant(lastLogin(id, a)) ? "inactif" : "actif"
 }
 
 function buildRows(dossiers: Dossier[], accounts: Record<string, Account>): Row[] {
@@ -84,6 +108,8 @@ function buildRows(dossiers: Dossier[], accounts: Record<string, Account>): Row[
       key: u.id,
       user: u,
       status: intervenantStatus(u.id, accounts[u.id]),
+      lastLoginAt: lastLogin(u.id, accounts[u.id]),
+      pending: isPending(u.id, accounts[u.id]),
       dossiers: dossiers.filter((d) => involves(d, u.id)),
     }))
 
@@ -229,7 +255,7 @@ export function UsersPage() {
                   {r.user.role === "admin" ? <span className="text-muted-foreground">Tous</span> : r.dossiers.filter(isActive).length}
                 </TableCell>
                 <TableCell className="pr-4">
-                  <AccountBadge status={r.status} />
+                  <AccountBadge status={r.status} lastLoginAt={r.lastLoginAt} />
                 </TableCell>
               </TableRow>
             ))}
@@ -249,13 +275,22 @@ export function UsersPage() {
   )
 }
 
-export function AccountBadge({ status }: { status: AccountStatus }) {
+export function AccountBadge({ status, lastLoginAt }: { status: AccountStatus; lastLoginAt?: string }) {
   const s = STATUS[status]
-  return (
+  const badge = (
     <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold whitespace-nowrap", s.className)}>
       <span className={cn("size-1.5 shrink-0 rounded-full", s.dot)} />
       {s.label}
     </span>
+  )
+  if (status !== "inactif") return badge
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex" />}>{badge}</TooltipTrigger>
+      <TooltipContent>
+        Aucune connexion depuis plus de {INACTIVE_MONTHS} mois{lastLoginAt ? ` (dernière le ${formatDate(lastLoginAt)})` : ""}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -384,7 +419,7 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
     const patch = cleanValues(v)
     const now = new Date().toISOString()
     updateAccount(user.id, (a) => ({
-      // Compte de démo déjà actif : la modification ne le repasse pas en « Invité »
+      // Compte de démo déjà actif : la modification ne le repasse pas en invitation en attente
       ...(a ?? (SEED_IDS.has(user.id) ? { invitedAt: now, activatedAt: now } : { invitedAt: now })),
       profile: { ...a?.profile, ...patch },
     }))
@@ -410,10 +445,10 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
       <div>
         <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-3 py-2.5">
           <span className="text-sm text-muted-foreground">Statut du compte</span>
-          <AccountBadge status={row.status} />
-          {row.status === "invite" && (
+          <AccountBadge status={row.status} lastLoginAt={row.lastLoginAt} />
+          {row.pending && (
             <>
-              {invitedAt && <span className="text-xs text-muted-foreground">Invité le {formatDate(invitedAt)}</span>}
+              {invitedAt && <span className="text-xs text-muted-foreground">le {formatDate(invitedAt)}</span>}
               <Button type="button" variant="secondary" size="xs" className="ml-auto" onClick={resend}>
                 <Send /> Renvoyer l&apos;invitation
               </Button>

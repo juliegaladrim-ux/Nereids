@@ -559,6 +559,8 @@ export function allUsers(): User[] {
 export type Account = {
   invitedAt: string
   activatedAt?: string
+  /** Dernière connexion (à défaut : la date d'activation) */
+  lastLoginAt?: string
   profile?: Partial<User>
   /** Utilisateur ajouté par Nereids depuis « Utilisateurs » (invité par e-mail) */
   user?: User
@@ -566,6 +568,9 @@ export type Account = {
 
 /** Intervenant suiveur de démo : invité, pas encore activé (parcours d'activation rejouable) */
 export const SUIVEUR_ACTIVATION_USER = "u-suiveur"
+
+/** Comptes de démo sans connexion depuis plus de 6 mois (→ « Inactif ») ; les autres sont considérés connectés récemment */
+export const SEED_LAST_LOGIN: Record<string, number> = { "u-suiveur2": -232, "u-rep2": -197 }
 
 export function seedAccounts(): Record<string, Account> {
   return { [SUIVEUR_ACTIVATION_USER]: { invitedAt: daysFromNow(-1, 15) } }

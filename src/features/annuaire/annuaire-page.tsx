@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { AccountBadge, intervenantStatus } from "@/features/admin/users-page"
+import { AccountBadge, intervenantStatus, isDormant, lastLogin, type AccountStatus } from "@/features/admin/users-page"
 import { EmailsField, SimilarAlert, SuggestInput, cleanEmails, orgSuggestion, personKind, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import {
   ORG_TYPES,
@@ -60,12 +60,19 @@ type Tab = "personnes" | "organisations"
 const isActive = (d: Dossier) => d.status !== "cloture" && d.status !== "archive"
 
 /** Compte de la personne : intervenant (statut d'invitation) ou client (accès ouvert depuis son dossier) */
-function accountStatus(p: PersonEntry, dossiers: Dossier[], accounts: Record<string, Account>) {
+function accountStatus(p: PersonEntry, dossiers: Dossier[], accounts: Record<string, Account>): { status: AccountStatus; lastLoginAt?: string } | null {
   if (!p.user) return null
-  if (p.user.role !== "client") return intervenantStatus(p.user.id, accounts[p.user.id])
-  const access = dossiers.find((d) => d.client.userId === p.user!.id && d.clientAccess)?.clientAccess
-  return access ? (access.activatedAt || p.user.id === "u-client" ? "actif" : "invite") : null
+  const id = p.user.id
+  if (p.user.role !== "client") return { status: intervenantStatus(id, accounts[id]), lastLoginAt: lastLogin(id, accounts[id]) }
+  const access = dossiers.find((d) => d.client.userId === id && d.clientAccess)?.clientAccess
+  if (!access) return null
+  // Client de démo (Mehdi Saïdi) : toujours connecté récemment
+  if (id === "u-client") return { status: "actif" }
+  if (!access.activatedAt) return { status: "invitation" }
+  return { status: isDormant(access.activatedAt) ? "inactif" : "actif", lastLoginAt: access.activatedAt }
 }
+
+const STATUS_LABEL: Record<AccountStatus, string> = { actif: "Actif", inactif: "Inactif", invitation: "Invitation envoyée" }
 
 // ─── Département ─────────────────────────────────────────────────────────────
 
@@ -167,7 +174,7 @@ export function AnnuairePage() {
         "annuaire-personnes",
         ["Prénom", "Nom", "Type", "Organisation", "Fonction", "E-mail principal", "Autres e-mails", "Téléphone", "Adresse", "Département", "Zone d'intervention", "Compte", "Dossiers en cours"],
         rows.map((p) => {
-          const status = accountStatus(p, dossiers, accounts)
+          const account = accountStatus(p, dossiers, accounts)
           return [
             p.firstName,
             p.lastName,
@@ -180,7 +187,7 @@ export function AnnuairePage() {
             p.address,
             departementFromAddress(p.address),
             zone(p),
-            status === "actif" ? "Actif" : status === "invite" ? "Invité" : "Sans compte",
+            account ? STATUS_LABEL[account.status] : "Sans compte",
             p.user?.role === "admin" ? "Tous" : personDossiers(p, dossiers).filter(isActive).length,
           ]
         }),
@@ -340,7 +347,7 @@ export function AnnuairePage() {
               <TableBody>
                 {visiblePeople.length === 0 && <EmptyRow cols={8} />}
                 {visiblePeople.map((p) => {
-                  const status = accountStatus(p, dossiers, accounts)
+                  const account = accountStatus(p, dossiers, accounts)
                   return (
                     <TableRow key={p.id} className="cursor-pointer" data-state={selected.has(p.id) ? "selected" : undefined} onClick={() => setOpenPerson(p.id)}>
                       {rowCheckbox(p.id, contactName(p))}
@@ -365,7 +372,7 @@ export function AnnuairePage() {
                       <TableCell className="tabular-nums">
                         {p.user?.role === "admin" ? <span className="text-muted-foreground">Tous</span> : personDossiers(p, dossiers).filter(isActive).length}
                       </TableCell>
-                      <TableCell className="pr-4">{status ? <AccountBadge status={status} /> : <span className="text-sm text-muted-foreground">Sans compte</span>}</TableCell>
+                      <TableCell className="pr-4">{account ? <AccountBadge {...account} /> : <span className="text-sm text-muted-foreground">Sans compte</span>}</TableCell>
                     </TableRow>
                   )
                 })}
@@ -539,7 +546,7 @@ function PersonDialog({
   const orgChoices = orgType ? orgs.filter((o) => o.type === orgType) : orgs
   const existingOrg = orgByName(v.org, orgChoices)
   const similar = similarPeople(people, { ...v, autresEmails: cleanEmails(v.autresEmails) }, entry?.id)
-  const status = entry ? accountStatus(entry, dossiers, accounts) : null
+  const account = entry ? accountStatus(entry, dossiers, accounts) : null
   const linked = entry ? personDossiers(entry, dossiers).sort((a, b) => Number(isActive(b)) - Number(isActive(a)) || b.createdAt.localeCompare(a.createdAt)) : []
 
   function save(e: React.FormEvent) {
@@ -567,7 +574,7 @@ function PersonDialog({
       const now = new Date().toISOString()
       const structure = orgType ? (existingOrg?.nom ?? v.org.trim()) : undefined
       updateAccount(user.id, (a) => ({
-        // Compte de démo déjà actif : la modification ne le repasse pas en « Invité »
+        // Compte de démo déjà actif : la modification ne le repasse pas en invitation en attente
         ...(a ?? (USERS.some((u) => u.id === user.id) ? { invitedAt: now, activatedAt: now } : { invitedAt: now })),
         profile: { ...a?.profile, ...base, email: base.email ?? user.email, phone: base.phone ?? "", fonction: base.fonction ?? "", ...(structure && { structure }) },
       }))
@@ -594,7 +601,7 @@ function PersonDialog({
         {entry && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-3 py-2.5">
             <span className="text-sm text-muted-foreground">Compte</span>
-            {status ? <AccountBadge status={status} /> : <span className="text-sm font-medium">Sans compte</span>}
+            {account ? <AccountBadge {...account} /> : <span className="text-sm font-medium">Sans compte</span>}
           </div>
         )}
 

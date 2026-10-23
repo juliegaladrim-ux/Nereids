@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
  * point client 22/10 : adresse postale, plusieurs e-mails, expert rattaché à un cabinet de l'annuaire).
  * Même formulaire partout où Nereids ajoute quelqu'un : onglet « Utilisateurs » et ajout d'un intervenant
  * hors liste lors d'une assignation dans un dossier. Dans les deux cas, la personne est invitée par e-mail
- * et apparaît dans « Utilisateurs » avec le statut « Invité ».
+ * et apparaît dans « Utilisateurs » avec l'invitation en attente.
  */
 
 export type FormValues = {
