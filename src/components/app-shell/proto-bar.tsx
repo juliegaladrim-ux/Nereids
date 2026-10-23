@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { REPARATEUR_PROMPT_EVENT } from "@/features/dossier/dossier-detail"
 import { useReplayActivation } from "@/features/client/use-replay-activation"
 import { useReplaySuiveurActivation } from "@/features/suiveur/use-replay-suiveur-activation"
 import {
@@ -140,6 +141,7 @@ const TYPE_OPTIONS: { group: DossierType; options: { key: string; label: string 
  */
 function DossierControls() {
   const pathname = usePathname()
+  const { role } = useRole()
   const { getDossier, updateDossier } = useStore()
   // Fiche dossier (tous rôles) ou parcours d'activation client, rattaché à un dossier
   const match = pathname.match(/^\/(?:[^/]+\/dossiers|activation)\/([^/]+)$/)
@@ -212,7 +214,17 @@ function DossierControls() {
                   {s === step && " · étape en cours"}
                 </DropdownMenuLabel>
                 {s.statuses.map((st) => (
-                  <DropdownMenuRadioItem key={st} value={st} disabled={hors && st !== "cloture" && st !== "archive"}>
+                  <DropdownMenuRadioItem
+                    key={st}
+                    value={st}
+                    disabled={hors && st !== "cloture" && st !== "archive"}
+                    // Client : à chaque clic sur « Recours validé », la fiche dossier lui demande son réparateur
+                    onClick={
+                      role.id === "client" && st === "recours_valide"
+                        ? () => window.dispatchEvent(new CustomEvent(REPARATEUR_PROMPT_EVENT, { detail: d!.id }))
+                        : undefined
+                    }
+                  >
                     {STATUSES[st].label}
                   </DropdownMenuRadioItem>
                 ))}

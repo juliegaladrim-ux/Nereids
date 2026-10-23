@@ -1,5 +1,6 @@
 import {
   Archive,
+  BookUser,
   CalendarDays,
   FolderOpen,
   LayoutDashboard,
@@ -55,6 +56,7 @@ export const ROLES: Role[] = [
       { label: "Calendrier experts", path: "calendrier-experts", icon: CalendarDays, soon: "V2" },
       { label: "Archives", path: "archives", icon: Archive },
       { label: "Utilisateurs", path: "utilisateurs", icon: Users },
+      { label: "Annuaire", path: "annuaire", icon: BookUser },
     ],
   },
   {
@@ -129,4 +131,29 @@ export const ROLE_IDS = ROLES.map((r) => r.id)
 
 export function getRole(id: string): Role | undefined {
   return ROLES.find((r) => r.id === id)
+}
+
+/**
+ * Profils d'utilisateurs : le rôle + sa structure. Le gestionnaire Nereids a exactement les droits du
+ * gestionnaire Help You (point client 22/10) : même rôle « gestionnaire », seule la structure change.
+ */
+export type ProfileId = RoleId | "gestionnaire_nereids"
+
+type Profile = { id: ProfileId; role: RoleId; label: string; short: string; structure?: string }
+
+export const PROFILES: Profile[] = ROLES.flatMap((r): Profile[] => {
+  if (r.id === "admin") return [{ id: r.id, role: r.id, label: r.label, short: "Admin Nereids", structure: "Nereids" }]
+  if (r.id === "gestionnaire")
+    return [
+      { id: "gestionnaire_nereids", role: r.id, label: "Gestionnaire Nereids", short: "Gestionnaire Nereids", structure: "Nereids" },
+      { id: r.id, role: r.id, label: r.label, short: "Gestionnaire Help You", structure: "Help You" },
+    ]
+  return [{ id: r.id, role: r.id, label: r.label, short: r.short }]
+})
+
+export const getProfile = (id: ProfileId) => PROFILES.find((p) => p.id === id)!
+
+export function userProfile(u: { role?: RoleId; structure?: string }): ProfileId | undefined {
+  if (u.role === "gestionnaire" && u.structure?.trim().toLowerCase() === "nereids") return "gestionnaire_nereids"
+  return u.role
 }

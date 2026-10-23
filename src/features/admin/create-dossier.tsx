@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   AlertTriangle,
+  BookUser,
   Car,
   Check,
   CircleDashed,
@@ -55,6 +56,8 @@ import {
   dossierRef,
 } from "@/lib/data"
 import { NewUserForm } from "@/features/admin/user-form"
+import { SimilarAlert, SuggestInput, orgSuggestion, personSuggestion } from "@/features/annuaire/annuaire-fields"
+import { norm, searchOrgs, searchPeople, similarOrgs, similarPeople, useAnnuaire, type OrgType } from "@/lib/annuaire"
 import { nextDossierRef, useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -68,6 +71,8 @@ type PersonneForm = {
   phone: string
   email: string
   address: string
+  /** Fiche de l'annuaire choisie (ses infos sont copiées dans le dossier) */
+  contactId?: string
 }
 
 const EMPTY_PERSONNE: PersonneForm = { kind: "physique", firstName: "", lastName: "", societe: "", siret: "", phone: "", email: "", address: "" }
@@ -179,6 +184,7 @@ const toPersonne = (p: PersonneForm): Personne => ({
   phone: p.phone,
   email: p.email,
   address: p.address || undefined,
+  contactId: p.contactId,
 })
 
 const DEPARTEMENTS = Object.values(REGION_DEPARTEMENTS)
@@ -355,7 +361,7 @@ export function CreateDossier() {
       status,
       createdAt: now,
       updatedAt: now,
-      client: toPersonne(f.client),
+      client: { ...toPersonne(f.client), userId: allUsers().find((u) => u.id === f.client.contactId && u.role === "client")?.id },
       proprietaire: f.clientProprietaire ? undefined : toPersonne(f.proprietaire),
       vehicule: { ...f.vehicule, immat: f.vehicule.immat.toUpperCase(), vin: f.vehicule.vin || undefined },
       compagnie: f.compagnie.nom ? { ...f.compagnie } : undefined,
@@ -573,7 +579,12 @@ export function CreateDossier() {
                             <div key={i} className="grid gap-4 sm:grid-cols-3">
                               <Field>
                                 <FieldLabel>Tiers {i + 1} — nom ou raison sociale</FieldLabel>
-                                <Input value={t.nom} placeholder="Ex. garage, vendeur…" onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom: e.target.value } : x)))} />
+                                <OrgSuggest
+                                  value={t.nom}
+                                  placeholder="Ex. garage, vendeur…"
+                                  onChange={(nom) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom } : x)))}
+                                  onPick={(o) => set("tiers", f.tiers.map((x, j) => (j === i ? { nom: o.nom, phone: o.phone ?? "", email: o.email ?? "" } : x)))}
+                                />
                               </Field>
                               <Field>
                                 <FieldLabel>Téléphone</FieldLabel>
@@ -602,7 +613,13 @@ export function CreateDossier() {
                           <div className="grid gap-4 sm:grid-cols-2">
                             <Field>
                               <FieldLabel htmlFor="co-nom">Nom de la compagnie</FieldLabel>
-                              <Input id="co-nom" value={f.compagnie.nom} onChange={(e) => setIn("compagnie", "nom", e.target.value)} />
+                              <OrgSuggest
+                                id="co-nom"
+                                types={["assurance", "juridique"]}
+                                value={f.compagnie.nom}
+                                onChange={(nom) => setIn("compagnie", "nom", nom)}
+                                onPick={(o) => setF((p) => ({ ...p, compagnie: { ...p.compagnie, nom: o.nom, email: o.email ?? "", phone: o.phone ?? "", address: o.address ?? "" } }))}
+                              />
                             </Field>
                             <Field>
                               <FieldLabel htmlFor="co-ref">Référence sinistre</FieldLabel>
@@ -800,7 +817,44 @@ export function CreateDossier() {
 
 /** Client ou propriétaire : personne physique (prénom, nom) ou morale (société, SIRET), puis coordonnées */
 function PersonneFields({ id, value: p, onChange }: { id: string; value: PersonneForm; onChange: (p: PersonneForm) => void }) {
-  const set = (k: keyof PersonneForm, v: string) => onChange({ ...p, [k]: v })
+  const { people, orgs } = useAnnuaire()
+  // Changer le nom détache la fiche de l'annuaire (ce n'est peut-être plus la même personne)
+  const set = (k: keyof PersonneForm, v: string) =>
+    onChange({ ...p, [k]: v, contactId: ["firstName", "lastName", "societe", "kind"].includes(k) ? undefined : p.contactId })
+  const morale = p.kind === "morale"
+  const query = morale ? p.societe : `${p.firstName} ${p.lastName}`.trim()
+  const personSuggestions = p.contactId ? [] : searchPeople(people, query).map(personSuggestion)
+  const orgSuggestions = p.contactId ? [] : searchOrgs(orgs, query).map(orgSuggestion)
+
+  function pickPerson(cid: string) {
+    const c = people.find((x) => x.id === cid)
+    if (!c) return
+    onChange({ ...EMPTY_PERSONNE, firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "", contactId: c.id })
+  }
+  function pickOrg(oid: string) {
+    const o = orgs.find((x) => x.id === oid)
+    if (!o) return
+    onChange({ ...EMPTY_PERSONNE, kind: "morale", societe: o.nom, siret: o.siret ?? "", phone: o.phone ?? "", email: o.email ?? "", address: o.address ?? "", contactId: o.id })
+  }
+
+  // Anti-doublon : saisie à la main qui ressemble à une fiche existante
+  const similar = p.contactId
+    ? []
+    : morale
+      ? similarOrgs(orgs, { nom: p.societe, siret: p.siret, email: p.email }).map((s) => ({ ...s, entry: orgSuggestion(s.entry) }))
+      : similarPeople(people, p).map((s) => ({ ...s, entry: personSuggestion(s.entry) }))
+  const picked = p.contactId && (morale ? orgs.find((o) => o.id === p.contactId)?.nom : people.find((x) => x.id === p.contactId) && personneName(p))
+
+  const nameInput = (k: "firstName" | "lastName" | "societe") => (
+    <SuggestInput
+      id={`${id}-${k === "firstName" ? "first" : k === "lastName" ? "last" : "societe"}`}
+      value={p[k]}
+      onChange={(e) => set(k, e.target.value)}
+      suggestions={morale ? orgSuggestions : personSuggestions}
+      onPick={morale ? pickOrg : pickPerson}
+    />
+  )
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-2 sm:grid-cols-2">
@@ -812,7 +866,7 @@ function PersonneFields({ id, value: p, onChange }: { id: string; value: Personn
           <>
             <Field>
               <FieldLabel htmlFor={`${id}-societe`}>Nom de la société</FieldLabel>
-              <Input id={`${id}-societe`} value={p.societe} onChange={(e) => set("societe", e.target.value)} />
+              {nameInput("societe")}
             </Field>
             <Field>
               <FieldLabel htmlFor={`${id}-siret`}>N° de SIRET</FieldLabel>
@@ -823,11 +877,11 @@ function PersonneFields({ id, value: p, onChange }: { id: string; value: Personn
           <>
             <Field>
               <FieldLabel htmlFor={`${id}-first`}>Prénom</FieldLabel>
-              <Input id={`${id}-first`} value={p.firstName} onChange={(e) => set("firstName", e.target.value)} />
+              {nameInput("firstName")}
             </Field>
             <Field>
               <FieldLabel htmlFor={`${id}-last`}>Nom</FieldLabel>
-              <Input id={`${id}-last`} value={p.lastName} onChange={(e) => set("lastName", e.target.value)} />
+              {nameInput("lastName")}
             </Field>
           </>
         )}
@@ -844,7 +898,54 @@ function PersonneFields({ id, value: p, onChange }: { id: string; value: Personn
           <Input id={`${id}-address`} placeholder="N°, rue, code postal, ville" value={p.address} onChange={(e) => set("address", e.target.value)} />
         </Field>
       </div>
+      {picked ? (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-brand/[0.06] px-3 py-2 text-sm">
+          <BookUser className="size-4 shrink-0 text-brand-ink" />
+          <span>
+            Infos reprises de la fiche <span className="font-medium">{picked}</span>. Elles sont copiées dans le dossier : modifier la fiche plus tard ne
+            changera pas ce dossier.
+          </span>
+          <Button type="button" variant="ghost" size="xs" className="ml-auto" onClick={() => onChange({ ...p, contactId: undefined })}>
+            Ne pas lier
+          </Button>
+        </p>
+      ) : (
+        <SimilarAlert items={similar} onUse={morale ? pickOrg : pickPerson} />
+      )}
     </div>
+  )
+}
+
+/** Nom d'une organisation avec les suggestions de l'annuaire (compagnie, tiers) */
+function OrgSuggest({
+  id,
+  value,
+  onChange,
+  onPick,
+  types,
+  placeholder,
+}: {
+  id?: string
+  value: string
+  onChange: (nom: string) => void
+  onPick: (o: { nom: string; email?: string; phone?: string; address?: string }) => void
+  types?: OrgType[]
+  placeholder?: string
+}) {
+  const { orgs } = useAnnuaire()
+  const exact = orgs.some((o) => norm(o.nom) === norm(value))
+  return (
+    <SuggestInput
+      id={id}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      suggestions={exact ? [] : searchOrgs(orgs, value, types).map(orgSuggestion)}
+      onPick={(oid) => {
+        const o = orgs.find((x) => x.id === oid)
+        if (o) onPick(o)
+      }}
+    />
   )
 }
 
@@ -926,7 +1027,10 @@ export function AssignFields({
     [...allUsers(), ...added].filter((u) => u.role === role).map((u) => ({
       value: u.id,
       label: role === "reparateur" ? u.structure : fullName(u),
-      hint: u.load !== undefined ? `${u.load} dossiers` : added.includes(u) ? "Ajouté à la main" : undefined,
+      hint:
+        [role === "gestionnaire" && u.structure, u.load !== undefined ? `${u.load} dossiers` : added.includes(u) ? "Ajouté à la main" : undefined]
+          .filter(Boolean)
+          .join(" · ") || undefined,
     }))
   return (
     <div className="flex flex-col gap-4">

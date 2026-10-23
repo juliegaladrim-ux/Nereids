@@ -177,7 +177,10 @@ export type User = {
   role: RoleId
   firstName: string
   lastName: string
+  /** E-mail principal : connexion et notifications */
   email: string
+  /** Autres e-mails (secrétariat, comptabilité…), affichés sur la fiche — l'e-mail principal reste le seul utilisé pour l'outil */
+  autresEmails?: EmailSecondaire[]
   phone: string
   structure: string
   fonction: string
@@ -189,6 +192,9 @@ export type User = {
   /** Charge actuelle (nb dossiers actifs) — utile pour l'assignation */
   load?: number
 }
+
+/** E-mail secondaire d'un contact, avec un libellé libre (ex. « Secrétariat ») */
+export type EmailSecondaire = { email: string; label: string }
 
 export type Intervenants = {
   gestionnaire?: string
@@ -327,6 +333,8 @@ export type Personne = {
   email: string
   /** Adresse postale */
   address?: string
+  /** Fiche de l'annuaire d'où viennent ces infos (copiées à la création : le dossier n'est pas modifié si la fiche change) */
+  contactId?: string
 }
 
 /** Nom affiché : la société pour une personne morale, sinon prénom + nom */
@@ -337,8 +345,12 @@ export function personneName(p: Pick<Personne, "kind" | "firstName" | "lastName"
 
 /** Département d'intervention du dossier : saisi à la création, sinon déduit du code postal du client */
 export function dossierDepartement(d: Pick<Dossier, "departement" | "client">): string | undefined {
-  if (d.departement) return d.departement
-  const cp = d.client.address?.match(/\b(\d{5})\b/)?.[1]
+  return d.departement ?? departementFromAddress(d.client.address)
+}
+
+/** Département d'une adresse postale, d'après son code postal (« 43000 Le Puy » → « 43 Haute-Loire ») */
+export function departementFromAddress(address?: string): string | undefined {
+  const cp = address?.match(/\b(\d{5})\b/)?.[1]
   if (!cp) return undefined
   const code = cp.startsWith("20") ? (Number(cp) < 20200 ? "2A" : "2B") : cp.slice(0, 2)
   return Object.values(REGION_DEPARTEMENTS).flat().find((dep) => dep.startsWith(`${code} `))
@@ -500,6 +512,8 @@ export const USERS: User[] = [
 
   { id: "u-gest", role: "gestionnaire", firstName: "Julie", lastName: "Perrin", email: "julie.perrin@helpyou.fr", phone: "06 45 67 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 14 },
   { id: "u-gest2", role: "gestionnaire", firstName: "Nicolas", lastName: "Fabre", email: "nicolas.fabre@helpyou.fr", phone: "06 45 67 00 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 9 },
+  // Gestionnaire Nereids : mêmes droits que les gestionnaires Help You (point client 22/10)
+  { id: "u-gest-n", role: "gestionnaire", firstName: "Claire", lastName: "Dumas", email: "claire.dumas@nereids.fr", phone: "06 32 14 58 76", structure: "Nereids", fonction: "Gestionnaire de dossiers", region: "Auvergne-Rhône-Alpes", load: 8 },
   { id: "u-gest3", role: "gestionnaire", firstName: "Inès", lastName: "Haddad", email: "ines.haddad@helpyou.fr", phone: "06 45 11 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "42 boulevard Longchamp, 13001 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 17 },
 
   { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", email: "m.delorme@cabinet-delorme.fr", phone: "06 78 90 12 34", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", address: "7 place du Breuil, 43000 Le Puy-en-Velay", region: "Auvergne-Rhône-Alpes", load: 11 },

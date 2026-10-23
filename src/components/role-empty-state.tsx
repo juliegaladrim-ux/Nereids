@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import type { RoleId } from "@/lib/roles"
 
-type PageKey = "tableau-de-bord" | "dossiers" | "dossier" | "nouveau" | "archives" | "utilisateurs"
+type PageKey = "tableau-de-bord" | "dossiers" | "dossier" | "nouveau" | "archives" | "utilisateurs" | "annuaire"
 
 const TITLES: Record<PageKey, string> = {
   "tableau-de-bord": "Tableau de bord",
@@ -16,6 +16,7 @@ const TITLES: Record<PageKey, string> = {
   nouveau: "Nouveau dossier",
   archives: "Archives",
   utilisateurs: "Gestion des utilisateurs",
+  annuaire: "Annuaire",
 }
 
 /** Ce qui est prévu pour chaque espace (source : parcours FigJam + CDC) */

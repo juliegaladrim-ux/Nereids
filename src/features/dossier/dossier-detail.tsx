@@ -76,6 +76,7 @@ import {
   type Personne,
   type SinistreType,
   type SuiveurRequest,
+  type User,
 } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
 import { formatDate, formatDateTime, formatLongDate, relativeDays } from "@/lib/format"
@@ -87,6 +88,9 @@ import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
 import { EditIntervenantDialog, RemoveIntervenantDialog, type IntervenantSlot } from "./intervenant-dialogs"
+
+/** Émis par le bandeau du prototype (detail : id du dossier) */
+export const REPARATEUR_PROMPT_EVENT = "proto:reparateur-prompt"
 
 type DialogId = "status" | "close" | "assign" | "relance" | "doc" | null
 
@@ -119,6 +123,15 @@ export function DossierDetail({ id }: { id: string }) {
   React.useEffect(() => {
     if (trackVisit) logConsultation(id, user.id)
   }, [trackVisit, id, user.id, logConsultation])
+
+  // Proto client : choisir l'étape « Recours validé » dans le bandeau du prototype demande le réparateur
+  const [reparateurPrompt, setReparateurPrompt] = React.useState(false)
+  React.useEffect(() => {
+    if (!isClient) return
+    const open = (e: Event) => (e as CustomEvent<string>).detail === id && setReparateurPrompt(true)
+    window.addEventListener(REPARATEUR_PROMPT_EVENT, open)
+    return () => window.removeEventListener(REPARATEUR_PROMPT_EVENT, open)
+  }, [isClient, id])
 
   if (!d) {
     return (
@@ -178,29 +191,48 @@ export function DossierDetail({ id }: { id: string }) {
   // Expertises multiples et convoqués : admin, expert et gestionnaire (CDC v2 : expertise à planifier, convocations)
   const canManageExpertise = role.id === "admin" || role.id === "expert" || role.id === "gestionnaire"
 
-  /** Le client indique son garage : message à Nereids, qui l'ajoute comme intervenant */
-  function suggestReparateur() {
-    setEdit({
+  /** Le client indique son garage : il apparaît aussitôt dans les intervenants du dossier, Nereids le contacte */
+  function reparateurSection(afterRecours = false): EditSection {
+    return {
       title: "Indiquer mon réparateur",
-      description: "Nereids contactera le garage et l'ajoutera à votre dossier.",
+      description: afterRecours
+        ? "Votre recours est validé. Indiquez le garage qui réparera votre véhicule : il sera ajouté à votre dossier et Nereids le contactera."
+        : "Le garage sera ajouté à votre dossier et Nereids le contactera.",
+      ...(afterRecours && { cancelLabel: "Plus tard" }),
       fields: [
         { key: "garage", label: "Nom du garage", full: true },
+        { key: "adresse", label: "Adresse", full: true },
         { key: "ville", label: "Ville" },
         { key: "phone", label: "Téléphone", type: "tel" },
       ],
-      initial: { garage: "", ville: "", phone: "" },
+      initial: { garage: "", adresse: "", ville: "", phone: "" },
+      required: ["garage"],
       onSave: (v) => {
-        if (!v.garage.trim()) return
+        const garage: User = {
+          id: `u-rep-${Date.now()}`,
+          role: "reparateur",
+          firstName: "",
+          lastName: "",
+          email: "",
+          phone: v.phone.trim(),
+          structure: v.garage.trim(),
+          fonction: "",
+          address: opt([v.adresse, v.ville].map((x) => x.trim()).filter(Boolean).join(", ")),
+        }
+        updateDossier(d!.id, (x) => ({
+          ...x,
+          intervenants: { ...x.intervenants, reparateur: garage.id },
+          extraIntervenants: [...(x.extraIntervenants ?? []), garage],
+        }))
         addEvent(d!.id, {
-          kind: "message",
+          kind: "assignation",
           author: user.id,
-          title: "Message",
-          body: `Mon réparateur : ${[v.garage, v.ville, v.phone].filter((x) => x.trim()).join(" · ")}`,
-          recipients: ["admin"],
+          title: "Réparateur indiqué par le client",
+          body: [garage.structure, garage.address, garage.phone].filter(Boolean).join(" · "),
         })
-        toast.success("Réparateur transmis à Nereids")
+        toast.success("Réparateur ajouté à votre dossier", { description: "Nereids va prendre contact avec le garage." })
       },
-    })
+    }
   }
 
   /** Le client demande l'ouverture d'un compte pour un intervenant suiveur (avocat…) : Nereids crée le compte */
@@ -538,7 +570,7 @@ export function DossierDetail({ id }: { id: string }) {
             onAssign={rights.assign ? () => setDialog("assign") : undefined}
             onEditIntervenant={rights.assign ? setEditSlot : undefined}
             onRemoveIntervenant={rights.assign ? setRemoveSlot : undefined}
-            onSuggestReparateur={isClient && !closed && !d.intervenants.reparateur ? suggestReparateur : undefined}
+            onSuggestReparateur={isClient && !closed && !d.intervenants.reparateur ? () => setEdit(reparateurSection()) : undefined}
             pending={pendingRequests}
             onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
           />
@@ -581,6 +613,7 @@ export function DossierDetail({ id }: { id: string }) {
       <AssignDialog key={`a-${JSON.stringify(d.intervenants)}`} dossier={d} open={dialog === "assign"} onOpenChange={(o) => setDialog(o ? "assign" : null)} />
       <RelanceDialog key={`r-${d.pilotage.attente}`} dossier={d} open={dialog === "relance"} onOpenChange={(o) => setDialog(o ? "relance" : null)} />
       <EditDialog key={edit ? `${edit.title}-${d.updatedAt}` : "none"} section={edit} onOpenChange={(o) => !o && setEdit(null)} />
+      <EditDialog key={`rp-${reparateurPrompt}`} section={reparateurPrompt ? reparateurSection(true) : null} onOpenChange={(o) => !o && setReparateurPrompt(false)} />
       <AddDocDialog dossier={d} defaultCategory={docCategory} categories={rights.docCategories} open={dialog === "doc"} onOpenChange={(o) => setDialog(o ? "doc" : null)} />
     </>
   )
@@ -741,7 +774,7 @@ function Intervenants({
                   <p className={cn("truncate", u ? "font-medium" : "text-muted-foreground italic")}>{u ? fullName(u) : "Non assigné"}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {r.label}
-                    {u && ` · ${u.structure}`}
+                    {u && u.structure !== fullName(u) && ` · ${u.structure}`}
                   </p>
                   {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
                 </div>

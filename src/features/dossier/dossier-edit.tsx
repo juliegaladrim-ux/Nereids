@@ -35,6 +35,8 @@ export type EditSection = {
   onSave: (v: Values) => void
   /** Libellé du bouton de validation (défaut : « Enregistrer ») */
   submitLabel?: string
+  /** Libellé du bouton de fermeture (défaut : « Annuler ») */
+  cancelLabel?: string
   /** Champs obligatoires : le bouton reste désactivé tant qu'ils sont vides */
   required?: string[]
 }
@@ -91,7 +93,7 @@ export function EditDialog({ section, onOpenChange }: { section: EditSection | n
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annuler
+            {section?.cancelLabel ?? "Annuler"}
           </Button>
           <Button onClick={save} disabled={section?.required?.some((k) => !v[k]?.trim())}>
             {section?.submitLabel ?? "Enregistrer"}

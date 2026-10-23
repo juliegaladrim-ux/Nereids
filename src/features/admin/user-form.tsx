@@ -7,12 +7,15 @@ import { SimpleSelect } from "@/components/simple-select"
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { REGION_DEPARTEMENTS, type User } from "@/lib/data"
+import { EmailsField, SimilarAlert, SuggestInput, cleanEmails, orgSuggestion } from "@/features/annuaire/annuaire-fields"
+import { ORG_TYPES, ROLE_ORG, norm, searchOrgs, similarOrgs, useAnnuaire } from "@/lib/annuaire"
+import { REGION_DEPARTEMENTS, type EmailSecondaire, type User } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
 /**
- * Fiche d'un utilisateur (CDC §16 : nom, prénom, fonction, structure, téléphone, e-mail + zone d'intervention).
+ * Fiche d'un utilisateur (CDC §16 : nom, prénom, fonction, structure, téléphone, e-mail + zone d'intervention ;
+ * point client 22/10 : adresse postale, plusieurs e-mails, expert rattaché à un cabinet de l'annuaire).
  * Même formulaire partout où Nereids ajoute quelqu'un : onglet « Utilisateurs » et ajout d'un intervenant
  * hors liste lors d'une assignation dans un dossier. Dans les deux cas, la personne est invitée par e-mail
  * et apparaît dans « Utilisateurs » avec le statut « Invité ».
@@ -25,11 +28,13 @@ export type FormValues = {
   structure: string
   phone: string
   email: string
+  autresEmails: EmailSecondaire[]
+  address: string
   region: string
   departements: string[]
 }
 
-type TextKey = Exclude<keyof FormValues, "region" | "departements">
+type TextKey = Exclude<keyof FormValues, "region" | "departements" | "autresEmails">
 
 export const toForm = (u?: Partial<User>): FormValues => ({
   firstName: u?.firstName ?? "",
@@ -38,6 +43,8 @@ export const toForm = (u?: Partial<User>): FormValues => ({
   structure: u?.structure ?? "",
   phone: u?.phone ?? "",
   email: u?.email ?? "",
+  autresEmails: u?.autresEmails ?? [],
+  address: u?.address ?? "",
   region: u?.region ?? "",
   departements: u?.departements ?? [],
 })
@@ -47,14 +54,21 @@ export const hasZone = (role: RoleId | null) => role !== "admin"
 
 export function cleanValues(v: FormValues): Partial<User> {
   const text = Object.fromEntries((["firstName", "lastName", "fonction", "structure", "phone", "email"] as TextKey[]).map((k) => [k, v[k].trim()]))
-  return { ...text, region: v.region || undefined, departements: v.region ? v.departements : undefined }
+  const autresEmails = cleanEmails(v.autresEmails)
+  return {
+    ...text,
+    autresEmails: autresEmails.length ? autresEmails : undefined,
+    address: v.address.trim() || undefined,
+    region: v.region || undefined,
+    departements: v.region ? v.departements : undefined,
+  }
 }
 
-/** Réparateur : le garage suffit ; sinon prénom + nom */
+/** Réparateur : le garage suffit ; sinon prénom + nom. Un expert est toujours rattaché à un cabinet. */
 export function missingFields(role: RoleId | null, v: FormValues): Partial<Record<keyof FormValues, boolean>> {
   const garage = role === "reparateur"
   return {
-    structure: garage && !v.structure.trim(),
+    structure: (garage || role === "expert") && !v.structure.trim(),
     firstName: !garage && !v.firstName.trim(),
     lastName: !garage && !v.lastName.trim(),
     email: !/^\S+@\S+\.\S+$/.test(v.email.trim()),
@@ -84,14 +98,35 @@ export function UserFields({
       </Field>
     )
   }
+  const org = (
+    <div className="sm:col-span-2">
+      {role && ROLE_ORG[role] ? (
+        <OrgField role={role} value={v.structure} onChange={(structure) => setV((p) => ({ ...p, structure }))} invalid={tried && !!missing.structure} />
+      ) : (
+        field("structure", "Structure")
+      )}
+    </div>
+  )
+  // Expert : on demande d'abord le cabinet
+  const orgFirst = role === "expert"
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      {orgFirst && org}
       {field("firstName", role === "reparateur" ? "Prénom (optionnel)" : "Prénom")}
       {field("lastName", role === "reparateur" ? "Nom (optionnel)" : "Nom")}
-      <div className="sm:col-span-2">{field("structure", role === "reparateur" ? "Garage" : role === "expert" ? "Cabinet (optionnel)" : "Structure")}</div>
+      {!orgFirst && org}
       <div className="sm:col-span-2">{field("fonction", "Fonction (optionnel)")}</div>
-      <div className="sm:col-span-2">{field("email", "E-mail", "email")}</div>
+      <div className="sm:col-span-2">
+        <EmailsField
+          id="user"
+          value={{ email: v.email, autresEmails: v.autresEmails }}
+          onChange={(e) => setV((p) => ({ ...p, ...e }))}
+          invalid={tried && !!missing.email}
+          description="Utilisé pour la connexion et les notifications. Les autres e-mails sont affichés sur sa fiche."
+        />
+      </div>
       <div className="sm:col-span-2">{field("phone", "Téléphone (optionnel)", "tel")}</div>
+      <div className="sm:col-span-2">{field("address", "Adresse postale (optionnel)")}</div>
       {hasZone(role) && (
         <>
           <Field data-invalid={tried && missing.region ? true : undefined} className="sm:col-span-2">
@@ -112,6 +147,45 @@ export function UserFields({
           </Field>
         </>
       )}
+    </div>
+  )
+}
+
+const ORG_LABEL: Partial<Record<RoleId, string>> = { expert: "Cabinet", reparateur: "Garage", suiveur: "Structure (optionnel)" }
+
+/**
+ * Cabinet de l'expert, garage du réparateur, structure du suiveur : on choisit la fiche de l'annuaire
+ * pour ne pas créer « Cabinet Delorme » et « Cab. Delorme Expertise » en double. Un nom inconnu crée la fiche.
+ */
+function OrgField({ role, value, onChange, invalid }: { role: RoleId; value: string; onChange: (v: string) => void; invalid: boolean }) {
+  const { orgs } = useAnnuaire()
+  const type = ROLE_ORG[role]!
+  const ofType = orgs.filter((o) => o.type === type)
+  const exact = ofType.find((o) => norm(o.nom) === norm(value))
+  const similar = exact || !value.trim() ? [] : similarOrgs(ofType, { nom: value })
+  return (
+    <div className="flex flex-col gap-2">
+      <Field data-invalid={invalid || undefined}>
+        <FieldLabel htmlFor="user-structure">{ORG_LABEL[role]}</FieldLabel>
+        <SuggestInput
+          id="user-structure"
+          value={value}
+          aria-invalid={invalid || undefined}
+          placeholder={`Rechercher : ${ORG_TYPES[type].label.toLowerCase()}`}
+          onChange={(e) => onChange(e.target.value)}
+          suggestions={(exact ? [] : searchOrgs(ofType, value)).map(orgSuggestion)}
+          onPick={(id) => onChange(orgs.find((o) => o.id === id)?.nom ?? value)}
+        />
+        {value.trim() && !exact && similar.length === 0 && (
+          <FieldDescription>Nouvelle fiche « {ORG_TYPES[type].label} » : elle sera ajoutée à l&apos;annuaire.</FieldDescription>
+        )}
+      </Field>
+      <SimilarAlert
+        title="Une fiche proche existe"
+        action="Choisir"
+        items={similar.map((s) => ({ ...s, entry: orgSuggestion(s.entry) }))}
+        onUse={(id) => onChange(orgs.find((o) => o.id === id)?.nom ?? value)}
+      />
     </div>
   )
 }

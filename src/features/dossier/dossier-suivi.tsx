@@ -158,8 +158,8 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
               <li key={e.id} className={cn("relative flex items-center gap-3", events[i + 1]?.kind === "consultation" ? "pb-2" : "pb-5")}>
                 {line}
                 <span className="z-10 grid size-8 shrink-0 place-items-center">
-                  <span className="grid size-6 place-items-center rounded-full border border-dashed bg-background">
-                    <Icon className="size-3 text-muted-foreground" />
+                  <span className="grid size-6 place-items-center rounded-full border border-dashed border-foreground/20 bg-background">
+                    <Icon className="size-3 text-foreground/60" />
                   </span>
                 </span>
                 <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
@@ -176,9 +176,22 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
               {line}
               {isMsg && author ? (
                 <UserAvatar user={author} className="size-8" />
+              ) : author && !step ? (
+                // Action d'un intervenant : son avatar coloré, le type d'action en pastille
+                <span className="relative z-10 size-8 shrink-0">
+                  <UserAvatar user={author} className="size-8" />
+                  <span className="absolute -right-1 -bottom-1 grid size-[18px] place-items-center rounded-full border border-foreground/15 bg-background">
+                    <Icon className="size-2.5 text-foreground/70" />
+                  </span>
+                </span>
               ) : (
-                <span className={cn("z-10 grid size-8 shrink-0 place-items-center rounded-full border bg-background", step && "border-brand/40 bg-brand-soft")}>
-                  <Icon className={cn("size-3.5 text-muted-foreground", step && "text-brand-ink")} />
+                <span
+                  className={cn(
+                    "z-10 grid size-8 shrink-0 place-items-center rounded-full border border-foreground/15 bg-background",
+                    step && "border-brand/40 bg-brand-soft",
+                  )}
+                >
+                  <Icon className={cn("size-4 text-foreground/70", step && "text-brand-ink")} />
                 </span>
               )}
               <div className="min-w-0 flex-1 pt-1">

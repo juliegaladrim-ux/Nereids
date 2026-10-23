@@ -17,23 +17,25 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
+import { SimilarAlert, SuggestInput, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import { DEFAULT_STRUCTURE, UserFields, cleanValues, missingFields, newUser, toForm, type FormValues } from "@/features/admin/user-form"
 import { USERS, allUsers, fullName, personneName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
+import { searchPeople, similarPeople, toContact, useAnnuaire } from "@/lib/annuaire"
 import { formatDate } from "@/lib/format"
-import { ROLES, type RoleId } from "@/lib/roles"
+import { PROFILES, ROLES, getProfile, userProfile, type ProfileId, type RoleId } from "@/lib/roles"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 // ─── Statut du compte (CDC §16) ─────────────────────────────────────────────────
 
-type AccountStatus = "actif" | "invite"
+export type AccountStatus = "actif" | "invite"
 
 const STATUS: Record<AccountStatus, { label: string; className: string; dot: string }> = {
   actif: { label: "Actif", className: "bg-tone-done-bg text-tone-done", dot: "bg-tone-done" },
   invite: { label: "Invité", className: "bg-tone-waiting-bg text-tone-waiting", dot: "bg-tone-waiting" },
 }
 
-const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.id, r.id === "admin" ? "Admin Nereids" : r.short])) as Record<RoleId, string>
+const profileShort = (u: User) => PROFILES.find((p) => p.id === userProfile(u))?.short ?? u.role
 const ROLE_ORDER = ROLES.map((r) => r.id)
 /**
  * Deux groupes : l'équipe qui pilote les dossiers (Nereids + Help You) et les intervenants externes.
@@ -52,7 +54,8 @@ const GROUPS: Record<Group, { label: string; roles: RoleId[]; add: string }> = {
     add: "Ajouter un intervenant",
   },
 }
-const groupRoles = (g: Group) => ROLES.filter((r) => GROUPS[g].roles.includes(r.id))
+/** Profils proposés dans un groupe (l'équipe compte admins, gestionnaires Nereids et gestionnaires Help You) */
+const groupProfiles = (g: Group) => PROFILES.filter((p) => GROUPS[g].roles.includes(p.role))
 
 /** Utilisateurs de démo : comptes déjà actifs (sauf compte invité explicite, ex. le suiveur à activer) */
 const SEED_IDS = new Set(USERS.map((u) => u.id))
@@ -69,7 +72,7 @@ const involves = (d: Dossier, id: string) =>
 
 const isActive = (d: Dossier) => d.status !== "cloture" && d.status !== "archive"
 
-function intervenantStatus(id: string, a?: Account): AccountStatus {
+export function intervenantStatus(id: string, a?: Account): AccountStatus {
   if (a) return a.activatedAt ? "actif" : "invite"
   return SEED_IDS.has(id) ? "actif" : "invite"
 }
@@ -109,7 +112,7 @@ export function UsersPage() {
   const inGroup = (g: Group) => rows.filter((r) => GROUPS[g].roles.includes(r.user.role))
   const visible = inGroup(group)
     .filter((r) => !query || [fullName(r.user), r.user.email, r.user.structure, r.user.phone].some((v) => v?.toLowerCase().includes(query)))
-    .filter((r) => roles.length === 0 || roles.includes(r.user.role))
+    .filter((r) => roles.length === 0 || roles.includes(userProfile(r.user) ?? ""))
     .filter((r) => statuses.length === 0 || statuses.includes(r.status))
   const hasFilters = q || roles.length > 0 || statuses.length > 0
 
@@ -148,7 +151,7 @@ export function UsersPage() {
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, e-mail, structure…" className="h-8 rounded-full pl-9" />
         </div>
-        <FilterPill value={roles} onChange={setRoles} label="Rôle" options={groupRoles(group).map((r) => ({ value: r.id, label: ROLE_LABEL[r.id] }))} />
+        <FilterPill value={roles} onChange={setRoles} label="Rôle" options={groupProfiles(group).map((p) => ({ value: p.id, label: p.short }))} />
         <FilterPill
           value={statuses}
           onChange={setStatuses}
@@ -206,7 +209,7 @@ export function UsersPage() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{ROLE_LABEL[r.user.role]}</TableCell>
+                <TableCell>{profileShort(r.user)}</TableCell>
                 <TableCell>
                   {r.user.structure || "—"}
                   {r.user.fonction && <div className="text-xs text-muted-foreground">{r.user.fonction}</div>}
@@ -246,7 +249,7 @@ export function UsersPage() {
   )
 }
 
-function AccountBadge({ status }: { status: AccountStatus }) {
+export function AccountBadge({ status }: { status: AccountStatus }) {
   const s = STATUS[status]
   return (
     <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold whitespace-nowrap", s.className)}>
@@ -257,25 +260,54 @@ function AccountBadge({ status }: { status: AccountStatus }) {
 }
 
 function AddUser({ group, onDone }: { group: Group; onDone: () => void }) {
-  const { inviteUser } = useStore()
-  const [role, setRole] = React.useState<RoleId | null>(null)
+  const { inviteUser, saveContact } = useStore()
+  const { people } = useAnnuaire()
+  const [profile, setProfile] = React.useState<ProfileId | null>(null)
+  const role: RoleId | null = profile ? getProfile(profile).role : null
   const [v, setV] = React.useState<FormValues>(toForm())
   const [tried, setTried] = React.useState(false)
+  /** Fiche de l'annuaire (personne sans compte) à partir de laquelle on ouvre le compte */
+  const [fromContact, setFromContact] = React.useState<string | null>(null)
+  const [search, setSearch] = React.useState("")
   const missing = missingFields(role, v)
   const invalidRole = tried && !role
 
-  function chooseRole(r: RoleId) {
-    setRole(r)
+  // Anti-doublon : la personne a peut-être déjà une fiche (avec ou sans compte)
+  const similar = similarPeople(people, v, fromContact ?? undefined)
+  const withAccount = similar.filter((s) => s.entry.user && s.entry.user.role !== "client")
+  const withoutAccount = similar.filter((s) => !s.entry.user)
+  const sameEmailUser = withAccount.some((s) => s.reason === "même e-mail")
+
+  function pickContact(id: string) {
+    const c = people.find((p) => p.id === id)
+    if (!c) return
+    setFromContact(id)
+    setSearch("")
+    setV((p) => ({
+      ...toForm({ ...c, structure: c.org?.nom ?? p.structure, phone: c.phone ?? "", email: c.email ?? "", fonction: c.fonction ?? "" }),
+      region: p.region,
+      departements: p.departements,
+    }))
+  }
+
+  function chooseProfile(id: ProfileId) {
+    setProfile(id)
+    const structure = getProfile(id).structure ?? ""
     // Pré-remplit la structure tant qu'elle n'a pas été saisie à la main
-    setV((p) => (!p.structure || Object.values(DEFAULT_STRUCTURE).includes(p.structure) ? { ...p, structure: DEFAULT_STRUCTURE[r] ?? "" } : p))
+    setV((p) => (!p.structure || ["Nereids", "Help You", ...Object.values(DEFAULT_STRUCTURE)].includes(p.structure) ? { ...p, structure } : p))
   }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     setTried(true)
-    if (!role || Object.values(missing).some(Boolean)) return
+    if (!role || Object.values(missing).some(Boolean) || sameEmailUser) return
     const user = newUser(role, v)
     inviteUser(user)
+    // La fiche sans compte devient celle de l'utilisateur : une seule personne dans l'annuaire
+    const c = people.find((p) => p.id === fromContact)
+    if (c) {
+      saveContact({ ...toContact(c), userId: user.id })
+    }
     toast.success("Invitation envoyée", { description: `${fullName(user)} recevra un e-mail pour activer son compte.` })
     onDone()
   }
@@ -287,24 +319,48 @@ function AddUser({ group, onDone }: { group: Group; onDone: () => void }) {
         <DialogDescription>Il recevra une invitation par e-mail pour activer son compte.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4">
+          <Field>
+            <FieldLabel htmlFor="user-search">Rechercher dans l&apos;annuaire</FieldLabel>
+            <SuggestInput
+              id="user-search"
+              placeholder="Nom, e-mail, téléphone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              suggestions={searchPeople(
+                people.filter((p) => !p.user),
+                search,
+              ).map(personSuggestion)}
+              onPick={pickContact}
+            />
+            <FieldDescription>
+              {fromContact
+                ? "Infos reprises de la fiche de l'annuaire : le compte sera rattaché à cette fiche."
+                : "Si la personne est déjà dans l'annuaire (client, contact d'un dossier…), reprenez sa fiche pour éviter un doublon."}
+            </FieldDescription>
+          </Field>
           <Field data-invalid={invalidRole || undefined}>
             <FieldLabel htmlFor="user-role">Rôle</FieldLabel>
             <SimpleSelect
               id="user-role"
               placeholder="Choisir"
-              value={role}
-              onChange={(r) => r && chooseRole(r as RoleId)}
-              options={groupRoles(group).map((r) => ({ value: r.id, label: r.label }))}
+              value={profile}
+              onChange={(r) => r && chooseProfile(r as ProfileId)}
+              options={groupProfiles(group).map((p) => ({ value: p.id, label: p.label }))}
             />
             {group === "intervenants" && <FieldDescription>Les clients sont invités depuis leur dossier.</FieldDescription>}
           </Field>
         <UserFields v={v} setV={setV} missing={missing} tried={tried} role={role} />
+        <SimilarAlert
+          title={sameEmailUser ? "Cette personne a déjà un compte" : "Un compte proche existe déjà"}
+          items={withAccount.map((s) => ({ ...s, entry: personSuggestion(s.entry) }))}
+        />
+        <SimilarAlert items={withoutAccount.map((s) => ({ ...s, entry: personSuggestion(s.entry) }))} onUse={pickContact} />
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
           Annuler
         </Button>
-        <Button type="submit">
+        <Button type="submit" disabled={sameEmailUser}>
           <Send /> Envoyer l&apos;invitation
         </Button>
       </DialogFooter>
@@ -348,7 +404,7 @@ function EditUser({ row, onDone }: { row: Row; onDone: () => void }) {
       <DialogHeader>
         <UserAvatar user={user} className="mb-1 size-11 text-sm" />
         <DialogTitle>{fullName(user)}</DialogTitle>
-        <DialogDescription>{ROLES.find((r) => r.id === user.role)?.label}</DialogDescription>
+        <DialogDescription>{PROFILES.find((p) => p.id === userProfile(user))?.label}</DialogDescription>
       </DialogHeader>
 
       <div>

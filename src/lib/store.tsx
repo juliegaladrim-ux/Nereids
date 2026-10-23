@@ -17,6 +17,7 @@ import {
   withDemoExpertise,
   withRef,
 } from "./data"
+import type { AnnuaireData, Contact, Organisation } from "./annuaire"
 
 /**
  * Store du prototype : données fictives en mémoire, persistées dans le
@@ -26,6 +27,8 @@ import {
 
 const STORAGE_KEY = "nereids-proto-v10"
 const ACCOUNTS_KEY = "nereids-proto-accounts-v1"
+const ANNUAIRE_KEY = "nereids-proto-annuaire-v1"
+const EMPTY_ANNUAIRE: AnnuaireData = { contacts: {}, orgs: {} }
 
 type Store = {
   dossiers: Dossier[]
@@ -47,6 +50,10 @@ type Store = {
   inviteUser: (u: User) => void
   /** Remet un compte dans son état de départ (pour rejouer l'activation) */
   resetAccount: (userId: string) => void
+  /** Fiches de l'annuaire ajoutées ou modifiées (le reste est déduit des utilisateurs et des dossiers) */
+  annuaire: AnnuaireData
+  saveContact: (c: Contact) => void
+  saveOrg: (o: Organisation) => void
   reset: () => void
 }
 
@@ -56,10 +63,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Données chargées uniquement côté navigateur : dates relatives + localStorage
   const [dossiers, setDossiers] = React.useState<Dossier[] | null>(null)
   const [accounts, setAccounts] = React.useState<Record<string, Account>>({})
+  const [annuaire, setAnnuaire] = React.useState<AnnuaireData>(EMPTY_ANNUAIRE)
 
   React.useEffect(() => {
     let initial: Dossier[] | null = null
     let initialAccounts: Record<string, Account> | null = null
+    let initialAnnuaire: AnnuaireData | null = null
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY)
       // Données déjà sauvegardées : on y ajoute les consultations fictives et les notes internes d'exemple si elles n'existent pas encore
@@ -77,10 +86,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       const rawAccounts = window.localStorage.getItem(ACCOUNTS_KEY)
       if (rawAccounts) initialAccounts = JSON.parse(rawAccounts)
+      const rawAnnuaire = window.localStorage.getItem(ANNUAIRE_KEY)
+      if (rawAnnuaire) initialAnnuaire = JSON.parse(rawAnnuaire)
     } catch {}
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydratation côté client
     setDossiers(initial ?? seedDossiers())
     setAccounts(initialAccounts ?? seedAccounts())
+    setAnnuaire(initialAnnuaire ?? EMPTY_ANNUAIRE)
   }, [])
 
   React.useEffect(() => {
@@ -96,6 +108,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
     } catch {}
   }, [accounts, dossiers])
+
+  React.useEffect(() => {
+    if (!dossiers) return
+    try {
+      window.localStorage.setItem(ANNUAIRE_KEY, JSON.stringify(annuaire))
+    } catch {}
+  }, [annuaire, dossiers])
 
   // Les coordonnées vérifiées à l'activation remplacent celles saisies par Nereids
   registerProfiles(Object.fromEntries(Object.entries(accounts).flatMap(([id, a]) => (a.profile ? [[id, a.profile]] : []))))
@@ -172,16 +191,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const rest = Object.fromEntries(Object.entries(all).filter(([id]) => id !== userId))
           return seed ? { ...rest, [userId]: seed } : rest
         }),
+      annuaire,
+      saveContact: (c) => setAnnuaire((a) => ({ ...a, contacts: { ...a.contacts, [c.id]: c } })),
+      saveOrg: (o) => setAnnuaire((a) => ({ ...a, orgs: { ...a.orgs, [o.id]: o } })),
       reset: () => {
         try {
           window.localStorage.removeItem(STORAGE_KEY)
           window.localStorage.removeItem(ACCOUNTS_KEY)
+          window.localStorage.removeItem(ANNUAIRE_KEY)
         } catch {}
         setDossiers(seedDossiers())
         setAccounts(seedAccounts())
+        setAnnuaire(EMPTY_ANNUAIRE)
       },
     },
-    [dossiers, accounts],
+    [dossiers, accounts, annuaire],
   )
 
   if (!value) return null

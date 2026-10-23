@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { initials } from "@/lib/format"
-import type { RoleId } from "@/lib/roles"
+import { userProfile, type RoleId } from "@/lib/roles"
 
 /** Couleur d'identification par rôle (tokens --role-* de globals.css) : même code partout dans le dossier */
 const ROLE_COLORS: Record<RoleId, string> = {
@@ -19,14 +19,22 @@ export function UserAvatar({
   role = user?.role,
   className,
 }: {
-  user?: { firstName: string; lastName: string; role?: RoleId }
+  user?: { firstName: string; lastName: string; role?: RoleId; structure?: string }
   role?: RoleId
   className?: string
 }) {
   return (
     <Avatar className={cn("size-7", className)}>
-      <AvatarFallback className={cn("bg-brand/10 text-[0.7rem] font-medium text-brand-ink", role && ROLE_COLORS[role])}>
-        {user ? initials(user.firstName, user.lastName) : "?"}
+      <AvatarFallback
+        className={cn(
+          "bg-brand/10 text-[0.7rem] font-medium text-brand-ink",
+          role && ROLE_COLORS[role],
+          // Gestionnaire Nereids : bleu de la marque (point client 22/10)
+          role === "gestionnaire" && user && userProfile({ role, structure: user.structure }) === "gestionnaire_nereids" && "bg-brand-soft text-brand-ink",
+        )}
+      >
+        {/* Réparateur saisi sans contact : initiale du garage */}
+        {user ? initials(user.firstName, user.lastName) || initials(user.structure) : "?"}
       </AvatarFallback>
     </Avatar>
   )
