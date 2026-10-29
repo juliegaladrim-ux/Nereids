@@ -209,9 +209,6 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
-        <p className="px-4 py-3 text-xs text-muted-foreground">
-          {rows.length} dossier{rows.length > 1 ? "s" : ""}
-        </p>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
