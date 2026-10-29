@@ -205,12 +205,7 @@ export function ExpertiseParcoursBanner({
   return (
     <>
       {content && (
-        <div
-          className={cn(
-            "mb-6 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:gap-4",
-            content.waiting ? "bg-card" : "border-brand/30 bg-brand-soft",
-          )}
-        >
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:gap-4">
           <span
             className={cn(
               "grid size-10 shrink-0 place-items-center rounded-lg [&_svg]:size-5",
@@ -311,8 +306,8 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
         </DialogHeader>
 
         <FormSection n={1} title="Mission">
-          <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
-            <Field>
+          <div className="grid gap-4">
+            <Field className="sm:max-w-40">
               <FieldLabel htmlFor="p-honoraires">Honoraires *</FieldLabel>
               <div className="relative">
                 <Input id="p-honoraires" inputMode="decimal" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} className="pr-8" />

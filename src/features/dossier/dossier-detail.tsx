@@ -531,7 +531,7 @@ export function DossierDetail({ id }: { id: string }) {
       {isClient && !d.clientAccess?.submittedAt && d.clientAccess && (
         <Link
           href={`/activation/${d.id}${d.clientAccess.activatedAt ? "?etape=infos" : ""}`}
-          className="mb-6 flex items-center gap-4 rounded-xl border border-brand/30 bg-brand-soft p-4 transition-colors hover:border-brand"
+          className="mb-6 flex items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-brand"
         >
           <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-primary-foreground [&_svg]:size-5">
             <Mail />
@@ -546,7 +546,7 @@ export function DossierDetail({ id }: { id: string }) {
 
       {/* Client : lieu de l'expertise pas indiqué à l'activation */}
       {isClient && d.clientAccess?.submittedAt && !d.lieuClient && !closed && !d.expertise.date && (
-        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-brand/30 bg-brand-soft p-4 sm:flex-row sm:items-center sm:gap-4">
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:gap-4">
           <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-primary-foreground [&_svg]:size-5">
             <MapPin />
           </span>
@@ -898,7 +898,7 @@ function Intervenants({
 function SuiveurRequestBanner({ request: r, onCreate, onRefuse }: { request: SuiveurRequest; onCreate: () => void; onRefuse: () => void }) {
   const author = getUser(r.requestedBy)
   return (
-    <div className="mb-6 flex flex-col gap-3 rounded-xl border border-brand/30 bg-brand-soft p-4 sm:flex-row sm:items-center sm:gap-4">
+    <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:gap-4">
       <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-primary-foreground [&_svg]:size-5">
         <UserPlus />
       </span>
