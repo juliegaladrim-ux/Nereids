@@ -1034,7 +1034,8 @@ export function seedDossiers(): Dossier[] {
       compagnie: { nom: "Assurances Atlantique", email: "litiges@atlantique-assur.fr" },
       refs: { sinistre: "AT-SIN-12093" },
       region: "Provence-Alpes-Côte d'Azur",
-      intervenants: { gestionnaire: "u-gest3", expert: "u-expert3", suiveurs: ["u-suiveur2"] },
+      // Julie Perrin est aussi mandatée par Sud Expert (abonnement Téléphonie seule) : droits réduits sur ce dossier
+      intervenants: { gestionnaire: "u-gest", expert: "u-expert3", suiveurs: ["u-suiveur2"] },
       pilotage: {
         ouEnEst: "Étude en cours : photos insuffisantes pour l'expert.",
         attente: "Au moins 3 photos du dommage (1 reçue)",

@@ -265,11 +265,11 @@ export function UsersPage() {
 
       {/* Modales centrées, comme partout dans le proto (ajout d'un intervenant depuis un dossier, etc.) */}
       <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent className="sm:max-w-md">{adding && <AddUser group={group} onDone={() => setAdding(false)} />}</DialogContent>
+        <DialogContent>{adding && <AddUser group={group} onDone={() => setAdding(false)} />}</DialogContent>
       </Dialog>
 
       <Dialog open={!!open} onOpenChange={(o) => !o && setOpenKey(null)}>
-        <DialogContent className="sm:max-w-md">{open && <EditUser key={open.key} row={open} onDone={() => setOpenKey(null)} />}</DialogContent>
+        <DialogContent>{open && <EditUser key={open.key} row={open} onDone={() => setOpenKey(null)} />}</DialogContent>
       </Dialog>
     </>
   )

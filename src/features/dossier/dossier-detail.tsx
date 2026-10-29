@@ -33,7 +33,7 @@ import {
 import { useRole } from "@/components/app-shell/role-context"
 import { DocThumbnail, useDocPreview } from "@/components/doc-preview"
 import { Immat } from "@/components/immat"
-import { ExpertiseBadge, LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
+import { AbonnementBadge, ExpertiseBadge, LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,6 +79,7 @@ import {
   type User,
 } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
+import { useDossierCabinet } from "@/lib/annuaire"
 import { formatDate, formatDateTime, formatLongDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -102,12 +103,14 @@ const opts = <T extends string>(rec: Record<T, string | { label: string }>) =>
 export function DossierDetail({ id }: { id: string }) {
   const { href, user, role } = useRole()
   const { getDossier, updateDossier, addEvent, logConsultation } = useStore()
-  const rights = dossierRights(role.id, user.id)
+  const found = getDossier(id)
+  // Cabinet du dossier (celui de l'expert) : son abonnement fixe les droits du gestionnaire Help You
+  const cabinet = useDossierCabinet(found)
+  const rights = dossierRights(role.id, user.id, cabinet?.abonnement)
   // Notes internes partagées entre Nereids et les gestionnaires Help You
   const canSeeNotes = role.id === "admin" || role.id === "gestionnaire"
   const isClient = role.id === "client"
   const listLabel = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
-  const found = getDossier(id)
   // Un rôle restreint n'ouvre que les dossiers qui le concernent
   const d = found && visibleDossiers([found], role.id, user.id).length ? found : undefined
   const [dialog, setDialog] = React.useState<DialogId>(null)
@@ -189,7 +192,7 @@ export function DossierDetail({ id }: { id: string }) {
   }
   const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
   // Expertises multiples et convoqués : admin, expert et gestionnaire (CDC v2 : expertise à planifier, convocations)
-  const canManageExpertise = role.id === "admin" || role.id === "expert" || role.id === "gestionnaire"
+  const canManageExpertise = role.id === "admin" || role.id === "expert" || (role.id === "gestionnaire" && !rights.telephonieSeule)
 
   /** Le client indique son garage : il apparaît aussitôt dans les intervenants du dossier, Nereids le contacte */
   function reparateurSection(afterRecours = false): EditSection {
@@ -426,6 +429,14 @@ export function DossierDetail({ id }: { id: string }) {
                 </>
               )}
             </div>
+            {/* Nereids et gestionnaires : cabinet du dossier et abonnement souscrit */}
+            {canSeeNotes && cabinet && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{cabinet.nom}</span>
+                <AbonnementBadge abonnement={cabinet.abonnement} />
+                {rights.telephonieSeule && <span className="text-xs text-muted-foreground">Consultation et traçage des appels dans le suivi uniquement</span>}
+              </div>
+            )}
           </div>
 
           {!rights.pilot ? (
@@ -433,7 +444,7 @@ export function DossierDetail({ id }: { id: string }) {
               <Button variant="outline" onClick={() => toast.info("Export du dossier complet (ZIP) — simulation")}>
                 <Download /> Tout télécharger
               </Button>
-              {!closed && (
+              {!closed && rights.docCategories.length > 0 && (
                 <Button onClick={() => openDoc()}>
                   <Plus /> Ajouter un document
                 </Button>
@@ -539,7 +550,7 @@ export function DossierDetail({ id }: { id: string }) {
           <TabsContent value="documents">
             <Documents
               dossier={d}
-              onAdd={closed && !rights.pilot ? undefined : openDoc}
+              onAdd={(closed && !rights.pilot) || !rights.docCategories.length ? undefined : openDoc}
               canManage={rights.canManageDoc}
               allowed={rights.docCategories}
               onEditDoc={editDoc}
@@ -555,7 +566,7 @@ export function DossierDetail({ id }: { id: string }) {
             />
           </TabsContent>
           <TabsContent value="tierce">
-            <TierceTab dossier={d} onAdd={closed && !rights.pilot ? undefined : openDoc} allowed={rights.docCategories} />
+            <TierceTab dossier={d} onAdd={(closed && !rights.pilot) || !rights.docCategories.length ? undefined : openDoc} allowed={rights.docCategories} />
           </TabsContent>
           {canSeeNotes && (
             <TabsContent value="notes">

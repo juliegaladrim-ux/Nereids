@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { ORG_TYPES, contactName, type Organisation, type PersonEntry, type Similar } from "@/lib/annuaire"
+import { ORG_TYPES, PERSON_TYPES, contactName, type Organisation, type PersonEntry, type Similar } from "@/lib/annuaire"
 import type { EmailSecondaire } from "@/lib/data"
 import { PROFILES, userProfile } from "@/lib/roles"
 import { cn } from "@/lib/utils"
@@ -20,7 +20,8 @@ export type Suggestion = { id: string; title: string; subtitle?: string; badge?:
 /** Rôle ou type d'une personne de l'annuaire (« Expert », « Client », « Contact ») */
 export function personKind(p: PersonEntry): string {
   if (p.user) return PROFILES.find((x) => x.id === userProfile(p.user!))?.short ?? p.user.role
-  return p.isClient ? "Client" : "Contact"
+  if (p.isClient) return "Client"
+  return p.type ? PERSON_TYPES[p.type].label : "Contact"
 }
 
 export const personSuggestion = (p: PersonEntry): Suggestion => ({

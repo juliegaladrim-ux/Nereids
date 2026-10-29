@@ -236,11 +236,23 @@ export function newUser(role: RoleId, v: FormValues): User {
 }
 
 /**
- * Formulaire autonome pour un rôle déjà connu (ajout depuis un dossier).
+ * Formulaire autonome pour un rôle déjà connu (ajout depuis un dossier, expert depuis la fiche de son cabinet).
  * Le bouton d'envoi est dans le pied de la modale du parent (attribut form={formId}).
  */
-export function NewUserForm({ role, formId, onAdd, note }: { role: RoleId; formId: string; onAdd: (u: User) => void; note?: React.ReactNode }) {
-  const [v, setV] = React.useState<FormValues>(toForm({ structure: DEFAULT_STRUCTURE[role] }))
+export function NewUserForm({
+  role,
+  formId,
+  onAdd,
+  note,
+  initial,
+}: {
+  role: RoleId
+  formId: string
+  onAdd: (u: User) => void
+  note?: React.ReactNode
+  initial?: Partial<User>
+}) {
+  const [v, setV] = React.useState<FormValues>(toForm({ structure: DEFAULT_STRUCTURE[role], ...initial }))
   const [tried, setTried] = React.useState(false)
   const missing = missingFields(role, v)
 

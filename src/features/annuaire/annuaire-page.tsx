@@ -2,13 +2,13 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Building2, Download, Plus, Search, X } from "lucide-react"
+import { Building2, Download, Plus, Search, Send, UserPlus, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { PageHeader } from "@/components/page-header"
 import { SimpleSelect } from "@/components/simple-select"
-import { StatusBadge } from "@/components/status-badge"
+import { AbonnementBadge, StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,10 +18,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
+import { NewUserForm } from "@/features/admin/user-form"
 import { AccountBadge, intervenantStatus, isDormant, lastLogin, type AccountStatus } from "@/features/admin/users-page"
 import { EmailsField, SimilarAlert, SuggestInput, cleanEmails, orgSuggestion, personKind, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import {
+  ABONNEMENTS,
   ORG_TYPES,
+  PERSON_TYPES,
   ROLE_ORG,
   contactName,
   orgByName,
@@ -32,10 +35,12 @@ import {
   similarOrgs,
   similarPeople,
   useAnnuaire,
+  type Abonnement,
   type Contact,
   type Organisation,
   type OrgType,
   type PersonEntry,
+  type PersonType,
 } from "@/lib/annuaire"
 import {
   USERS,
@@ -128,6 +133,8 @@ export function AnnuairePage() {
   /** Fiche ouverte : id, ou « new » pour un ajout */
   const [openPerson, setOpenPerson] = React.useState<string | null>(null)
   const [openOrg, setOpenOrg] = React.useState<string | null>(null)
+  /** Cabinet pour lequel on crée une fiche expert */
+  const [newExpertFor, setNewExpertFor] = React.useState<Organisation | null>(null)
 
   const query = q.trim().toLowerCase()
   const matches = (...xs: (string | undefined)[]) => !query || xs.some((x) => x?.toLowerCase().includes(query))
@@ -410,7 +417,10 @@ export function AnnuairePage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{ORG_TYPES[o.type].label}</TableCell>
+                    <TableCell>
+                      {ORG_TYPES[o.type].label}
+                      {o.type === "cabinet" && <AbonnementBadge abonnement={o.abonnement} className="mt-1 flex w-fit" />}
+                    </TableCell>
                     <TableCell>
                       <DepCell address={o.address} />
                     </TableCell>
@@ -426,7 +436,7 @@ export function AnnuairePage() {
       </div>
 
       <Dialog open={!!openPerson} onOpenChange={(o) => !o && setOpenPerson(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent>
           {openPerson && (
             <PersonDialog
               key={openPerson}
@@ -443,7 +453,7 @@ export function AnnuairePage() {
       </Dialog>
 
       <Dialog open={!!openOrg} onOpenChange={(o) => !o && setOpenOrg(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent>
           {openOrg && (
             <OrgDialog
               key={openOrg}
@@ -453,7 +463,26 @@ export function AnnuairePage() {
                 setOpenOrg(null)
                 setOpenPerson(id)
               }}
+              onAddExpert={(o) => {
+                setOpenOrg(null)
+                setNewExpertFor(o)
+              }}
               onDone={() => setOpenOrg(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!newExpertFor} onOpenChange={(o) => !o && setNewExpertFor(null)}>
+        <DialogContent>
+          {newExpertFor && (
+            <NewExpertDialog
+              cabinet={newExpertFor}
+              onDone={(added) => {
+                // Retour sur la fiche du cabinet, où le nouvel expert apparaît
+                if (added) setOpenOrg(newExpertFor.id)
+                setNewExpertFor(null)
+              }}
             />
           )}
         </DialogContent>
@@ -498,9 +527,10 @@ function EmailLine({ email, others = [] }: { email?: string; others?: EmailSecon
 // ─── Fiche personne ─────────────────────────────────────────────────────────
 
 type PersonForm = {
+  /** Personne sans compte uniquement (le rôle d'un utilisateur se gère dans Utilisateurs) */
+  type: PersonType | null
   firstName: string
   lastName: string
-  fonction: string
   org: string
   /** Type de l'organisation si elle n'existe pas encore dans l'annuaire */
   orgType: OrgType
@@ -524,15 +554,12 @@ function PersonDialog({
   const { dossiers, accounts, updateAccount, saveContact, saveOrg } = useStore()
   const { people, orgs } = useAnnuaire()
   const user = entry?.user
-  // Les admins Nereids et gestionnaires Help You n'ont pas d'organisation dans l'annuaire (structure interne)
-  const orgType = user ? ROLE_ORG[user.role] : undefined
-  const hasOrg = !user || !!orgType
   const [v, setV] = React.useState<PersonForm>({
+    type: entry ? (entry.type ?? (entry.isClient ? "client" : "autre")) : null,
     firstName: entry?.firstName ?? "",
     lastName: entry?.lastName ?? "",
-    fonction: entry?.fonction ?? "",
-    org: entry?.org?.nom ?? (orgType ? (user?.structure ?? "") : ""),
-    orgType: orgType ?? "societe",
+    org: entry?.org?.nom ?? (user && ROLE_ORG[user.role] ? (user.structure ?? "") : ""),
+    orgType: (user && ROLE_ORG[user.role]) ?? "societe",
     email: entry?.email ?? "",
     autresEmails: entry?.autresEmails ?? [],
     phone: entry?.phone ?? "",
@@ -540,11 +567,21 @@ function PersonDialog({
   })
   const [tried, setTried] = React.useState(false)
   const set = <K extends keyof PersonForm>(k: K, val: PersonForm[K]) => setV((p) => ({ ...p, [k]: val }))
+  // Organisation imposée par le rôle (utilisateur) ou par le type choisi (expert → cabinet…).
+  // Les admins Nereids et gestionnaires Help You n'ont pas d'organisation dans l'annuaire (structure interne)
+  const orgType = user ? ROLE_ORG[user.role] : v.type ? PERSON_TYPES[v.type].org : undefined
+  const hasOrg = user ? !!orgType : !!v.type
+  const missingType = !user && !v.type
+  // Un expert est toujours rattaché à un cabinet
+  const orgRequired = !user && v.type === "expert"
+  const missingOrg = orgRequired && !v.org.trim()
   const missingName = !v.lastName.trim() && !v.firstName.trim()
   const missingEmail = !!user && !/^\S+@\S+\.\S+$/.test(v.email.trim())
 
   const orgChoices = orgType ? orgs.filter((o) => o.type === orgType) : orgs
   const existingOrg = orgByName(v.org, orgChoices)
+  // Nouvel expert dont le cabinet n'est pas dans l'annuaire : on enchaîne sur la fiche du cabinet à compléter
+  const newCabinet = !entry && orgRequired && !!v.org.trim() && !existingOrg
   const similar = similarPeople(people, { ...v, autresEmails: cleanEmails(v.autresEmails) }, entry?.id)
   const account = entry ? accountStatus(entry, dossiers, accounts) : null
   const linked = entry ? personDossiers(entry, dossiers).sort((a, b) => Number(isActive(b)) - Number(isActive(a)) || b.createdAt.localeCompare(a.createdAt)) : []
@@ -552,12 +589,11 @@ function PersonDialog({
   function save(e: React.FormEvent) {
     e.preventDefault()
     setTried(true)
-    if (missingName || missingEmail) return
+    if (missingType || missingOrg || missingName || missingEmail) return
     const autresEmails = cleanEmails(v.autresEmails)
     const base = {
       firstName: v.firstName.trim(),
       lastName: v.lastName.trim(),
-      fonction: v.fonction.trim() || undefined,
       email: v.email.trim() || undefined,
       autresEmails: autresEmails.length ? autresEmails : undefined,
       phone: v.phone.trim() || undefined,
@@ -576,14 +612,21 @@ function PersonDialog({
       updateAccount(user.id, (a) => ({
         // Compte de démo déjà actif : la modification ne le repasse pas en invitation en attente
         ...(a ?? (USERS.some((u) => u.id === user.id) ? { invitedAt: now, activatedAt: now } : { invitedAt: now })),
-        profile: { ...a?.profile, ...base, email: base.email ?? user.email, phone: base.phone ?? "", fonction: base.fonction ?? "", ...(structure && { structure }) },
+        profile: { ...a?.profile, ...base, email: base.email ?? user.email, phone: base.phone ?? "", ...(structure && { structure }) },
       }))
     } else {
-      const c: Contact = { id: entry?.id ?? `c-n-${Date.now().toString(36)}`, ...base, orgId: v.org.trim() ? orgId : undefined }
+      const c: Contact = {
+        id: entry?.id ?? `c-n-${Date.now().toString(36)}`,
+        type: v.type ?? undefined,
+        ...base,
+        fonction: entry?.fonction,
+        orgId: hasOrg && v.org.trim() ? orgId : undefined,
+      }
       saveContact(c)
     }
     toast.success(entry ? "Fiche modifiée" : "Personne ajoutée à l'annuaire")
-    onDone()
+    if (newCabinet && orgId) onOpenOrg(orgId)
+    else onDone()
   }
 
   return (
@@ -606,6 +649,26 @@ function PersonDialog({
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
+          {!user && (
+            <Field data-invalid={(tried && missingType) || undefined} className="sm:col-span-2">
+              <FieldLabel htmlFor="p-type">Type</FieldLabel>
+              <SimpleSelect
+                id="p-type"
+                placeholder="Choisir"
+                value={v.type}
+                // L'organisation dépend du type : on la vide si elle n'est plus du bon type
+                onChange={(t) =>
+                  t &&
+                  setV((p) => {
+                    const org = PERSON_TYPES[t as PersonType].org
+                    const keep = !org || orgByName(p.org, orgs)?.type === org
+                    return { ...p, type: t as PersonType, org: keep ? p.org : "" }
+                  })
+                }
+                options={(Object.keys(PERSON_TYPES) as PersonType[]).map((t) => ({ value: t, label: PERSON_TYPES[t].label }))}
+              />
+            </Field>
+          )}
           <Field data-invalid={(tried && missingName) || undefined}>
             <FieldLabel htmlFor="p-first">Prénom</FieldLabel>
             <Input id="p-first" value={v.firstName} onChange={(e) => set("firstName", e.target.value)} />
@@ -615,18 +678,26 @@ function PersonDialog({
             <Input id="p-last" value={v.lastName} onChange={(e) => set("lastName", e.target.value)} />
           </Field>
           {hasOrg && (
-            <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="p-org">{orgType ? ORG_TYPES[orgType].label : "Organisation (optionnel)"}</FieldLabel>
+            <Field data-invalid={(tried && missingOrg) || undefined} className="sm:col-span-2">
+              <FieldLabel htmlFor="p-org">
+                {orgType === "cabinet" ? "Cabinet" : orgType ? ORG_TYPES[orgType].label : "Organisation"}
+                {!user && !orgRequired && " (optionnel)"}
+              </FieldLabel>
               <SuggestInput
                 id="p-org"
                 value={v.org}
+                aria-invalid={(tried && missingOrg) || undefined}
                 placeholder="Rechercher dans l'annuaire"
                 onChange={(e) => set("org", e.target.value)}
                 suggestions={existingOrg ? [] : searchOrgs(orgChoices, v.org).map(orgSuggestion)}
                 onPick={(id) => set("org", orgs.find((o) => o.id === id)?.nom ?? v.org)}
               />
               {v.org.trim() && !existingOrg && (
-                <FieldDescription>Nouvelle organisation : sa fiche sera créée dans l&apos;annuaire.</FieldDescription>
+                <FieldDescription>
+                  {newCabinet
+                    ? "Ce cabinet n'est pas dans l'annuaire : après l'ajout de l'expert, vous compléterez sa fiche cabinet."
+                    : "Nouvelle organisation : sa fiche sera créée dans l'annuaire."}
+                </FieldDescription>
               )}
             </Field>
           )}
@@ -641,10 +712,6 @@ function PersonDialog({
               />
             </Field>
           )}
-          <Field className="sm:col-span-2">
-            <FieldLabel htmlFor="p-fonction">Fonction (optionnel)</FieldLabel>
-            <Input id="p-fonction" value={v.fonction} onChange={(e) => set("fonction", e.target.value)} />
-          </Field>
           <div className="sm:col-span-2">
             <EmailsField
               id="p"
@@ -694,7 +761,7 @@ function PersonDialog({
         <Button type="button" variant="outline" onClick={onDone}>
           Annuler
         </Button>
-        <Button type="submit">{entry ? "Enregistrer" : "Ajouter"}</Button>
+        <Button type="submit">{entry ? "Enregistrer" : newCabinet ? "Ajouter et créer la fiche cabinet" : "Ajouter"}</Button>
       </DialogFooter>
     </form>
   )
@@ -706,11 +773,13 @@ function OrgDialog({
   org,
   onOpen,
   onOpenPerson,
+  onAddExpert,
   onDone,
 }: {
   org?: Organisation
   onOpen: (id: string) => void
   onOpenPerson: (id: string) => void
+  onAddExpert: (cabinet: Organisation) => void
   onDone: () => void
 }) {
   const { dossiers, saveOrg } = useStore()
@@ -718,6 +787,7 @@ function OrgDialog({
   const [v, setV] = React.useState({
     type: org?.type ?? ("assurance" as OrgType),
     nom: org?.nom ?? "",
+    abonnement: (org?.abonnement ?? null) as Abonnement | null,
     siret: org?.siret ?? "",
     email: org?.email ?? "",
     autresEmails: org?.autresEmails ?? [],
@@ -727,6 +797,8 @@ function OrgDialog({
   const [tried, setTried] = React.useState(false)
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((p) => ({ ...p, [k]: val }))
   const missingNom = !v.nom.trim()
+  // Cabinet d'expertise : l'abonnement souscrit est obligatoire (il fixe les droits des gestionnaires sur ses dossiers)
+  const missingAbonnement = v.type === "cabinet" && !v.abonnement
   const similar = similarOrgs(orgs, v, org?.id)
   const members = org ? people.filter((p) => p.orgId === org.id) : []
   const linked = org ? orgDossiers(org, dossiers, people).sort((a, b) => Number(isActive(b)) - Number(isActive(a)) || b.createdAt.localeCompare(a.createdAt)) : []
@@ -734,12 +806,13 @@ function OrgDialog({
   function save(e: React.FormEvent) {
     e.preventDefault()
     setTried(true)
-    if (missingNom) return
+    if (missingNom || missingAbonnement) return
     const autresEmails = cleanEmails(v.autresEmails)
     saveOrg({
       id: org?.id ?? orgIdFor(v.nom),
       type: v.type,
       nom: v.nom.trim(),
+      abonnement: v.type === "cabinet" ? v.abonnement! : undefined,
       siret: v.siret.trim() || undefined,
       email: v.email.trim() || undefined,
       autresEmails: autresEmails.length ? autresEmails : undefined,
@@ -773,6 +846,21 @@ function OrgDialog({
               options={(Object.keys(ORG_TYPES) as OrgType[]).map((t) => ({ value: t, label: ORG_TYPES[t].label }))}
             />
           </Field>
+          {v.type === "cabinet" && (
+            <Field data-invalid={(tried && missingAbonnement) || undefined} className="sm:col-span-2">
+              <FieldLabel htmlFor="o-abonnement">Abonnement souscrit</FieldLabel>
+              <SimpleSelect
+                id="o-abonnement"
+                placeholder="Choisir"
+                value={v.abonnement}
+                onChange={(a) => set("abonnement", a as Abonnement | null)}
+                options={(Object.keys(ABONNEMENTS) as Abonnement[]).map((a) => ({ value: a, label: ABONNEMENTS[a].label }))}
+              />
+              <FieldDescription>
+                {v.abonnement ? ABONNEMENTS[v.abonnement].detail : "Fixe les droits des gestionnaires Help You sur les dossiers de ce cabinet."}
+              </FieldDescription>
+            </Field>
+          )}
           <Field data-invalid={(tried && missingNom) || undefined}>
             <FieldLabel htmlFor="o-nom">Nom</FieldLabel>
             <Input id="o-nom" value={v.nom} onChange={(e) => set("nom", e.target.value)} />
@@ -825,6 +913,11 @@ function OrgDialog({
                 </button>
               ))
             )}
+            {org.type === "cabinet" && (
+              <button type="button" onClick={() => onAddExpert(org)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm font-medium text-brand-ink hover:bg-muted/50">
+                <UserPlus className="size-4" /> Créer une fiche expert
+              </button>
+            )}
           </LinkedSection>
         )}
 
@@ -838,6 +931,39 @@ function OrgDialog({
         <Button type="submit">{org ? "Enregistrer" : "Ajouter"}</Button>
       </DialogFooter>
     </form>
+  )
+}
+
+// ─── Nouvel expert d'un cabinet ───────────────────────────────────────────────
+
+/** Fiche expert créée depuis son cabinet : même formulaire que dans Utilisateurs, cabinet pré-rempli, invitation envoyée */
+function NewExpertDialog({ cabinet, onDone }: { cabinet: Organisation; onDone: (added: boolean) => void }) {
+  const { inviteUser } = useStore()
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Créer une fiche expert</DialogTitle>
+        <DialogDescription>Il recevra une invitation par e-mail pour activer son compte.</DialogDescription>
+      </DialogHeader>
+      <NewUserForm
+        role="expert"
+        formId="new-expert"
+        initial={{ structure: cabinet.nom }}
+        onAdd={(u) => {
+          inviteUser(u)
+          toast.success("Invitation envoyée", { description: `${contactName(u)} est rattaché à ${u.structure}.` })
+          onDone(true)
+        }}
+      />
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => onDone(false)}>
+          Annuler
+        </Button>
+        <Button type="submit" form="new-expert">
+          <Send /> Envoyer l&apos;invitation
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
 

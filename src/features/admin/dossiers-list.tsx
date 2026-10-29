@@ -8,7 +8,7 @@ import { AlertTriangle, CalendarClock, ChevronDown, CircleCheck, CircleDashed, F
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
-import { LateBadge, StatusBadge } from "@/components/status-badge"
+import { AbonnementBadge, LateBadge, StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,7 @@ import {
   type StatusId,
 } from "@/lib/data"
 import { matchesSearch, visibleDossiers } from "@/lib/access"
+import { dossierCabinet, useAnnuaire } from "@/lib/annuaire"
 import { formatDate, formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -56,6 +57,7 @@ const CABINETS = [...new Set(EXPERTS.map((u) => u.structure))].sort()
 export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives" }) {
   const { href, role, user } = useRole()
   const { dossiers: all } = useStore()
+  const { orgs } = useAnnuaire()
   // Gestionnaire Help You : uniquement ses dossiers (CDC §12.2), sans colonne ni filtre gestionnaire
   const dossiers = visibleDossiers(all, role.id, user.id)
   const isGest = role.id === "gestionnaire"
@@ -220,6 +222,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
               <TableHead>Département</TableHead>
               <TableHead>Statut</TableHead>
               {!isGest && <TableHead>Gestionnaire</TableHead>}
+              <TableHead>Cabinet</TableHead>
               <TableHead>Expert</TableHead>
               <TableHead className="pr-4">Expertise prévue</TableHead>
             </TableRow>
@@ -227,7 +230,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={isGest ? 8 : 9} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={isGest ? 9 : 10} className="py-10 text-center text-muted-foreground">
                   Aucun dossier ne correspond.
                 </TableCell>
               </TableRow>
@@ -267,6 +270,19 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                   </div>
                 </TableCell>
                 {!isGest && <TableCell>{d.intervenants.gestionnaire ? fullName(getUser(d.intervenants.gestionnaire)) : <Missing />}</TableCell>}
+                <TableCell className="max-w-48 whitespace-normal">
+                  {(() => {
+                    // Cabinet de l'expert et abonnement souscrit, repris de sa fiche annuaire
+                    const cab = dossierCabinet(d, orgs)
+                    if (!cab) return <span className="text-muted-foreground">—</span>
+                    return (
+                      <>
+                        {cab.nom}
+                        <AbonnementBadge abonnement={cab.abonnement} className="mt-1 flex w-fit" />
+                      </>
+                    )
+                  })()}
+                </TableCell>
                 <TableCell>{d.intervenants.expert ? fullName(getUser(d.intervenants.expert)) : <Missing />}</TableCell>
                 <TableCell className="pr-4">
                   {d.expertise.date ? (

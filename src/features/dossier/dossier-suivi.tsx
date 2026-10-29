@@ -34,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
+import { useDossierCabinet } from "@/lib/annuaire"
 import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
@@ -86,7 +87,7 @@ const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants
 
 export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onEditCloture?: () => void }) {
   const { role, user } = useRole()
-  const rights = dossierRights(role.id, user.id)
+  const rights = dossierRights(role.id, user.id, useDossierCabinet(dossier)?.abonnement)
   const filters = FILTERS.filter((f) => !f.adminOnly || role.id === "admin")
   // Filtres cumulables : aucune sélection = « Tout »
   const [selected, setSelected] = React.useState<Filter[]>([])

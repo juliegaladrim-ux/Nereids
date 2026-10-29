@@ -1,5 +1,6 @@
-import { DOC_CATEGORIES, type DocCategory, type DocumentItem, type Dossier, type TimelineEvent } from "./data"
-import type { RoleId } from "./roles"
+import type { Abonnement } from "./annuaire"
+import { DOC_CATEGORIES, getUser, type DocCategory, type DocumentItem, type Dossier, type TimelineEvent } from "./data"
+import { userProfile, type RoleId } from "./roles"
 
 /** Règles de visibilité par rôle (CDC §12) */
 export function visibleDossiers(all: Dossier[], role: RoleId, userId: string): Dossier[] {
@@ -78,10 +79,15 @@ export type DossierRights = {
   pickRecipients: boolean
   /** Peut renseigner sa propre référence sur le dossier (réf. PJ, réf. cabinet) */
   ownRef: boolean
+  /** Gestionnaire Help You sur un cabinet « Téléphonie seule » : consultation + traçage des appels dans le suivi */
+  telephonieSeule?: boolean
 }
 
-/** Droits sur la fiche dossier, par rôle */
-export function dossierRights(role: RoleId, userId: string): DossierRights {
+/**
+ * Droits sur la fiche dossier, par rôle. `abonnement` : abonnement du cabinet du dossier, qui restreint
+ * le gestionnaire Help You (point client 26/10).
+ */
+export function dossierRights(role: RoleId, userId: string, abonnement?: Abonnement): DossierRights {
   if (role === "client") {
     return {
       pilot: false,
@@ -143,6 +149,23 @@ export function dossierRights(role: RoleId, userId: string): DossierRights {
   // Gestionnaire Help You : même base que l'admin sur ses dossiers (CDC v1 §1, §12.2) —
   // modifie, dépose, relance, échange, assigne les intervenants et clôture (point client 22/10) ;
   // le changement de statut et l'archivage restent à Nereids
+  // Cabinet abonné à la téléphonie seule : le gestionnaire Help You consulte le dossier et trace ses appels
+  // par un message dans le suivi, sans rien modifier (le gestionnaire Nereids n'est pas concerné)
+  if (role === "gestionnaire" && abonnement === "telephonie" && userProfile(getUser(userId) ?? {}) !== "gestionnaire_nereids") {
+    return {
+      pilot: false,
+      canEdit: () => false,
+      docCategories: [],
+      canManageDoc: () => false,
+      canSeeEvent: (e) => e.kind !== "consultation",
+      pickRecipients: true,
+      ownRef: false,
+      changeStatus: false,
+      close: false,
+      assign: false,
+      telephonieSeule: true,
+    }
+  }
   if (role === "gestionnaire") {
     return {
       pilot: true,

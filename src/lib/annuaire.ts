@@ -10,7 +10,7 @@
 
 import * as React from "react"
 
-import { allUsers, personneName, type Dossier, type EmailSecondaire, type Personne, type User } from "./data"
+import { allUsers, getUser, personneName, type Dossier, type EmailSecondaire, type Personne, type User } from "./data"
 import type { RoleId } from "./roles"
 import { useStore } from "./store"
 
@@ -29,10 +29,25 @@ export const ORG_TYPES: Record<OrgType, { label: string; plural: string }> = {
 /** Structure de rattachement d'un intervenant selon son rôle (un expert appartient à un cabinet, etc.) */
 export const ROLE_ORG: Partial<Record<RoleId, OrgType>> = { expert: "cabinet", reparateur: "garage", suiveur: "juridique" }
 
+/**
+ * Abonnement souscrit par un cabinet d'expertise (point client 26/10) : il fixe les droits du gestionnaire
+ * Help You sur les dossiers de ce cabinet. Un gestionnaire mandaté par plusieurs cabinets a donc des droits
+ * différents d'un dossier à l'autre.
+ */
+export type Abonnement = "telephonie" | "gestion" | "gestion_telephonie"
+
+export const ABONNEMENTS: Record<Abonnement, { label: string; detail: string }> = {
+  telephonie: { label: "Téléphonie seule", detail: "Consultation du dossier et traçage des appels uniquement" },
+  gestion: { label: "Gestion seule", detail: "Gestion complète du dossier" },
+  gestion_telephonie: { label: "Gestion + téléphonie", detail: "Gestion complète du dossier et téléphonie" },
+}
+
 export type Organisation = {
   id: string
   type: OrgType
   nom: string
+  /** Cabinet d'expertise uniquement : choisi à la création de la fiche */
+  abonnement?: Abonnement
   siret?: string
   phone?: string
   /** E-mail principal */
@@ -41,9 +56,25 @@ export type Organisation = {
   address?: string
 }
 
+/**
+ * Type d'une personne sans compte, choisi à sa création dans l'annuaire.
+ * `org` : organisation à laquelle on la rattache (un expert est lié à un cabinet, etc.).
+ */
+export type PersonType = "client" | "expert" | "reparateur" | "juridique" | "assurance" | "autre"
+
+export const PERSON_TYPES: Record<PersonType, { label: string; org?: OrgType }> = {
+  client: { label: "Client" },
+  expert: { label: "Expert", org: "cabinet" },
+  reparateur: { label: "Réparateur", org: "garage" },
+  juridique: { label: "Protection juridique / avocat", org: "juridique" },
+  assurance: { label: "Compagnie d'assurance", org: "assurance" },
+  autre: { label: "Autre" },
+}
+
 /** Personne sans compte (client, propriétaire, contact ajouté à la main) */
 export type Contact = {
   id: string
+  type?: PersonType
   firstName: string
   lastName: string
   fonction?: string
@@ -63,8 +94,9 @@ export type AnnuaireData = { contacts: Record<string, Contact>; orgs: Record<str
 export type PersonEntry = Contact & { user?: User; org?: Organisation; isClient: boolean }
 
 /** Fiche « Contact » seule (sans le compte ni l'organisation résolus) */
-export const toContact = ({ id, firstName, lastName, fonction, orgId, phone, email, autresEmails, address, userId }: PersonEntry): Contact => ({
+export const toContact = ({ id, type, firstName, lastName, fonction, orgId, phone, email, autresEmails, address, userId }: PersonEntry): Contact => ({
   id,
+  type,
   firstName,
   lastName,
   fonction,
@@ -107,8 +139,8 @@ export const allEmails = (c: { email?: string; autresEmails?: EmailSecondaire[] 
 // ─── Organisations de démo (données fictives) ────────────────────────────────
 
 const SEED_ORGS: Organisation[] = [
-  { id: orgIdFor("Cabinet Delorme Expertise"), type: "cabinet", nom: "Cabinet Delorme Expertise", siret: "512 845 963 00027", phone: "04 71 05 22 10", email: "contact@cabinet-delorme.fr", autresEmails: [{ email: "secretariat@cabinet-delorme.fr", label: "Secrétariat" }], address: "7 place du Breuil, 43000 Le Puy-en-Velay" },
-  { id: orgIdFor("Sud Expert"), type: "cabinet", nom: "Sud Expert", siret: "803 114 520 00019", phone: "04 91 22 45 60", email: "contact@sudexpert.fr", address: "110 avenue du Prado, 13008 Marseille" },
+  { id: orgIdFor("Cabinet Delorme Expertise"), type: "cabinet", nom: "Cabinet Delorme Expertise", abonnement: "gestion_telephonie", siret: "512 845 963 00027", phone: "04 71 05 22 10", email: "contact@cabinet-delorme.fr", autresEmails: [{ email: "secretariat@cabinet-delorme.fr", label: "Secrétariat" }], address: "7 place du Breuil, 43000 Le Puy-en-Velay" },
+  { id: orgIdFor("Sud Expert"), type: "cabinet", nom: "Sud Expert", abonnement: "telephonie", siret: "803 114 520 00019", phone: "04 91 22 45 60", email: "contact@sudexpert.fr", address: "110 avenue du Prado, 13008 Marseille" },
   { id: orgIdFor("Garage Benali Carrosserie"), type: "garage", nom: "Garage Benali Carrosserie", siret: "441 220 876 00034", phone: "04 71 22 33 44", email: "contact@garage-benali.fr", autresEmails: [{ email: "compta@garage-benali.fr", label: "Comptabilité" }], address: "12 rue des Forges, 43200 Yssingeaux" },
   { id: orgIdFor("Carrosserie Chevalier"), type: "garage", nom: "Carrosserie Chevalier", phone: "04 77 22 33 44", email: "atelier@carrosserie-chevalier.fr", address: "233 rue de la Rive, 42320 La Grand-Croix" },
   { id: orgIdFor("Protec Juris"), type: "juridique", nom: "Protec Juris", phone: "01 44 55 66 00", email: "dossiers@protecjuris.fr", address: "9 rue de Châteaudun, 75009 Paris" },
@@ -209,6 +241,19 @@ export function buildPeople(dossiers: Dossier[], users: User[], orgs: Organisati
     people.push({ ...c, org, isClient: isClient(c) })
   }
   return people.sort((a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`))
+}
+
+/** Cabinet d'un dossier : celui de son expert (aucun tant que l'expert n'est pas assigné) */
+export function dossierCabinet(d: Dossier, orgs: Organisation[]): Organisation | undefined {
+  const expert = getUser(d.intervenants.expert)
+  const org = expert ? userOrg(expert, orgs) : undefined
+  return org?.type === "cabinet" ? org : undefined
+}
+
+/** Cabinet d'un dossier, à jour de l'annuaire */
+export function useDossierCabinet(d?: Dossier): Organisation | undefined {
+  const { orgs } = useAnnuaire()
+  return d ? dossierCabinet(d, orgs) : undefined
 }
 
 // ─── Recherche et doublons ───────────────────────────────────────────────────

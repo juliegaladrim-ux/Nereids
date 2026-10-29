@@ -52,7 +52,7 @@ export function EditDialog({ section, onOpenChange }: { section: EditSection | n
 
   return (
     <Dialog open={!!section} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{section?.title}</DialogTitle>
           <DialogDescription>{section?.description ?? "La modification sera tracée dans le suivi du dossier."}</DialogDescription>

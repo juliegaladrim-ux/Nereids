@@ -335,7 +335,7 @@ export function DocPreviewDialog({ doc, onOpenChange }: { doc: DocumentItem | nu
   const d = doc ?? shown
   return (
     <Dialog open={!!doc} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+      <DialogContent bodyClassName="flex flex-1 flex-col gap-0 overflow-hidden p-0">
         {d && (
           <>
             <div className="flex items-center gap-3 border-b py-4 pr-16 pl-6">

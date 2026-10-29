@@ -1,7 +1,8 @@
-import { CalendarDays, Clock } from "lucide-react"
+import { CalendarDays, Clock, Phone } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ABONNEMENTS, type Abonnement } from "@/lib/annuaire"
 import { STATUSES, VALIDATION_ITEMS, convocationSent, type ClientValidation, type Dossier, type StatusId, type StatusTone, type ValidationState } from "@/lib/data"
 
 const TONE_CLASSES: Record<StatusTone, string> = {
@@ -84,6 +85,31 @@ export function ValidationPills({ validation, className }: { validation: ClientV
         )
       })}
     </span>
+  )
+}
+
+/** Abonnement souscrit par le cabinet du dossier ; le détail des droits au survol */
+export function AbonnementBadge({ abonnement, className }: { abonnement?: Abonnement; className?: string }) {
+  if (!abonnement) return <span className={cn("text-xs text-muted-foreground", className)}>Abonnement non renseigné</span>
+  const a = ABONNEMENTS[abonnement]
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              "inline-flex h-6 cursor-default items-center gap-1.5 rounded-md border bg-card px-2 text-xs font-medium whitespace-nowrap",
+              abonnement === "telephonie" && "border-tone-waiting/40 bg-tone-waiting-bg text-tone-waiting",
+              className,
+            )}
+          />
+        }
+      >
+        {abonnement === "telephonie" && <Phone className="size-3.5 shrink-0" />}
+        {a.label}
+      </TooltipTrigger>
+      <TooltipContent>{a.detail}</TooltipContent>
+    </Tooltip>
   )
 }
 
