@@ -608,8 +608,18 @@ export function DossierDetail({ id }: { id: string }) {
             <ExpertiseTab
               dossier={d}
               canManage={canManageExpertise}
+              canAdd={manager}
               showPreparation={rights.pilot}
-              onEdit={(i) => (i === 0 ? editable("expertise") : canManageExpertise ? () => setEdit(expertiseSection(d, i, apply)) : undefined)}
+              onEdit={(i) =>
+                // Programmer (expertise sans date) : réservé au gestionnaire — l'expert ne fait que proposer
+                !allExpertises(d)[i]?.date && !manager
+                  ? undefined
+                  : i === 0
+                    ? editable("expertise")
+                    : canManageExpertise
+                      ? () => setEdit(expertiseSection(d, i, apply))
+                      : undefined
+              }
               onAddPv={() => openDoc("pv")}
             />
           </TabsContent>
@@ -1263,6 +1273,7 @@ function ExpertiseTab({
   dossier: d,
   onEdit,
   canManage,
+  canAdd,
   showPreparation,
   onAddPv,
 }: {
@@ -1273,9 +1284,11 @@ function ExpertiseTab({
   onEdit: (index: number) => (() => void) | undefined
   /** Admin et expert : ajouter une expertise, la compléter, ajouter des convoqués */
   canManage: boolean
+  /** Ajouter / retirer une expertise : réservé au gestionnaire (et Nereids) */
+  canAdd: boolean
   onAddPv: () => void
 }) {
-  const { user } = useRole()
+  const { user, role } = useRole()
   const { updateDossier, addEvent } = useStore()
   const expertises = allExpertises(d)
   const [index, setIndex] = React.useState(0)
@@ -1331,7 +1344,7 @@ function ExpertiseTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {(expertises.length > 1 || (canManage && !preparing)) && (
+      {(expertises.length > 1 || (canAdd && !preparing)) && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           {expertises.length > 1 ? (
             <div className="flex rounded-lg border bg-card p-0.5 shadow-xs" role="group" aria-label="Expertises">
@@ -1342,12 +1355,12 @@ function ExpertiseTab({
                     size="xs"
                     aria-pressed={k === i}
                     onClick={() => setIndex(k)}
-                    className={cn(k === i && "hover:bg-transparent hover:text-background", canManage && k > 0 && k === expertises.length - 1 && "pr-1")}
+                    className={cn(k === i && "hover:bg-transparent hover:text-background", canAdd && k > 0 && k === expertises.length - 1 && "pr-1")}
                   >
                     Expertise n°{k + 1}
                   </Button>
                   {/* Dernière expertise ajoutée (par erreur) : petite croix pour la retirer — la n°1 reste */}
-                  {canManage && k > 0 && k === expertises.length - 1 && (
+                  {canAdd && k > 0 && k === expertises.length - 1 && (
                     <button
                       type="button"
                       aria-label={`Supprimer l'expertise n°${k + 1}`}
@@ -1364,7 +1377,7 @@ function ExpertiseTab({
           ) : (
             <span />
           )}
-          {canManage && !preparing && (
+          {canAdd && !preparing && (
             <Button size="sm" onClick={addExpertise}>
               <Plus /> Ajouter une expertise
             </Button>
@@ -1381,7 +1394,11 @@ function ExpertiseTab({
             <CalendarDays className="size-6 text-muted-foreground" />
             <p className="font-medium">Expertise non programmée</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              L&apos;expert assigné proposera une date et un lieu. Les participants seront convoqués automatiquement.
+              {role.id === "expert"
+                ? "Le gestionnaire programmera l'expertise à partir de votre proposition."
+                : role.id === "admin" || role.id === "gestionnaire"
+                  ? "Programmez l'expertise dès que la date et le lieu sont arrêtés. Les participants seront convoqués automatiquement."
+                  : "Vous recevrez une convocation dès que la date et le lieu seront fixés."}
             </p>
             {onEdit(0) && (
               <Button size="sm" variant="outline" className="mt-2" onClick={onEdit(0)}>
