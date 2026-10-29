@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, fullName, getUser, isLate, lateDays, personneName, type Dossier } from "@/lib/data"
+import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, expertisePhase, fullName, getUser, isLate, lateDays, personneName, type Dossier } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
 import { formatDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -34,14 +34,16 @@ const expertiseDay = (iso: string) => {
 /**
  * Liste en tableau des intervenants extérieurs :
  * - suiveur (avocat, protection juridique) : « Dossiers suivis », retrouvés par sa propre référence ou le nom du client ;
- * - réparateur : « Mes dossiers », avec l'action qu'il doit réaliser et un filtre par statut (parcours réparateur).
+ * - réparateur : « Mes dossiers », avec l'action qu'il doit réaliser et un filtre par statut (parcours réparateur) ;
+ * - expert : idem, dates d'expertise en évidence et filtre par statut (CDC §12.3, parcours FigJam).
  */
 export function IntervenantDossiers() {
   const { role, user, href } = useRole()
   const { dossiers } = useStore()
   const router = useRouter()
   const rights = dossierRights(role.id, user.id)
-  const isRep = role.id === "reparateur"
+  // Réparateur et expert : date d'expertise, action attendue et filtre par statut
+  const isRep = role.id === "reparateur" || role.id === "expert"
   const title = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
   const [view, setView] = React.useState<View>("en_cours")
   const [q, setQ] = React.useState("")
@@ -66,7 +68,13 @@ export function IntervenantDossiers() {
     )
 
   /** Action attendue de l'intervenant connecté (sinon rien : les délais des autres ne le concernent pas) */
-  const todo = (d: Dossier) => (!isClosed(d) && d.pilotage.quiDoitAgir === role.id ? d.pilotage.prochaineAction : null)
+  const todo = (d: Dossier) => {
+    if (isClosed(d)) return null
+    // Parcours expertise : l'expert n'agit qu'une fois la mission signée (pré-étude), puis attend la convocation
+    const phase = role.id === "expert" ? expertisePhase(d) : null
+    if (phase) return phase === "pre_etude" ? "Réaliser la pré-étude" : null
+    return d.pilotage.quiDoitAgir === role.id ? d.pilotage.prochaineAction : null
+  }
 
   /** Dernier élément du suivi visible par l'intervenant (ses actions techniques, comme l'activation du compte, n'en sont pas) */
   const lastActivity = (d: Dossier) => {

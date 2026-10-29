@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { DateInput } from "@/components/date-input"
 import { Logo } from "@/components/logo"
 import { SimpleSelect } from "@/components/simple-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -648,7 +649,7 @@ export function CreateDossier() {
                             </Field>
                             <Field>
                               <FieldLabel htmlFor="pb-date">Date de constatation</FieldLabel>
-                              <Input id="pb-date" type="date" value={f.probleme.date} onChange={(e) => setIn("probleme", "date", e.target.value)} />
+                              <DateInput id="pb-date" value={f.probleme.date} onChange={(val) => setIn("probleme", "date", val)} />
                             </Field>
                           </div>
                         )}

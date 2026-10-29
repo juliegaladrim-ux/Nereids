@@ -4,6 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { useRole } from "@/components/app-shell/role-context"
+import { DateInput } from "@/components/date-input"
 import { SimpleSelect } from "@/components/simple-select"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
@@ -395,7 +396,7 @@ export function AddDocDialog({
           </Field>
           <Field>
             <FieldLabel htmlFor="doc-date">Date du document</FieldLabel>
-            <Input id="doc-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput id="doc-date" value={date} onChange={setDate} />
           </Field>
           <div className="flex items-center gap-2">
             <Checkbox id="notify" checked={notify} onCheckedChange={(c) => setNotify(!!c)} />

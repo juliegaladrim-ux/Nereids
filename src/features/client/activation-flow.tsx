@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Lock,
+  MapPin,
   Paperclip,
   Pencil,
   Upload,
@@ -35,16 +36,18 @@ import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { CLIENT_DOC_COPY, clientTypeLabel } from "./client-docs"
 
-export type ActivationStep = "password" | "infos" | "pieces" | "recap"
+export type ActivationStep = "password" | "infos" | "pieces" | "lieu" | "recap"
 
 /** Étapes numérotées vues par le client */
-const NUMBERED: ActivationStep[] = ["password", "infos", "pieces", "recap"]
+const NUMBERED: ActivationStep[] = ["password", "infos", "pieces", "lieu", "recap"]
 
 type Infos = {
   client: { firstName: string; lastName: string; phone: string; email: string }
   vehicule: { marque: string; modele: string; immat: string; vin: string }
 }
 type Upload = { name: string }
+/** Lieu de l'expertise (le garage) — vide : le client le donnera plus tard */
+type Lieu = { nom: string; adresse: string }
 
 export function ActivationFlow({ id, initialStep }: { id: string; initialStep?: ActivationStep }) {
   const { getDossier } = useStore()
@@ -65,6 +68,8 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
     vehicule: { marque: d.vehicule.marque, modele: d.vehicule.modele, immat: d.vehicule.immat, vin: d.vehicule.vin ?? "" },
   })
   const [uploads, setUploads] = React.useState<Partial<Record<DocCategory, Upload[]>>>({})
+  const [lieu, setLieu] = React.useState<Lieu>({ nom: d.lieuClient?.nom ?? "", adresse: d.lieuClient?.adresse ?? "" })
+  const lieuDonne = !!(lieu.nom.trim() && lieu.adresse.trim())
 
   const go = (s: ActivationStep) => {
     setStep(s)
@@ -102,6 +107,8 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
     updateDossier(d.id, (x) => {
       const timeline: TimelineEvent[] = [...x.timeline]
       if (changed.length) timeline.push(ev("system", "u-client", "Informations modifiées par le client", changed.join(" · ")))
+      if (lieuDonne && !x.lieuClient)
+        timeline.push(ev("expertise", "u-client", "Lieu de l'expertise indiqué par le client", `${lieu.nom.trim()}, ${lieu.adresse.trim()}`))
       if (added.length)
         timeline.push(
           ev("document", "u-client", `${added.length} document${added.length > 1 ? "s" : ""} ajouté${added.length > 1 ? "s" : ""} par le client`, [...new Set(added.map((a) => DOC_CATEGORIES[a.category]))].join(", ")),
@@ -117,6 +124,7 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
         vehicule: { ...infos.vehicule, immat: infos.vehicule.immat.toUpperCase(), vin: infos.vehicule.vin || undefined },
         documents: [...x.documents, ...added],
         timeline,
+        lieuClient: lieuDonne ? { nom: lieu.nom.trim(), adresse: lieu.adresse.trim(), at: x.lieuClient?.at ?? now } : x.lieuClient,
         clientAccess: { invitedAt: x.clientAccess?.invitedAt ?? now, activatedAt: x.clientAccess?.activatedAt ?? now, submittedAt: now },
         pilotage: {
           ...x.pilotage,
@@ -163,10 +171,11 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
         {step === "password" && <PasswordStep client={d.client} onDone={activate} />}
         {step === "infos" && <InfosStep infos={infos} setInfos={setInfos} onNext={() => go("pieces")} />}
         {step === "pieces" && (
-          <PiecesStep d={d} expected={expected} uploads={uploads} setUploads={setUploads} missing={missing} onNext={() => go("recap")} />
+          <PiecesStep d={d} expected={expected} uploads={uploads} setUploads={setUploads} missing={missing} onNext={() => go("lieu")} />
         )}
+        {step === "lieu" && <LieuStep lieu={lieu} setLieu={setLieu} onNext={() => go("recap")} />}
         {step === "recap" && (
-          <RecapStep d={d} infos={infos} expected={expected} uploads={uploads} missing={missing} onEdit={go} onSubmit={submit} />
+          <RecapStep d={d} infos={infos} lieu={lieuDonne ? lieu : null} expected={expected} uploads={uploads} missing={missing} onEdit={go} onSubmit={submit} />
         )}
       </main>
     </div>
@@ -432,6 +441,42 @@ function PiecesStep({
   )
 }
 
+// ─── 5. Lieu de l'expertise ──────────────────────────────────────────────────
+
+function LieuStep({ lieu, setLieu, onNext }: { lieu: Lieu; setLieu: React.Dispatch<React.SetStateAction<Lieu>>; onNext: () => void }) {
+  const filled = !!(lieu.nom.trim() && lieu.adresse.trim())
+  return (
+    <StepLayout
+      icon={<MapPin />}
+      title="Où se trouve votre véhicule ?"
+      subtitle="Indiquez le garage où aura lieu l'expertise. L'expert confirmera ce lieu ou vous en proposera un autre."
+      footer={
+        <div className="flex flex-col gap-2">
+          <Button size="lg" className="w-full" onClick={onNext} disabled={!filled}>
+            Continuer
+          </Button>
+          <Button
+            size="lg"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setLieu({ nom: "", adresse: "" })
+              onNext()
+            }}
+          >
+            Je ne sais pas encore
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <TextField id="l-nom" label="Nom du garage" value={lieu.nom} onChange={(v) => setLieu((p) => ({ ...p, nom: v }))} />
+        <TextField id="l-adresse" label="Adresse" value={lieu.adresse} onChange={(v) => setLieu((p) => ({ ...p, adresse: v }))} />
+      </div>
+    </StepLayout>
+  )
+}
+
 const FAKE_NAMES: Partial<Record<DocCategory, string>> = {
   constat: "Constat amiable.jpg",
   carte_grise: "Carte grise.jpg",
@@ -507,6 +552,7 @@ function DocSlot({
 function RecapStep({
   d,
   infos,
+  lieu,
   expected,
   uploads,
   missing,
@@ -515,6 +561,7 @@ function RecapStep({
 }: {
   d: Dossier
   infos: Infos
+  lieu: Lieu | null
   expected: DocCategory[]
   uploads: Partial<Record<DocCategory, Upload[]>>
   missing: DocCategory[]
@@ -544,6 +591,17 @@ function RecapStep({
           <Row k="E-mail" v={infos.client.email} />
           <Row k="Véhicule" v={`${infos.vehicule.marque} ${infos.vehicule.modele}`.trim()} />
           <Row k="Immatriculation" v={<Immat value={infos.vehicule.immat} />} />
+        </RecapCard>
+
+        <RecapCard title="Lieu de l'expertise" onEdit={() => onEdit("lieu")}>
+          {lieu ? (
+            <>
+              <Row k="Garage" v={lieu.nom} />
+              <Row k="Adresse" v={lieu.adresse} />
+            </>
+          ) : (
+            <p className="text-[15px] text-muted-foreground">Pas encore indiqué : vous pourrez le faire depuis votre espace.</p>
+          )}
         </RecapCard>
 
         <RecapCard title="Mes documents" onEdit={() => onEdit("pieces")}>

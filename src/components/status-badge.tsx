@@ -1,6 +1,15 @@
 import { CalendarDays, Clock, Phone } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ABONNEMENTS, type Abonnement } from "@/lib/annuaire"
 import { STATUSES, VALIDATION_ITEMS, convocationSent, type ClientValidation, type Dossier, type StatusId, type StatusTone, type ValidationState } from "@/lib/data"
@@ -58,13 +67,52 @@ export function LateBadge({ days, className }: { days: number; className?: strin
 // Orange plus vif que celui des statuts « En attente » : sur une simple pastille, il tirait sur le marron
 const VALIDATION_DOT: Record<ValidationState, string> = { ok: "bg-tone-done", en_attente: "bg-orange-500", a_faire: "bg-tone-alert" }
 
-/** Voyants M / D / R : mission signée, devis signé, règlement reçu */
-export function ValidationPills({ validation, className }: { validation: ClientValidation; className?: string }) {
+/** Voyants M / D / R : mission signée, devis signé, règlement reçu — avec onChange, chaque voyant se passe à la main */
+export function ValidationPills({
+  validation,
+  onChange,
+  className,
+}: {
+  validation: ClientValidation
+  onChange?: (key: keyof ClientValidation, state: ValidationState) => void
+  className?: string
+}) {
   return (
     <span className={cn("inline-flex items-center gap-1", className)}>
       {VALIDATION_ITEMS.map((it) => {
         const state = validation[it.key]
         const text = `${it.label} ${state === "ok" ? it.done : state === "en_attente" ? it.pending : it.todo}`
+        if (onChange)
+          return (
+            <DropdownMenu key={it.key}>
+              <DropdownMenuTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`${text} — modifier`}
+                    title={text}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-full border bg-card px-2 text-xs font-semibold hover:bg-muted"
+                  />
+                }
+              >
+                <span className={cn("size-1.5 rounded-full", VALIDATION_DOT[state])} />
+                {it.letter}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>{it.label}</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={state} onValueChange={(v) => v !== state && onChange(it.key, v as ValidationState)}>
+                    {(["a_faire", "en_attente", "ok"] as const).map((s) => (
+                      <DropdownMenuRadioItem key={s} value={s}>
+                        <span className={cn("size-1.5 rounded-full", VALIDATION_DOT[s])} />
+                        <span className="first-letter:uppercase">{s === "ok" ? it.done : s === "en_attente" ? it.pending : it.todo}</span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
         return (
           <Tooltip key={it.key}>
             <TooltipTrigger

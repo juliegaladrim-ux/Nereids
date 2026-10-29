@@ -205,7 +205,7 @@ export function RemoveIntervenantDialog({ dossier: d, slot, onOpenChange }: Prop
             {slot.kind !== "suiveur" && slot.kind !== "reparateur" && " Le poste sera à réassigner."}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="sm:justify-center">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>

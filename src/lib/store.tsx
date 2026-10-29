@@ -25,7 +25,7 @@ import type { AnnuaireData, Contact, Organisation } from "./annuaire"
  * restent visibles. Un bouton « Réinitialiser » remet les données de départ.
  */
 
-const STORAGE_KEY = "nereids-proto-v11"
+const STORAGE_KEY = "nereids-proto-v12"
 const ACCOUNTS_KEY = "nereids-proto-accounts-v1"
 const ANNUAIRE_KEY = "nereids-proto-annuaire-v1"
 const EMPTY_ANNUAIRE: AnnuaireData = { contacts: {}, orgs: {} }

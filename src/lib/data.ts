@@ -317,9 +317,56 @@ export type Dossier = {
   suiveurRefs?: Record<string, string>
   /** Notes internes (onglet « Notes internes », admin Nereids + gestionnaires Help You) */
   notes?: InternalNote[]
-  /** Validation client (mission / devis / règlement) — alimentée par les automatisations ; absente = déduite du statut */
+  /** Validation client (mission / devis / règlement) — passée à la main par le gestionnaire ; absente = déduite du statut */
   validation?: ClientValidation
+  /** Lieu de l'expertise souhaité par le client (le garage où est le véhicule) — à l'activation ou plus tard */
+  lieuClient?: { nom: string; adresse: string; at: string }
+  /** Dernier refus de mission par un expert après sa pré-étude : le dossier revient à Nereids pour une nouvelle assignation */
+  refusExpert?: { expert: string; at: string }
+  /** Formulaire de l'expert après la pré-étude (mission acceptée), envoyé au gestionnaire pour programmer l'expertise */
+  proposition?: PropositionExpert
 }
+
+export type PropositionExpert = {
+  at: string
+  expert: string
+  /** Montant des honoraires, en euros */
+  honoraires: number
+  motif: string
+  /** Lieu confirmé (celui proposé par le client) ou autre lieu proposé par l'expert */
+  lieu: string
+  lieuConfirme: boolean
+  /** 3 dates (ISO) par ordre de priorité */
+  dates: string[]
+}
+
+/** Étape du parcours d'expertise, tant que l'expertise n°1 n'est pas programmée (null = programmée, ou hors parcours) */
+export type ExpertisePhase = "refus" | "mission" | "signature" | "pre_etude" | "programmation"
+
+export function expertisePhase(d: Dossier): ExpertisePhase | null {
+  if (d.status === "cloture" || d.status === "archive" || d.expertise.date || convocationSent(d)) return null
+  // Dossiers de démo plus avancés : hors parcours tant que rien n'y a été fait (voyants, proposition, refus)
+  if (d.status !== "nouveau" && d.status !== "en_etude" && !d.validation && !d.proposition && !d.refusExpert) return null
+  if (!d.intervenants.expert) return d.refusExpert ? "refus" : null
+  const m = clientValidation(d).mission
+  if (m === "a_faire") return "mission"
+  if (m === "en_attente") return "signature"
+  return d.proposition ? "programmation" : "pre_etude"
+}
+
+/**
+ * Prochaine action affichée (suivi, « À vous d'agir ») : tant que la lettre de mission n'est pas signée,
+ * l'expert ne peut pas encore faire sa pré-étude — c'est à Nereids / au gestionnaire puis au client d'agir
+ */
+export function nextAction(d: Dossier): Pick<Dossier["pilotage"], "prochaineAction" | "quiDoitAgir"> {
+  const phase = expertisePhase(d)
+  if (phase === "mission") return { prochaineAction: "Générer la lettre de mission", quiDoitAgir: d.intervenants.gestionnaire ? "gestionnaire" : "nereids" }
+  if (phase === "signature") return { prochaineAction: "Signer la lettre de mission", quiDoitAgir: "client" }
+  return d.pilotage
+}
+
+/** Lieu d'expertise indiqué par le client dans les dossiers de démo (garage où se trouve le véhicule) */
+export const LIEU_CLIENT_DEMO = { nom: "Garage Benali Carrosserie", adresse: "12 rue des Forges, 43200 Yssingeaux" }
 
 /** Client ou propriétaire : personne physique (prénom, nom) ou morale (société, SIRET) */
 export type Personne = {
@@ -380,8 +427,12 @@ export function clientValidation(d: Dossier): ClientValidation {
   // Déduit du statut : mission signée avant l'étude, devis puis règlement avant l'expertise
   switch (d.status) {
     case "nouveau":
-      return { mission: "en_attente", devis: "a_faire", reglement: "a_faire" }
+      // La mission est générée par le gestionnaire une fois l'expert assigné
+      return { mission: "a_faire", devis: "a_faire", reglement: "a_faire" }
     case "en_etude":
+      // Expert tout juste assigné : la mission reste à générer
+      if (!d.expertise.date) return { mission: "a_faire", devis: "a_faire", reglement: "a_faire" }
+    // falls through
     case "attente_client":
       return { mission: "ok", devis: "en_attente", reglement: "a_faire" }
     case "recours_valide":
@@ -810,6 +861,8 @@ export function seedDossiers(): Dossier[] {
         msg(daysFromNow(-1, 10), "u-gest2", "Bonjour, je prends le dossier. Pouvez-vous assigner un expert en Haute-Loire ? M. Delorme serait le plus proche.", ["admin"]),
       ],
       clientAccess: { invitedAt: daysFromNow(-2, 11) },
+      // Lieu d'expertise déjà indiqué par le client : l'expert n'a qu'à le confirmer dans son formulaire
+      lieuClient: { ...LIEU_CLIENT_DEMO, at: daysFromNow(-2, 12) },
     },
     {
       id: "NER-2026-0108",
@@ -906,7 +959,7 @@ export function seedDossiers(): Dossier[] {
       pilotage: {
         ouEnEst: "Expertise contradictoire réalisée, PV déposé.",
         attente: "Pré-rapport de l'expert (attendu à +48 h)",
-        prochaineAction: "Relancer l'expert pour le pré-rapport",
+        prochaineAction: "Déposer le pré-rapport",
         quiDoitAgir: "expert",
         echeance: daysFromNow(-3),
       },

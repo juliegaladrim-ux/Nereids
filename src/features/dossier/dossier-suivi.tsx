@@ -35,7 +35,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
 import { useDossierCabinet } from "@/lib/annuaire"
-import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
+import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, nextAction, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -103,7 +103,7 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
       return next.length === filters.length ? [] : next
     })
   }
-  const { quiDoitAgir } = dossier.pilotage
+  const { prochaineAction, quiDoitAgir } = nextAction(dossier)
   const yourTurn = quiDoitAgir === role.id || (role.id === "admin" && quiDoitAgir === "nereids")
   const events = [...dossier.timeline]
     .filter(rights.canSeeEvent)
@@ -137,7 +137,7 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
             </span>
             <div className="min-w-0 flex-1 pt-1 text-sm">
               <p>
-                <span className="font-medium">À venir : {dossier.pilotage.prochaineAction}</span>{" "}
+                <span className="font-medium">À venir : {prochaineAction}</span>{" "}
                 {yourTurn ? (
                   <span className="font-semibold text-brand-ink">· À vous d&apos;agir</span>
                 ) : (

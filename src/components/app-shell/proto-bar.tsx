@@ -24,6 +24,7 @@ import {
   SINISTRE_TYPES,
   STATUSES,
   WORKFLOW_STEPS,
+  expertisePhase,
   type Dossier,
   type DossierType,
   type LitigeAssurantielType,
@@ -31,7 +32,7 @@ import {
   type StatusId,
 } from "@/lib/data"
 import { ROLES } from "@/lib/roles"
-import { applyScenario, isHorsRecours } from "@/lib/proto-scenario"
+import { PHASE_OPTIONS, applyExpertisePhase, applyScenario, isHorsRecours } from "@/lib/proto-scenario"
 import { useStore } from "@/lib/store"
 import { useRole } from "./role-context"
 
@@ -168,8 +169,14 @@ function DossierControls() {
     )
   }
 
-  function setStatus(status: string) {
-    updateDossier(d!.id, (x) => applyScenario(x, { ...x, status: status as StatusId }))
+  // « En étude » se décline en étapes du parcours d'expertise (valeur « phase:pre_etude »…)
+  const phase = d.status === "en_etude" ? expertisePhase(d) : null
+  const value = phase && phase !== "refus" ? `phase:${phase}` : d.status
+
+  function setStatus(v: string) {
+    const [kind, p] = v.split(":")
+    if (kind === "phase") updateDossier(d!.id, (x) => applyExpertisePhase(x, p as (typeof PHASE_OPTIONS)[number]["phase"]))
+    else updateDossier(d!.id, (x) => applyScenario(x, { ...x, status: v as StatusId }))
   }
 
   return (
@@ -201,8 +208,8 @@ function DossierControls() {
           <span className="truncate">{STATUSES[d.status].label}</span>
           <ChevronUp className="size-4 shrink-0 opacity-60" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="end" className="max-h-[70vh] w-72 overflow-y-auto">
-          <DropdownMenuRadioGroup value={d.status} onValueChange={setStatus}>
+        <DropdownMenuContent side="top" align="end" className="max-h-[70vh] w-80 overflow-y-auto">
+          <DropdownMenuRadioGroup value={value} onValueChange={setStatus}>
             {steps.map((s, i) => (
               <DropdownMenuGroup key={s.label}>
                 {i > 0 && <DropdownMenuSeparator />}
@@ -213,21 +220,31 @@ function DossierControls() {
                   {i + 1}. {s.label}
                   {s === step && " · étape en cours"}
                 </DropdownMenuLabel>
-                {s.statuses.map((st) => (
-                  <DropdownMenuRadioItem
-                    key={st}
-                    value={st}
-                    disabled={hors && st !== "cloture" && st !== "archive"}
-                    // Client : à chaque clic sur « Recours validé », la fiche dossier lui demande son réparateur
-                    onClick={
-                      role.id === "client" && st === "recours_valide"
-                        ? () => window.dispatchEvent(new CustomEvent(REPARATEUR_PROMPT_EVENT, { detail: d!.id }))
-                        : undefined
-                    }
-                  >
-                    {STATUSES[st].label}
-                  </DropdownMenuRadioItem>
-                ))}
+                {s.statuses.map((st) =>
+                  // « En étude » : une entrée par étape du parcours d'expertise
+                  st === "en_etude" && !hors ? (
+                    // L'expert ne voit le dossier qu'une fois la mission signée
+                    PHASE_OPTIONS.filter((o) => role.id !== "expert" || (o.phase !== "mission" && o.phase !== "signature")).map((o) => (
+                      <DropdownMenuRadioItem key={o.phase} value={`phase:${o.phase}`}>
+                        {STATUSES.en_etude.label} · {o.label}
+                      </DropdownMenuRadioItem>
+                    ))
+                  ) : (
+                    <DropdownMenuRadioItem
+                      key={st}
+                      value={st}
+                      disabled={hors && st !== "cloture" && st !== "archive"}
+                      // Client : à chaque clic sur « Recours validé », la fiche dossier lui demande son réparateur
+                      onClick={
+                        role.id === "client" && st === "recours_valide"
+                          ? () => window.dispatchEvent(new CustomEvent(REPARATEUR_PROMPT_EVENT, { detail: d!.id }))
+                          : undefined
+                      }
+                    >
+                      {STATUSES[st].label}
+                    </DropdownMenuRadioItem>
+                  ),
+                )}
               </DropdownMenuGroup>
             ))}
           </DropdownMenuRadioGroup>

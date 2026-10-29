@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { SimpleSelect, type Option } from "@/components/simple-select"
+import { DateInput } from "@/components/date-input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -78,10 +79,12 @@ export function EditDialog({ section, onOpenChange }: { section: EditSection | n
                       onChange={(val) => set(f.key, val ?? "")}
                       options={typeof f.options === "function" ? f.options(v) : (f.options ?? [])}
                     />
+                  ) : f.type === "date" || f.type === "datetime" ? (
+                    <DateInput id={id} withTime={f.type === "datetime"} value={v[f.key] ?? ""} onChange={(val) => set(f.key, val)} />
                   ) : (
                     <Input
                       id={id}
-                      type={f.type === "datetime" ? "datetime-local" : (f.type ?? "text")}
+                      type={f.type ?? "text"}
                       value={v[f.key] ?? ""}
                       onChange={(e) => set(f.key, e.target.value)}
                     />

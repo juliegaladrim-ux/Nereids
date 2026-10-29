@@ -3,7 +3,6 @@ import {
   BookUser,
   CalendarDays,
   FolderOpen,
-  LayoutDashboard,
   Users,
   type LucideIcon,
 } from "lucide-react"
@@ -80,13 +79,11 @@ export const ROLES: Role[] = [
     short: "Expert",
     description: "Consulte ses dossiers, organise l'expertise, dépose PV et rapports.",
     userId: "u-expert",
-    ready: false,
+    ready: true,
     canCreateDossier: false,
-    home: "tableau-de-bord",
-    nav: [
-      { label: "Tableau de bord", path: "tableau-de-bord", icon: LayoutDashboard },
-      { label: "Mes dossiers", path: "dossiers", icon: FolderOpen },
-    ],
+    // Comme le réparateur : il arrive directement sur ses dossiers, dates d'expertise en évidence
+    home: "dossiers",
+    nav: [{ label: "Mes dossiers", path: "dossiers", icon: FolderOpen }],
   },
   {
     id: "reparateur",

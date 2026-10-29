@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   Archive,
@@ -19,6 +20,7 @@ import {
   LayoutGrid,
   List,
   Mail,
+  MapPin,
   MoreHorizontal,
   Pencil,
   Phone,
@@ -67,6 +69,7 @@ import {
   getUser,
   isLate,
   lateDays,
+  nextAction,
   personneName,
   setExpertise,
   type DocCategory,
@@ -88,6 +91,7 @@ import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type Edit
 import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
+import { EditableValidationPills, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
 import { EditIntervenantDialog, RemoveIntervenantDialog, type IntervenantSlot } from "./intervenant-dialogs"
 
 /** Émis par le bandeau du prototype (detail : id du dossier) */
@@ -102,6 +106,7 @@ const opts = <T extends string>(rec: Record<T, string | { label: string }>) =>
 
 export function DossierDetail({ id }: { id: string }) {
   const { href, user, role } = useRole()
+  const router = useRouter()
   const { getDossier, updateDossier, addEvent, logConsultation } = useStore()
   const found = getDossier(id)
   // Cabinet du dossier (celui de l'expert) : son abonnement fixe les droits du gestionnaire Help You
@@ -150,7 +155,8 @@ export function DossierDetail({ id }: { id: string }) {
   const closed = d.status === "cloture" || d.status === "archive"
   const late = isLate(d)
   // L'admin, c'est Nereids : « Nereids doit agir » = c'est à lui
-  const yourTurn = !closed && (d.pilotage.quiDoitAgir === role.id || (role.id === "admin" && d.pilotage.quiDoitAgir === "nereids"))
+  const { quiDoitAgir } = nextAction(d)
+  const yourTurn = !closed && (quiDoitAgir === role.id || (role.id === "admin" && quiDoitAgir === "nereids"))
   // Client et suiveur ne voient l'échéance (et le retard) que quand c'est à eux d'agir : les délais internes ne les concernent pas
   const showDeadline = rights.pilot || yourTurn
   const ownRef = d.suiveurRefs?.[user.id]
@@ -193,6 +199,28 @@ export function DossierDetail({ id }: { id: string }) {
   const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
   // Expertises multiples et convoqués : admin, expert et gestionnaire (CDC v2 : expertise à planifier, convocations)
   const canManageExpertise = role.id === "admin" || role.id === "expert" || (role.id === "gestionnaire" && !rights.telephonieSeule)
+  // Parcours d'expertise : mission, voyants M/D/R, programmation — Nereids et gestionnaire (hors Téléphonie seule)
+  const manager = role.id === "admin" || (role.id === "gestionnaire" && !rights.telephonieSeule)
+
+  /** Le client indique le lieu de l'expertise (son garage) — à l'activation, ou ici s'il ne l'avait pas encore */
+  function lieuSection(): EditSection {
+    return {
+      title: "Lieu de l'expertise",
+      description: "Indiquez le garage où se trouve votre véhicule. L'expert confirmera ce lieu ou en proposera un autre.",
+      fields: [
+        { key: "nom", label: "Nom du garage", full: true },
+        { key: "adresse", label: "Adresse", full: true },
+      ],
+      initial: { nom: d!.lieuClient?.nom ?? "", adresse: d!.lieuClient?.adresse ?? "" },
+      required: ["nom", "adresse"],
+      onSave: (v) => {
+        const lieu = { nom: v.nom.trim(), adresse: v.adresse.trim(), at: new Date().toISOString() }
+        updateDossier(d!.id, (x) => ({ ...x, lieuClient: lieu }))
+        addEvent(d!.id, { kind: "expertise", author: user.id, title: "Lieu de l'expertise indiqué par le client", body: `${lieu.nom}, ${lieu.adresse}` })
+        toast.success("Lieu de l'expertise enregistré", { description: "L'expert le confirmera ou en proposera un autre." })
+      },
+    }
+  }
 
   /** Le client indique son garage : il apparaît aussitôt dans les intervenants du dossier, Nereids le contacte */
   function reparateurSection(afterRecours = false): EditSection {
@@ -424,7 +452,7 @@ export function DossierDetail({ id }: { id: string }) {
               {rights.pilot && (
                 <>
                   <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-                  <ValidationPills validation={clientValidation(d)} />
+                  {manager ? <EditableValidationPills dossier={d} /> : <ValidationPills validation={clientValidation(d)} />}
                   <ExpertiseBadge dossier={d} className="max-w-md min-w-56 flex-1" />
                 </>
               )}
@@ -439,7 +467,8 @@ export function DossierDetail({ id }: { id: string }) {
             )}
           </div>
 
-          {!rights.pilot ? (
+          {/* Intervenants (expert compris) : tout télécharger et déposer ses pièces, sans relance ni statut */}
+          {!rights.pilot || role.id === "expert" ? (
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="outline" onClick={() => toast.info("Export du dossier complet (ZIP) — simulation")}>
                 <Download /> Tout télécharger
@@ -515,6 +544,23 @@ export function DossierDetail({ id }: { id: string }) {
         </Link>
       )}
 
+      {/* Client : lieu de l'expertise pas indiqué à l'activation */}
+      {isClient && d.clientAccess?.submittedAt && !d.lieuClient && !closed && !d.expertise.date && (
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-brand/30 bg-brand-soft p-4 sm:flex-row sm:items-center sm:gap-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand text-primary-foreground [&_svg]:size-5">
+            <MapPin />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Indiquez le lieu de l&apos;expertise</p>
+            <p className="text-sm text-muted-foreground">Le garage où se trouve votre véhicule, dès que vous le connaissez.</p>
+          </div>
+          <Button onClick={() => setEdit(lieuSection())}>Indiquer le lieu</Button>
+        </div>
+      )}
+
+      {/* Prochaine étape du parcours d'expertise (mission, pré-étude, programmation) */}
+      <ExpertiseParcoursBanner dossier={d} manager={manager} onAssign={() => setDialog("assign")} onRefused={() => router.push(href("dossiers"))} />
+
       {/* Admin : demandes d'ouverture de compte intervenant faites par le client */}
       {rights.assign &&
         pendingRequests.map((r) => (
@@ -561,6 +607,7 @@ export function DossierDetail({ id }: { id: string }) {
             <ExpertiseTab
               dossier={d}
               canManage={canManageExpertise}
+              showPreparation={rights.pilot}
               onEdit={(i) => (i === 0 ? editable("expertise") : canManageExpertise ? () => setEdit(expertiseSection(d, i, apply)) : undefined)}
               onAddPv={() => openDoc("pv")}
             />
@@ -1195,9 +1242,12 @@ function ExpertiseTab({
   dossier: d,
   onEdit,
   canManage,
+  showPreparation,
   onAddPv,
 }: {
   dossier: Dossier
+  /** Pilotage : lieu proposé par le client et formulaire de l'expert */
+  showPreparation?: boolean
   /** Ouvre la modification de l'expertise n° index + 1 */
   onEdit: (index: number) => (() => void) | undefined
   /** Admin et expert : ajouter une expertise, la compléter, ajouter des convoqués */
@@ -1298,6 +1348,8 @@ function ExpertiseTab({
           )}
         </div>
       )}
+
+      {i === 0 && showPreparation && <PreparationCard dossier={d} />}
 
       {i === 0 && !e.date ? (
         <Card size="sm">

@@ -11,7 +11,7 @@ import { IntervenantDossiers } from "@/features/intervenant/intervenant-dossiers
 export default function DossiersPage() {
   const { role } = useRole()
   if (role.id === "client") return <ClientDossiers />
-  if (role.id === "suiveur" || role.id === "reparateur") return <IntervenantDossiers />
+  if (role.id === "suiveur" || role.id === "reparateur" || role.id === "expert") return <IntervenantDossiers />
   if (role.id !== "admin" && role.id !== "gestionnaire") return <RoleEmptyState page="dossiers" />
   return (
     <Suspense>

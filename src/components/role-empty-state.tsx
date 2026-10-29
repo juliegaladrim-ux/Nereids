@@ -21,11 +21,6 @@ const TITLES: Record<PageKey, string> = {
 
 /** Ce qui est prévu pour chaque espace (source : parcours FigJam + CDC) */
 const PLANNED: Partial<Record<RoleId, Partial<Record<PageKey, string[]>>>> = {
-  expert: {
-    "tableau-de-bord": ["Mes dossiers uniquement", "Dates d'expertise prévues en évidence"],
-    dossiers: ["Filtre par statut : en étude, attente expertise, attente PV, attente rapport"],
-    dossier: ["Valider / refuser le recours", "Organiser l'expertise (date, lieu, convocation)", "Déposer PV et rapports, modifier le statut", "Onglet tierce expertise (litige assurantiel)"],
-  },
   suiveur: {
     "tableau-de-bord": ["Dossiers suivis : réf. dossier, réf. PJ, client, statut, dernière mise à jour"],
     dossiers: ["Recherche par référence ou nom du client"],

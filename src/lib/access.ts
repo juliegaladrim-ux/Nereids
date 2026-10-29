@@ -1,5 +1,5 @@
 import type { Abonnement } from "./annuaire"
-import { DOC_CATEGORIES, getUser, type DocCategory, type DocumentItem, type Dossier, type TimelineEvent } from "./data"
+import { DOC_CATEGORIES, expertisePhase, getUser, type DocCategory, type DocumentItem, type Dossier, type TimelineEvent } from "./data"
 import { userProfile, type RoleId } from "./roles"
 
 /** Règles de visibilité par rôle (CDC §12) */
@@ -10,7 +10,8 @@ export function visibleDossiers(all: Dossier[], role: RoleId, userId: string): D
     case "gestionnaire":
       return all.filter((d) => d.intervenants.gestionnaire === userId)
     case "expert":
-      return all.filter((d) => d.intervenants.expert === userId)
+      // Le dossier n'apparaît à l'expert qu'une fois la lettre de mission signée (il est alors notifié pour sa pré-étude)
+      return all.filter((d) => d.intervenants.expert === userId && !["mission", "signature"].includes(expertisePhase(d) ?? ""))
     case "reparateur":
       return all.filter((d) => d.intervenants.reparateur === userId)
     case "suiveur":
@@ -139,6 +140,22 @@ export function dossierRights(role: RoleId, userId: string, abonnement?: Abonnem
           e.author === userId ||
           !!e.recipients?.some((r) => r === "reparateur" || r === "all")),
       // Coordination avec le gestionnaire et l'expert (proposition Galadrim, persona réparateur)
+      pickRecipients: true,
+      ownRef: false,
+      changeStatus: false,
+      close: false,
+      assign: false,
+    }
+  }
+  // Expert : ses dossiers (pré-étude, formulaire de mission, expertise, PV et rapports) — consulte tout,
+  // dépose ses pièces, échange dans le suivi ; ni statut, ni assignation, ni clôture (fiche ouverte le 29/10)
+  if (role === "expert") {
+    return {
+      pilot: true,
+      canEdit: (s) => s === "expertise",
+      docCategories: Object.keys(DOC_CATEGORIES) as DocCategory[],
+      canManageDoc: (doc) => doc.addedBy === userId,
+      canSeeEvent: (e) => e.kind !== "consultation",
       pickRecipients: true,
       ownRef: false,
       changeStatus: false,

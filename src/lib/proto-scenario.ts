@@ -11,7 +11,9 @@ import {
   LITIGE_ASSUR_TYPES,
   SINISTRE_TYPES,
   STATUSES,
+  LIEU_CLIENT_DEMO,
   WORKFLOW_STEPS,
+  clientConvoqueId,
   daysFromNow,
   defaultPilotage,
   expectedDocs,
@@ -24,6 +26,7 @@ import {
   type DocumentItem,
   type Dossier,
   type DossierType,
+  type ExpertisePhase,
   type LitigeAssurantielType,
   type SinistreType,
   type StatusId,
@@ -64,6 +67,57 @@ const DOC_FILES: Partial<Record<DocCategory, [string, string]>> = {
   controle_technique: ["Contrôle technique.pdf", "430 Ko"],
   recherche_marche: ["Annonces véhicules similaires.pdf", "3,4 Mo"],
   rapport_compagnie: ["Rapport expertise compagnie.pdf", "1,2 Mo"],
+}
+
+/** Étapes du parcours d'expertise proposées dans la barre proto, sous « En étude » */
+export const PHASE_OPTIONS: { phase: Exclude<ExpertisePhase, "refus">; label: string }[] = [
+  { phase: "mission", label: "Mission à générer" },
+  { phase: "signature", label: "Mission à signer par le client" },
+  { phase: "pre_etude", label: "Pré-étude de l'expert" },
+  { phase: "programmation", label: "Proposition de l'expert reçue" },
+]
+
+/** Dossier « En étude » placé à une étape du parcours d'expertise (expert assigné, expertise non programmée) */
+export function applyExpertisePhase(d: Dossier, phase: Exclude<ExpertisePhase, "refus">): Dossier {
+  const scenario = applyScenario(d, { ...d, status: "en_etude" })
+  if (phase === "mission") return scenario
+  // Par défaut, le client a indiqué le lieu d'expertise (à l'activation de son compte)
+  const x = { ...scenario, lieuClient: scenario.lieuClient ?? { ...LIEU_CLIENT_DEMO, at: daysFromNow(-2, 12) } }
+  const expert = x.intervenants.expert!
+  const signed = phase !== "signature"
+  return {
+    ...x,
+    validation: { mission: signed ? "ok" : "en_attente", devis: "a_faire", reglement: "a_faire" },
+    ...(signed && {
+      pilotage: {
+        ...x.pilotage,
+        ouEnEst: "Mission signée par le client.",
+        attente: "Pré-étude de l'expert",
+        prochaineAction: "Étudier le dossier et accepter ou refuser la mission",
+        quiDoitAgir: "expert" as const,
+      },
+    }),
+    ...(phase === "programmation" && {
+      // Dates à plus de 21 jours : délai minimal de convocation (CDC v2 §5)
+      proposition: {
+        at: daysFromNow(-1, 10),
+        expert,
+        honoraires: 450,
+        motif: "Constater les dommages et chiffrer la réparation.",
+        lieu: [x.lieuClient.nom, x.lieuClient.adresse].join(", "),
+        lieuConfirme: true,
+        dates: [daysFromNow(22, 9), daysFromNow(23, 14), daysFromNow(25, 9)],
+      },
+      expertise: { ...x.expertise, aConvoquer: [clientConvoqueId(x), expert, x.intervenants.reparateur].filter((id): id is string => !!id) },
+      pilotage: {
+        ...x.pilotage,
+        ouEnEst: "Mission acceptée par l'expert.",
+        attente: "Programmation de l'expertise",
+        prochaineAction: "Appeler le lieu d'expertise et générer les convocations",
+        quiDoitAgir: x.intervenants.gestionnaire ? ("gestionnaire" as const) : ("nereids" as const),
+      },
+    }),
+  }
 }
 
 export function applyScenario(d: Dossier, s: Scenario): Dossier {
@@ -261,8 +315,10 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
     sinistreType: s.type === "sinistre" ? s.sinistreType : undefined,
     litigeType: s.type === "litige_assurantiel" ? s.litigeType : undefined,
     status,
-    // Voyants M / D / R recalculés à partir du statut choisi
+    // Voyants M / D / R recalculés à partir du statut choisi, parcours d'expertise repris à zéro
     validation: undefined,
+    proposition: undefined,
+    refusExpert: undefined,
     createdAt,
     compagnie,
     tiers: s.type === "litige_auto" ? d.tiers : undefined,
