@@ -1268,6 +1268,8 @@ function ExpertiseTab({
   const last = i === expertises.length - 1
   // PV attendu à partir du statut « En attente PV » (ou s'il est déjà déposé) ; les expertises précédentes sont passées
   const pvVisible = !last || !!pvs[i] || STATUS_ORDER.indexOf(d.status) >= STATUS_ORDER.indexOf("attente_pv")
+  // Préparation en cours (expertise n°1 pas encore programmée) : tout se passe dans le bloc Préparation
+  const preparing = i === 0 && !!showPreparation && !e.date && (!!d.lieuClient || !!d.proposition)
   const add = (label: string, onClick?: () => void) =>
     canManage && onClick ? (
       <Button key={label} size="xs" variant="outline" onClick={onClick}>
@@ -1308,7 +1310,7 @@ function ExpertiseTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {(expertises.length > 1 || canManage) && (
+      {(expertises.length > 1 || (canManage && !preparing)) && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           {expertises.length > 1 ? (
             <div className="flex rounded-lg border bg-card p-0.5 shadow-xs" role="group" aria-label="Expertises">
@@ -1341,7 +1343,7 @@ function ExpertiseTab({
           ) : (
             <span />
           )}
-          {canManage && (
+          {canManage && !preparing && (
             <Button size="sm" onClick={addExpertise}>
               <Plus /> Ajouter une expertise
             </Button>
@@ -1349,9 +1351,9 @@ function ExpertiseTab({
         </div>
       )}
 
-      {i === 0 && showPreparation && <PreparationCard dossier={d} />}
+      {i === 0 && showPreparation && <PreparationCard dossier={d} onProgrammer={onEdit(0)} />}
 
-      {i === 0 && !e.date ? (
+      {preparing ? null : i === 0 && !e.date ? (
         <Card size="sm">
           <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
             <CalendarDays className="size-6 text-muted-foreground" />

@@ -2,13 +2,13 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { CalendarCheck, CircleAlert, FileSignature, FileText, Hourglass, MapPin, SearchCheck, UserPlus } from "lucide-react"
+import { CalendarCheck, CalendarDays, CircleAlert, FileSignature, FileText, Hourglass, MapPin, SearchCheck, User, UserPlus } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { DateInput } from "@/components/date-input"
 import { ValidationPills } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -547,35 +547,62 @@ function PropositionRows({ dossier: d, withDates = true, className }: { dossier:
 }
 
 /** Onglet Expertise (pilotage) : lieu souhaité par le client et formulaire de l'expert */
-export function PreparationCard({ dossier: d }: { dossier: Dossier }) {
+export function PreparationCard({ dossier: d, onProgrammer }: { dossier: Dossier; onProgrammer?: () => void }) {
   if (!d.lieuClient && !d.proposition) return null
   const expert = getUser(d.proposition?.expert)
+  const programmee = !!d.expertise.date
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Préparation de l&apos;expertise</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex gap-2 text-sm">
-          <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          {d.lieuClient ? (
-            <span>
-              <span className="text-muted-foreground">Lieu proposé par le client : </span>
-              {[d.lieuClient.nom, d.lieuClient.adresse].filter(Boolean).join(", ")}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">Le client n&apos;a pas indiqué de lieu.</span>
-          )}
-        </div>
-        {d.proposition && (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">
-              Proposition de {expert ? fullName(expert) : "l'expert"}{" "}
-              <span className="font-normal text-muted-foreground">· {formatDateTime(d.proposition.at)}</span>
-            </p>
-            <PropositionRows dossier={d} />
-          </div>
+        <CardTitle className="flex items-center gap-2">
+          Préparation de l&apos;expertise
+          <span
+            className={cn(
+              "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold whitespace-nowrap",
+              programmee ? "bg-tone-done-bg text-tone-done" : "bg-tone-waiting-bg text-tone-waiting",
+            )}
+          >
+            <span className={cn("size-1.5 rounded-full", programmee ? "bg-tone-done" : "bg-tone-waiting")} />
+            {programmee ? "Programmée" : "Non programmée"}
+          </span>
+        </CardTitle>
+        {!programmee && onProgrammer && (
+          <CardAction>
+            <Button size="sm" onClick={onProgrammer}>
+              <CalendarDays /> Programmer l&apos;expertise
+            </Button>
+          </CardAction>
         )}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <section className="flex flex-col gap-2 rounded-lg border p-3">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <User className="size-4 text-muted-foreground" /> Demande du client
+          </p>
+          <div className="flex gap-2 text-sm">
+            <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            {d.lieuClient ? (
+              <span>
+                <span className="text-muted-foreground">Lieu souhaité : </span>
+                {[d.lieuClient.nom, d.lieuClient.adresse].filter(Boolean).join(", ")}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Le client n&apos;a pas indiqué de lieu.</span>
+            )}
+          </div>
+        </section>
+        <section className="flex flex-col gap-2 rounded-lg border p-3">
+          <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
+            <SearchCheck className="size-4 text-muted-foreground" />
+            Renseigné par l&apos;expert{expert ? ` · ${fullName(expert)}` : ""}
+            {d.proposition && <span className="font-normal text-muted-foreground">· {formatDateTime(d.proposition.at)}</span>}
+          </p>
+          {d.proposition ? (
+            <PropositionRows dossier={d} />
+          ) : (
+            <p className="text-sm text-muted-foreground">L&apos;expert n&apos;a pas encore rempli son formulaire.</p>
+          )}
+        </section>
       </CardContent>
     </Card>
   )
