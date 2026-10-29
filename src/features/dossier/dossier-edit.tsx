@@ -40,6 +40,9 @@ export type EditSection = {
   cancelLabel?: string
   /** Champs obligatoires : le bouton reste désactivé tant qu'ils sont vides */
   required?: string[]
+  /** Infos en lecture seule affichées sous les champs */
+  info?: React.ReactNode
+  size?: "default" | "sm"
 }
 
 export function EditDialog({ section, onOpenChange }: { section: EditSection | null; onOpenChange: (o: boolean) => void }) {
@@ -53,7 +56,7 @@ export function EditDialog({ section, onOpenChange }: { section: EditSection | n
 
   return (
     <Dialog open={!!section} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size={section?.size}>
         <DialogHeader>
           <DialogTitle>{section?.title}</DialogTitle>
           <DialogDescription>{section?.description ?? "La modification sera tracée dans le suivi du dossier."}</DialogDescription>
@@ -94,6 +97,7 @@ export function EditDialog({ section, onOpenChange }: { section: EditSection | n
               )
             })}
         </div>
+        {section?.info}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {section?.cancelLabel ?? "Annuler"}

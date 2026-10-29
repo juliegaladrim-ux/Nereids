@@ -27,6 +27,7 @@ import {
   Plus,
   Trash2,
   UserCheck,
+  User as UserIcon,
   UserPlus,
   Wrench,
   X,
@@ -91,7 +92,7 @@ import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type Edit
 import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
-import { EditableValidationPills, eur, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
+import { convoqueName, EditableValidationPills, eur, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
 import { EditIntervenantDialog, RemoveIntervenantDialog, type IntervenantSlot } from "./intervenant-dialogs"
 
 /** Émis par le bandeau du prototype (detail : id du dossier) */
@@ -934,7 +935,7 @@ function EditButton({ onClick, label, className }: { onClick: () => void; label:
   )
 }
 
-function InfoCard({ title, rows, onEdit }: { title: string; rows: [string, React.ReactNode][]; onEdit?: () => void }) {
+function InfoCard({ title, rows, onEdit, inline }: { title: string; rows: [string, React.ReactNode][]; onEdit?: () => void; inline?: boolean }) {
   return (
     <Card size="sm">
       <CardHeader>
@@ -946,7 +947,7 @@ function InfoCard({ title, rows, onEdit }: { title: string; rows: [string, React
         )}
       </CardHeader>
       <CardContent>
-        <InfoRows rows={rows} />
+        <InfoRows rows={rows} inline={inline} />
       </CardContent>
     </Card>
   )
@@ -976,13 +977,13 @@ function EditAction({ onClick, label }: { onClick: () => void; label: string }) 
   )
 }
 
-/** Lignes libellé / valeur sur fond gris clair */
-function InfoRows({ rows }: { rows: [React.ReactNode, React.ReactNode][] }) {
+/** Lignes libellé / valeur sur fond gris clair (inline : valeur toujours à côté du libellé, même longue) */
+function InfoRows({ rows, inline }: { rows: [React.ReactNode, React.ReactNode][]; inline?: boolean }) {
   return (
     <dl className="flex flex-col gap-1 text-sm">
       {rows.map(([k, v], i) => {
         // Texte long (description…) : libellé au-dessus, valeur alignée à gauche
-        const long = typeof v === "string" && v.length > 40
+        const long = !inline && typeof v === "string" && v.length > 40
         return (
           <div key={i} className={cn("flex gap-4 rounded-md bg-muted/70 px-3 py-2", long ? "flex-col gap-1" : "items-start justify-between")}>
             <dt className="shrink-0 text-muted-foreground">{k}</dt>
@@ -1371,7 +1372,8 @@ function ExpertiseTab({
         </div>
       )}
 
-      {i === 0 && showPreparation && <PreparationCard dossier={d} onProgrammer={onEdit(0)} />}
+      {/* Une fois l'expertise programmée, la préparation laisse place aux blocs ci-dessous */}
+      {preparing && <PreparationCard dossier={d} onProgrammer={onEdit(0)} />}
 
       {preparing ? null : i === 0 && !e.date ? (
         <Card size="sm">
@@ -1396,6 +1398,7 @@ function ExpertiseTab({
               rows={[
                 ["Date", e.date ? <span key="d" className="first-letter:uppercase">{formatLongDate(e.date)}</span> : add("date", onEdit(i))],
                 ["Lieu", e.lieu ?? add("lieu", onEdit(i))],
+                ...(i === 0 && d.proposition ? [["Motif", d.proposition.motif] as [string, React.ReactNode]] : []),
                 ["Statut", !e.date ? "À programmer" : e.realisee ? "Réalisée" : `Prévue ${relativeDays(e.date)}`],
                 [
                   "Convocation",
@@ -1406,6 +1409,7 @@ function ExpertiseTab({
                 ],
               ]}
               onEdit={e.date ? onEdit(i) : undefined}
+              inline
             />
             {(pvVisible || last) && (
               <InfoCard
@@ -1479,34 +1483,49 @@ function TierceTab({ dossier: d, onAdd, allowed }: { dossier: Dossier; onAdd?: (
 
 // ─── Blocs modifiables par l'admin ───────────────────────────────────────────
 
-/** Modification d'une expertise (n° index + 1) : date, statut, lieu, convocation */
+/** Modification d'une expertise (n° index + 1) : date et lieu ; les personnes à convoquer sont rappelées */
 export function expertiseSection(d: Dossier, index: number, apply: (title: string, patch: (x: Dossier) => Dossier) => void): EditSection {
   const e = allExpertises(d)[index]
   const n = allExpertises(d).length > 1 ? ` n°${index + 1}` : ""
+  const people = expertisePeople(d, index)
+  // Lieu proposé par le client (repris par l'expert dans sa proposition s'il y en a une)
+  const lieuClient = d.lieuClient ? [d.lieuClient.nom, d.lieuClient.adresse].filter(Boolean).join(", ") : ""
   return {
     title: e.date ? `Modifier l'expertise${n}` : `Programmer l'expertise${n}`,
+    size: "sm",
     fields: [
-      { key: "date", label: "Date et heure", type: "datetime" },
-      { key: "realisee", label: "Statut", type: "select", options: [{ value: "non", label: "Prévue" }, { value: "oui", label: "Réalisée" }] },
+      { key: "date", label: "Date et heure", type: "datetime", full: true },
       { key: "lieu", label: "Lieu", full: true },
-      { key: "convocation", label: "Convocation", type: "select", options: [{ value: "non", label: "Pas encore envoyée" }, { value: "oui", label: "Envoyée" }] },
     ],
     initial: {
       date: toDateTimeInput(e.date),
-      lieu: e.lieu ?? "",
-      realisee: e.realisee ? "oui" : "non",
-      convocation: e.convoques.length ? "oui" : "non",
+      lieu: e.lieu ?? (index === 0 ? (d.proposition?.lieu ?? lieuClient) : ""),
     },
+    info: (
+      <div className="flex flex-col gap-1.5 text-sm">
+        <p className="font-medium">Personnes à convoquer</p>
+        {people.length ? (
+          <ul className="flex flex-col gap-1">
+            {people.map((id) => (
+              <li key={id} className="flex items-center gap-2">
+                <UserIcon className="size-4 shrink-0 text-muted-foreground" />
+                {convoqueName(d, id)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground">Aucune personne à convoquer pour l&apos;instant.</p>
+        )}
+      </div>
+    ),
     onSave: (v: Values) =>
       apply(`Expertise${n}`, (x) =>
         setExpertise(x, index, (cur) => ({
           ...cur,
           date: fromDateInput(v.date),
           lieu: opt(v.lieu),
-          realisee: v.realisee === "oui",
-          // Envoi : la liste à convoquer devient la liste des convoqués ; annulation : on la garde pour plus tard
-          convoques: v.convocation === "oui" ? (cur.convoques.length ? cur.convoques : expertisePeople(x, index)) : [],
-          aConvoquer: v.convocation === "oui" ? cur.aConvoquer : cur.convoques.length ? cur.convoques : cur.aConvoquer,
+          // Programmer convoque les personnes prévues
+          convoques: cur.convoques.length || !v.date ? cur.convoques : expertisePeople(x, index),
         })),
       ),
   }

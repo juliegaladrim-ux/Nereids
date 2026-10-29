@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { CalendarCheck, CalendarDays, CircleAlert, FileSignature, FileText, Hourglass, MapPin, SearchCheck, User, UserPlus } from "lucide-react"
+import { CalendarCheck, CalendarDays, FileSignature, FileText, Hourglass, MapPin, SearchCheck, User, UserPlus } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { DateInput } from "@/components/date-input"
@@ -59,7 +59,7 @@ function convocables(d: Dossier): { id: string; label: string; detail: string }[
   return [{ id: clientConvoqueId(d), label: personneName(d.client), detail: "Client" }, ...people]
 }
 
-function convoqueName(d: Dossier, id: string): string {
+export function convoqueName(d: Dossier, id: string): string {
   if (id === clientConvoqueId(d)) return personneName(d.client)
   const u = getUser(id)
   return u ? fullName(u) || u.structure : id
@@ -424,8 +424,6 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
   const [lieu, setLieu] = React.useState(p.lieu)
   const date = choice === "autre" ? fromDateInput(autreDate) : p.dates[Number(choice)]
   const convoques = d.expertise.aConvoquer ?? []
-  const v = clientValidation(d)
-  const notGreen = VALIDATION_ITEMS.filter((it) => v[it.key] !== "ok")
 
   function convoquer() {
     const now = new Date().toISOString()
@@ -459,7 +457,7 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Programmer l&apos;expertise</DialogTitle>
           <DialogDescription>Appelez le lieu pour vérifier ses disponibilités, puis générez les convocations.</DialogDescription>
@@ -486,20 +484,11 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
             {choice === "autre" && (
               <DateInput withTime aria-label="Autre date" value={autreDate} onChange={setAutreDate} min={toDateTimeInput(new Date().toISOString())} />
             )}
-            <FieldDescription>Lieu indisponible à ces dates : rappelez le client pour convenir d&apos;une autre date.</FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor="g-lieu">Lieu *</FieldLabel>
             <Input id="g-lieu" value={lieu} onChange={(e) => setLieu(e.target.value)} />
           </Field>
-          {notGreen.length > 0 && (
-            <p className="flex gap-2 rounded-md bg-tone-waiting-bg px-3 py-2 text-sm text-tone-waiting">
-              <CircleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>
-                {notGreen.map((it) => `${it.label} ${v[it.key] === "en_attente" ? it.pending : it.todo}`).join(" · ")}. Vous pouvez convoquer quand même.
-              </span>
-            </p>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
@@ -543,11 +532,13 @@ function PropositionRows({ dossier: d, withDates = true, className }: { dossier:
 
 /** Onglet Expertise (pilotage) : lieu souhaité par le client et formulaire de l'expert */
 export function PreparationCard({ dossier: d, onProgrammer }: { dossier: Dossier; onProgrammer?: () => void }) {
+  const [programmer, setProgrammer] = React.useState(false)
   if (!d.lieuClient && !d.proposition) return null
   const expert = getUser(d.proposition?.expert)
   const programmee = !!d.expertise.date
   return (
     <Card size="sm">
+      {programmer && <ProgrammerDialog dossier={d} onClose={() => setProgrammer(false)} />}
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Préparation de l&apos;expertise
@@ -563,7 +554,8 @@ export function PreparationCard({ dossier: d, onProgrammer }: { dossier: Dossier
         </CardTitle>
         {!programmee && onProgrammer && (
           <CardAction>
-            <Button size="sm" onClick={onProgrammer}>
+            {/* Proposition de l'expert reçue : même modale que la bannière */}
+            <Button size="sm" onClick={d.proposition ? () => setProgrammer(true) : onProgrammer}>
               <CalendarDays /> Programmer l&apos;expertise
             </Button>
           </CardAction>
