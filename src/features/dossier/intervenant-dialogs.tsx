@@ -118,7 +118,7 @@ export function EditIntervenantDialog({ dossier: d, slot, onOpenChange }: Props)
         onOpenChange(o)
       }}
     >
-      <DialogContent>
+      <DialogContent size="sm">
         {creating && manual ? (
           <>
             <DialogBack onClick={() => showCreate(false)} />
@@ -196,7 +196,7 @@ export function RemoveIntervenantDialog({ dossier: d, slot, onOpenChange }: Prop
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Retirer {title(slot)} ?</DialogTitle>
           <DialogDescription>

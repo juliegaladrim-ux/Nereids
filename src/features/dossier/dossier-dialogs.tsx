@@ -80,7 +80,7 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Modifier le statut</DialogTitle>
           <DialogDescription>
@@ -141,7 +141,7 @@ export function CloseDialog({ dossier, open, onOpenChange }: DialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Clôturer le dossier</DialogTitle>
           <DialogDescription>
@@ -233,7 +233,7 @@ export function AssignDialog({ dossier, open, onOpenChange }: DialogProps) {
         onOpenChange(o)
       }}
     >
-      <DialogContent>
+      <DialogContent size="sm">
         {creating ? (
           <>
             <DialogBack onClick={() => showScreen(null)} />
@@ -369,7 +369,7 @@ export function AddDocDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Ajouter un document</DialogTitle>
           <DialogDescription>Chaque document est classé dans une catégorie.</DialogDescription>

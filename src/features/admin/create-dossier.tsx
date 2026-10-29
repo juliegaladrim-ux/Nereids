@@ -784,7 +784,7 @@ export function CreateDossier() {
 
       {/* Saisie d'un expert / réparateur absent de la liste */}
       <Dialog open={!!creating} onOpenChange={(o) => !o && setCreating(null)}>
-        <DialogContent>
+        <DialogContent size="sm">
           {creating && (
             <>
               <DialogHeader>
