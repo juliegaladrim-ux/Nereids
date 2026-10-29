@@ -1,4 +1,4 @@
-import { CalendarDays, Clock, Phone } from "lucide-react"
+import { CalendarDays, ChevronDown, Clock, Phone } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -67,7 +67,7 @@ export function LateBadge({ days, className }: { days: number; className?: strin
 // Orange plus vif que celui des statuts « En attente » : sur une simple pastille, il tirait sur le marron
 const VALIDATION_DOT: Record<ValidationState, string> = { ok: "bg-tone-done", en_attente: "bg-orange-500", a_faire: "bg-tone-alert" }
 
-/** Voyants M / D / R : mission signée, devis signé, règlement reçu — avec onChange, chaque voyant se passe à la main */
+/** Voyants M / D / R : mission signée, devis signé, règlement reçu — une ligne par voyant ; avec onChange, chaque voyant se passe à la main */
 export function ValidationPills({
   validation,
   onChange,
@@ -77,11 +77,24 @@ export function ValidationPills({
   onChange?: (key: keyof ClientValidation, state: ValidationState) => void
   className?: string
 }) {
+  // Sous-grille : libellés et états alignés en colonnes, un état long passe à la ligne sous lui-même
+  // Modifiable : chaque ligne a l'allure d'un sélecteur (fond, chevron) pour qu'on comprenne qu'elle se change au clic
+  const row = cn(
+    "-mx-1.5 grid grid-cols-subgrid items-baseline gap-x-2 rounded-md px-1.5 py-0.5 text-left text-sm",
+    onChange ? "col-span-4 my-px" : "col-span-3",
+  )
   return (
-    <span className={cn("inline-flex items-center gap-1", className)}>
+    <span className={cn("grid w-fit", onChange ? "grid-cols-[auto_auto_1fr_auto]" : "grid-cols-[auto_auto_1fr]", className)}>
       {VALIDATION_ITEMS.map((it) => {
         const state = validation[it.key]
-        const text = `${it.label} ${state === "ok" ? it.done : state === "en_attente" ? it.pending : it.todo}`
+        const status = state === "ok" ? it.done : state === "en_attente" ? it.pending : it.todo
+        const content = (
+          <>
+            <span className={cn("size-2 shrink-0 -translate-y-px rounded-full", VALIDATION_DOT[state])} />
+            <span className="font-medium">{it.label}</span>
+            <span className="text-muted-foreground">{status}</span>
+          </>
+        )
         if (onChange)
           return (
             <DropdownMenu key={it.key}>
@@ -89,14 +102,14 @@ export function ValidationPills({
                 render={
                   <button
                     type="button"
-                    aria-label={`${text} — modifier`}
-                    title={text}
-                    className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-full border bg-card px-2 text-xs font-semibold hover:bg-muted"
+                    title="Modifier"
+                    aria-label={`${it.label} ${status} — modifier`}
+                    className={cn(row, "group cursor-pointer bg-muted/60 transition-colors hover:bg-muted data-[popup-open]:bg-muted")}
                   />
                 }
               >
-                <span className={cn("size-1.5 rounded-full", VALIDATION_DOT[state])} />
-                {it.letter}
+                {content}
+                <ChevronDown className="size-3.5 translate-y-0.5 self-start text-muted-foreground transition-colors group-hover:text-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuGroup>
@@ -114,22 +127,9 @@ export function ValidationPills({
             </DropdownMenu>
           )
         return (
-          <Tooltip key={it.key}>
-            <TooltipTrigger
-              render={
-                <span
-                  aria-label={text}
-                  className={cn(
-                    "inline-flex h-6 cursor-default items-center gap-1.5 rounded-full border bg-card px-2 text-xs font-semibold",
-                  )}
-                />
-              }
-            >
-              <span className={cn("size-1.5 rounded-full", VALIDATION_DOT[state])} />
-              {it.letter}
-            </TooltipTrigger>
-            <TooltipContent>{text}</TooltipContent>
-          </Tooltip>
+          <span key={it.key} className={row}>
+            {content}
+          </span>
         )
       })}
     </span>
@@ -161,40 +161,31 @@ export function AbonnementBadge({ abonnement, className }: { abonnement?: Abonne
   )
 }
 
-/** Rendez-vous d'expertise dans l'en-tête : point vert = convocation faite, gris = pas encore */
+/** Rendez-vous d'expertise dans l'en-tête : date, lieu et état de la convocation, en clair */
 export function ExpertiseBadge({ dossier: d, className }: { dossier: Dossier; className?: string }) {
   const { date, lieu } = d.expertise
   const sent = convocationSent(d)
-  const day = date ? new Date(date).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }) : null
+  const day = date ? new Date(date).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : null
   const time = date ? new Date(date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : null
-  const state = !date ? "Expertise non programmée" : sent ? "Convocation envoyée" : "Convocation pas encore envoyée"
+  if (!date)
+    return (
+      <span className={cn("inline-flex items-center gap-2 text-sm text-muted-foreground", className)}>
+        <CalendarDays className="size-3.5 shrink-0" /> Non programmée
+      </span>
+    )
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span
-            aria-label={`Expertise — ${state}`}
-            className={cn("inline-flex h-6 max-w-full min-w-0 cursor-default items-center gap-1.5 rounded-md border bg-card px-2 text-xs", className)}
-          />
-        }
-      >
-        <span className={cn("size-1.5 shrink-0 rounded-full", sent && date ? "bg-tone-done" : "bg-muted-foreground/40")} />
+    <span className={cn("flex flex-col gap-0.5 text-sm", className)}>
+      <span className="inline-flex items-center gap-2 font-medium">
         <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" />
-        {date ? (
-          <>
-            <span className="shrink-0 font-semibold first-letter:uppercase">
-              {day} · {time}
-            </span>
-            {lieu && <span className="truncate text-muted-foreground">{lieu}</span>}
-          </>
-        ) : (
-          <span className="text-muted-foreground">Expertise non programmée</span>
-        )}
-      </TooltipTrigger>
-      <TooltipContent>
-        {lieu && <p>{lieu}</p>}
-        <p>{state}</p>
-      </TooltipContent>
-    </Tooltip>
+        <span className="first-letter:uppercase">
+          {day} à {time}
+        </span>
+      </span>
+      {lieu && <span className="pl-5.5 text-muted-foreground">{lieu}</span>}
+      <span className="inline-flex items-center gap-2 pl-0.5 text-sm text-muted-foreground">
+        <span className={cn("mx-[3px] size-2 shrink-0 rounded-full", sent ? "bg-tone-done" : "bg-muted-foreground/40")} />
+        {sent ? "Convocation envoyée" : "Convocation pas encore envoyée"}
+      </span>
+    </span>
   )
 }

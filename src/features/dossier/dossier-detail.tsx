@@ -434,38 +434,14 @@ export function DossierDetail({ id }: { id: string }) {
                 {isClient ? `${d.vehicule.marque} ${d.vehicule.modele}` : personneName(d.client)}
               </h1>
               <Immat value={d.vehicule.immat} className="h-7 text-sm" />
+              <StatusBadge status={d.status} className="ml-1" />
+              {late && showDeadline && <LateBadge days={lateDays(d)} />}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {d.ref} · {DOSSIER_TYPES[d.type].label}
               {subtype && ` — ${subtype}`}
               {!isClient && ` · ${d.vehicule.marque} ${d.vehicule.modele}`} · créé le {formatDate(d.createdAt)}
             </p>
-            {/* Coordonnées du client à portée de main : un clic copie */}
-            {!isClient && (d.client.phone || d.client.email) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {d.client.phone && <CopyChip icon={Phone} value={d.client.phone} />}
-                {d.client.email && <CopyChip icon={Mail} value={d.client.email} />}
-              </div>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <StatusBadge status={d.status} />
-              {late && showDeadline && <LateBadge days={lateDays(d)} />}
-              {rights.pilot && (
-                <>
-                  <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-                  {manager ? <EditableValidationPills dossier={d} /> : <ValidationPills validation={clientValidation(d)} />}
-                  <ExpertiseBadge dossier={d} className="max-w-md min-w-56 flex-1" />
-                </>
-              )}
-            </div>
-            {/* Nereids et gestionnaires : cabinet du dossier et abonnement souscrit */}
-            {canSeeNotes && cabinet && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{cabinet.nom}</span>
-                <AbonnementBadge abonnement={cabinet.abonnement} />
-                {rights.telephonieSeule && <span className="text-xs text-muted-foreground">Consultation et traçage des appels dans le suivi uniquement</span>}
-              </div>
-            )}
           </div>
 
           {/* Intervenants (expert compris) : tout télécharger et déposer ses pièces, sans relance ni statut */}
@@ -526,6 +502,37 @@ export function DossierDetail({ id }: { id: string }) {
           </div>
           )}
         </div>
+
+        {/* Repères du dossier : une carte, une colonne étiquetée par sujet */}
+        {((!isClient && (d.client.phone || d.client.email)) || rights.pilot || (canSeeNotes && cabinet)) && (
+          <div className="mt-4 flex flex-wrap overflow-hidden rounded-xl border bg-card">
+            {/* Coordonnées du client à portée de main : un clic copie */}
+            {!isClient && (d.client.phone || d.client.email) && (
+              <HeaderCell label="Contact client">
+                {d.client.phone && <CopyLine icon={Phone} value={d.client.phone} />}
+                {d.client.email && <CopyLine icon={Mail} value={d.client.email} />}
+              </HeaderCell>
+            )}
+            {rights.pilot && (
+              <>
+                <HeaderCell label="Expertise">
+                  <ExpertiseBadge dossier={d} />
+                </HeaderCell>
+                <HeaderCell label="Mission · Devis · Règlement">
+                  {manager ? <EditableValidationPills dossier={d} /> : <ValidationPills validation={clientValidation(d)} />}
+                </HeaderCell>
+              </>
+            )}
+            {/* Nereids et gestionnaires : cabinet du dossier et abonnement souscrit */}
+            {canSeeNotes && cabinet && (
+              <HeaderCell label="Cabinet">
+                <span className="text-sm font-medium">{cabinet.nom}</span>
+                <AbonnementBadge abonnement={cabinet.abonnement} className="w-fit" />
+                {rights.telephonieSeule && <span className="text-xs text-muted-foreground">Consultation et traçage des appels dans le suivi uniquement</span>}
+              </HeaderCell>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Client : dossier pas encore complété depuis l'invitation */}
@@ -688,7 +695,17 @@ export function DossierDetail({ id }: { id: string }) {
   )
 }
 
-function CopyChip({ icon: Icon, value }: { icon: React.ElementType; value: string }) {
+/** Colonne de la carte d'en-tête ; les séparateurs du bord gauche/haut sont rognés par la carte quand les colonnes passent à la ligne */
+function HeaderCell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="-mt-px -ml-px flex min-w-[14rem] flex-1 flex-col gap-1.5 border-t border-l px-4 py-3">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+function CopyLine({ icon: Icon, value }: { icon: React.ElementType; value: string }) {
   return (
     <button
       type="button"
@@ -697,11 +714,11 @@ function CopyChip({ icon: Icon, value }: { icon: React.ElementType; value: strin
         navigator.clipboard?.writeText(value)
         toast.success("Copié", { description: value })
       }}
-      className="group inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border bg-card px-2 text-sm transition-colors hover:border-foreground/30 hover:bg-muted/60"
+      className="group -mx-1.5 inline-flex w-fit max-w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-0.5 text-sm transition-colors hover:bg-muted"
     >
-      <Icon className="size-3.5 text-muted-foreground" />
-      <span className="font-medium">{value}</span>
-      <Copy className="size-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate font-medium">{value}</span>
+      <Copy className="size-3.5 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
     </button>
   )
 }
