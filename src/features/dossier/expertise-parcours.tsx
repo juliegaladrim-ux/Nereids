@@ -43,7 +43,7 @@ import { fromDateInput, toDateTimeInput } from "./dossier-edit"
 
 const ROLE_ORDER: string[] = ["expert", "reparateur", "suiveur"]
 
-const eur = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })
+export const eur = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })
 
 /** Personnes du dossier qu'on peut convoquer : client, expert, réparateur, suiveurs */
 function convocables(d: Dossier): { id: string; label: string; detail: string }[] {

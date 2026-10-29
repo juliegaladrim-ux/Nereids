@@ -82,7 +82,7 @@ import {
   type User,
 } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
-import { useDossierCabinet } from "@/lib/annuaire"
+import { useDossierCabinet, type Organisation } from "@/lib/annuaire"
 import { formatDate, formatDateTime, formatLongDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -91,7 +91,7 @@ import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type Edit
 import { DossierNotes } from "./dossier-notes"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
-import { EditableValidationPills, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
+import { EditableValidationPills, eur, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
 import { EditIntervenantDialog, RemoveIntervenantDialog, type IntervenantSlot } from "./intervenant-dialogs"
 
 /** Émis par le bandeau du prototype (detail : id du dossier) */
@@ -591,7 +591,7 @@ export function DossierDetail({ id }: { id: string }) {
             <DossierSuivi dossier={d} onEditCloture={editable("cloture")} />
           </TabsContent>
           <TabsContent value="general">
-            <General dossier={d} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
+            <General dossier={d} cabinet={cabinet} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
           </TabsContent>
           <TabsContent value="documents">
             <Documents
@@ -996,11 +996,13 @@ function InfoRows({ rows }: { rows: [React.ReactNode, React.ReactNode][] }) {
 
 function General({
   dossier: d,
+  cabinet,
   editable,
   showAccount,
   onInviteClient,
 }: {
   dossier: Dossier
+  cabinet?: Organisation
   editable: (id: SectionId) => (() => void) | undefined
   showAccount?: boolean
   onInviteClient?: () => void
@@ -1019,6 +1021,9 @@ function General({
   ) : d.clientAccess ? (
     `Invité le ${formatDate(d.clientAccess.invitedAt)} · pas encore activé`
   ) : null
+  const expert = getUser(d.intervenants.expert)
+  // Honoraires saisis par l'expert dans son formulaire après la pré-étude
+  const honoraires = d.proposition && d.proposition.expert === expert?.id ? d.proposition.honoraires : undefined
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <InfoCard
@@ -1081,6 +1086,21 @@ function General({
         onEdit={editable("tiers")}
       />
       <InfoCard title="Description" rows={[["Problème", d.description]]} onEdit={editable("description")} />
+      <InfoCard
+        title="Expert"
+        rows={
+          expert
+            ? [
+                ["Nom", fullName(expert)],
+                ["Téléphone", expert.phone],
+                ["E-mail", expert.email],
+                ["Cabinet", cabinet?.nom ?? expert.structure],
+                ["Adresse du cabinet", cabinet?.address ?? expert.address],
+                ...(honoraires !== undefined ? [["Honoraires", eur(honoraires)] as [string, React.ReactNode]] : []),
+              ]
+            : [["Expert", <span key="e" className="text-muted-foreground">Pas encore assigné</span>]]
+        }
+      />
     </div>
   )
 }
