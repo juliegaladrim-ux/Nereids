@@ -14,7 +14,7 @@ import type { RoleId } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
 /**
- * Fiche d'un utilisateur (CDC §16 : nom, prénom, fonction, structure, téléphone, e-mail + zone d'intervention ;
+ * Fiche d'un utilisateur (CDC §16 : nom, prénom, structure, téléphone, e-mail + zone d'intervention ;
  * point client 22/10 : adresse postale, plusieurs e-mails, expert rattaché à un cabinet de l'annuaire).
  * Même formulaire partout où Nereids ajoute quelqu'un : onglet « Utilisateurs » et ajout d'un intervenant
  * hors liste lors d'une assignation dans un dossier. Dans les deux cas, la personne est invitée par e-mail
@@ -115,7 +115,6 @@ export function UserFields({
       {field("firstName", role === "reparateur" ? "Prénom (optionnel)" : "Prénom")}
       {field("lastName", role === "reparateur" ? "Nom (optionnel)" : "Nom")}
       {!orgFirst && org}
-      <div className="sm:col-span-2">{field("fonction", "Fonction (optionnel)")}</div>
       <div className="sm:col-span-2">
         <EmailsField
           id="user"

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Building2, Download, Plus, Search, Send, UserPlus, X } from "lucide-react"
+import { Building2, Download, Plus, Search, UserPlus, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { useRole } from "@/components/app-shell/role-context"
@@ -18,7 +18,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { NewUserForm } from "@/features/admin/user-form"
 import { AccountBadge, intervenantStatus, isDormant, lastLogin, type AccountStatus } from "@/features/admin/users-page"
 import { EmailsField, SimilarAlert, SuggestInput, cleanEmails, orgSuggestion, personKind, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import {
@@ -133,6 +132,8 @@ export function AnnuairePage() {
   /** Fiche ouverte : id, ou « new » pour un ajout */
   const [openPerson, setOpenPerson] = React.useState<string | null>(null)
   const [openOrg, setOpenOrg] = React.useState<string | null>(null)
+  /** Cabinet saisi à l'ajout d'un expert : sa fiche s'ouvre en création, à compléter */
+  const [creatingOrg, setCreatingOrg] = React.useState(false)
   /** Cabinet pour lequel on crée une fiche expert */
   const [newExpertFor, setNewExpertFor] = React.useState<Organisation | null>(null)
 
@@ -442,9 +443,10 @@ export function AnnuairePage() {
               key={openPerson}
               entry={people.find((p) => p.id === openPerson)}
               onOpen={setOpenPerson}
-              onOpenOrg={(id) => {
+              onOpenOrg={(id, creating) => {
                 setOpenPerson(null)
                 setOpenOrg(id)
+                setCreatingOrg(!!creating)
               }}
               onDone={() => setOpenPerson(null)}
             />
@@ -452,13 +454,24 @@ export function AnnuairePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!openOrg} onOpenChange={(o) => !o && setOpenOrg(null)}>
+      <Dialog
+        open={!!openOrg}
+        onOpenChange={(o) => {
+          if (o) return
+          setOpenOrg(null)
+          setCreatingOrg(false)
+        }}
+      >
         <DialogContent>
           {openOrg && (
             <OrgDialog
               key={openOrg}
               org={orgs.find((o) => o.id === openOrg)}
-              onOpen={setOpenOrg}
+              creating={creatingOrg}
+              onOpen={(id) => {
+                setOpenOrg(id)
+                setCreatingOrg(false)
+              }}
               onOpenPerson={(id) => {
                 setOpenOrg(null)
                 setOpenPerson(id)
@@ -467,17 +480,29 @@ export function AnnuairePage() {
                 setOpenOrg(null)
                 setNewExpertFor(o)
               }}
-              onDone={() => setOpenOrg(null)}
+              onDone={() => {
+                setOpenOrg(null)
+                setCreatingOrg(false)
+              }}
             />
           )}
         </DialogContent>
       </Dialog>
 
+      {/* Expert créé depuis la fiche de son cabinet : même fiche que « Ajouter une personne », type et cabinet pré-remplis */}
       <Dialog open={!!newExpertFor} onOpenChange={(o) => !o && setNewExpertFor(null)}>
         <DialogContent>
           {newExpertFor && (
-            <NewExpertDialog
-              cabinet={newExpertFor}
+            <PersonDialog
+              preset={{ type: "expert", org: newExpertFor.nom }}
+              onOpen={(id) => {
+                setNewExpertFor(null)
+                setOpenPerson(id)
+              }}
+              onOpenOrg={(id) => {
+                setNewExpertFor(null)
+                setOpenOrg(id)
+              }}
               onDone={(added) => {
                 // Retour sur la fiche du cabinet, où le nouvel expert apparaît
                 if (added) setOpenOrg(newExpertFor.id)
@@ -542,23 +567,28 @@ type PersonForm = {
 
 function PersonDialog({
   entry,
+  preset,
   onOpen,
   onOpenOrg,
   onDone,
 }: {
   entry?: PersonEntry
+  /** Nouvelle fiche pré-remplie (expert créé depuis la fiche de son cabinet) */
+  preset?: { type: PersonType; org: string }
   onOpen: (id: string) => void
-  onOpenOrg: (id: string) => void
-  onDone: () => void
+  /** creating : cabinet tout juste saisi, sa fiche s'ouvre en création */
+  onOpenOrg: (id: string, creating?: boolean) => void
+  /** added : une fiche a été enregistrée */
+  onDone: (added?: boolean) => void
 }) {
   const { dossiers, accounts, updateAccount, saveContact, saveOrg } = useStore()
   const { people, orgs } = useAnnuaire()
   const user = entry?.user
   const [v, setV] = React.useState<PersonForm>({
-    type: entry ? (entry.type ?? (entry.isClient ? "client" : "autre")) : null,
+    type: entry ? (entry.type ?? (entry.isClient ? "client" : "autre")) : (preset?.type ?? null),
     firstName: entry?.firstName ?? "",
     lastName: entry?.lastName ?? "",
-    org: entry?.org?.nom ?? (user && ROLE_ORG[user.role] ? (user.structure ?? "") : ""),
+    org: entry?.org?.nom ?? (user && ROLE_ORG[user.role] ? (user.structure ?? "") : (preset?.org ?? "")),
     orgType: (user && ROLE_ORG[user.role]) ?? "societe",
     email: entry?.email ?? "",
     autresEmails: entry?.autresEmails ?? [],
@@ -625,8 +655,8 @@ function PersonDialog({
       saveContact(c)
     }
     toast.success(entry ? "Fiche modifiée" : "Personne ajoutée à l'annuaire")
-    if (newCabinet && orgId) onOpenOrg(orgId)
-    else onDone()
+    if (newCabinet && orgId) onOpenOrg(orgId, true)
+    else onDone(true)
   }
 
   return (
@@ -758,7 +788,7 @@ function PersonDialog({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onDone}>
+        <Button type="button" variant="outline" onClick={() => onDone()}>
           Annuler
         </Button>
         <Button type="submit">{entry ? "Enregistrer" : newCabinet ? "Ajouter et créer la fiche cabinet" : "Ajouter"}</Button>
@@ -771,12 +801,15 @@ function PersonDialog({
 
 function OrgDialog({
   org,
+  creating,
   onOpen,
   onOpenPerson,
   onAddExpert,
   onDone,
 }: {
   org?: Organisation
+  /** Fiche créée à l'ajout d'un expert (nom déjà saisi) : présentée comme une création */
+  creating?: boolean
   onOpen: (id: string) => void
   onOpenPerson: (id: string) => void
   onAddExpert: (cabinet: Organisation) => void
@@ -819,20 +852,22 @@ function OrgDialog({
       phone: v.phone.trim() || undefined,
       address: v.address.trim() || undefined,
     })
-    toast.success(org ? "Fiche modifiée" : "Organisation ajoutée à l'annuaire")
+    toast.success(creating ? "Fiche cabinet créée" : org ? "Fiche modifiée" : "Organisation ajoutée à l'annuaire")
     onDone()
   }
 
   return (
     <form onSubmit={save} noValidate className="grid gap-5">
       <DialogHeader>
-        {org && (
+        {org && !creating && (
           <span className="mb-1 grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
             <Building2 className="size-5" />
           </span>
         )}
-        <DialogTitle>{org ? org.nom : "Ajouter une organisation"}</DialogTitle>
-        <DialogDescription>{org ? ORG_TYPES[org.type].label : "Cabinet d'expertise, garage, compagnie d'assurance…"}</DialogDescription>
+        <DialogTitle>{creating ? "Créer la fiche cabinet" : org ? org.nom : "Ajouter une organisation"}</DialogTitle>
+        <DialogDescription>
+          {creating ? "L'expert est ajouté. Complétez la fiche de son cabinet." : org ? ORG_TYPES[org.type].label : "Cabinet d'expertise, garage, compagnie d'assurance…"}
+        </DialogDescription>
       </DialogHeader>
 
       <div className="grid gap-4">
@@ -928,42 +963,9 @@ function OrgDialog({
         <Button type="button" variant="outline" onClick={onDone}>
           Annuler
         </Button>
-        <Button type="submit">{org ? "Enregistrer" : "Ajouter"}</Button>
+        <Button type="submit">{creating ? "Créer la fiche cabinet" : org ? "Enregistrer" : "Ajouter"}</Button>
       </DialogFooter>
     </form>
-  )
-}
-
-// ─── Nouvel expert d'un cabinet ───────────────────────────────────────────────
-
-/** Fiche expert créée depuis son cabinet : même formulaire que dans Utilisateurs, cabinet pré-rempli, invitation envoyée */
-function NewExpertDialog({ cabinet, onDone }: { cabinet: Organisation; onDone: (added: boolean) => void }) {
-  const { inviteUser } = useStore()
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Créer une fiche expert</DialogTitle>
-        <DialogDescription>Il recevra une invitation par e-mail pour activer son compte.</DialogDescription>
-      </DialogHeader>
-      <NewUserForm
-        role="expert"
-        formId="new-expert"
-        initial={{ structure: cabinet.nom }}
-        onAdd={(u) => {
-          inviteUser(u)
-          toast.success("Invitation envoyée", { description: `${contactName(u)} est rattaché à ${u.structure}.` })
-          onDone(true)
-        }}
-      />
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => onDone(false)}>
-          Annuler
-        </Button>
-        <Button type="submit" form="new-expert">
-          <Send /> Envoyer l&apos;invitation
-        </Button>
-      </DialogFooter>
-    </>
   )
 }
 
