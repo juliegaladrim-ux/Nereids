@@ -93,7 +93,7 @@
   --brand: #749ba9;
   --brand-ink: #456c7a; /* bleu foncé pour le texte : contraste AA sur blanc */
   --brand-soft: #ebf1f3;
-  /* Bandeau dégradé en haut des pages (inspiration Deel) */
+  /* Bleu clair des bandeaux (ex. frise d'étapes du dossier) */
   --band: #dce8ec;
 
   --background: #f6f6f4;

@@ -732,7 +732,7 @@ function Count({ n }: { n: number }) {
 }
 
 /**
- * Progression : bandeau bleu brand (étape en cours + dernière mise à jour) au-dessus de la frise,
+ * Progression : bandeau bleu clair (couleur du bandeau de page, en aplat) (étape en cours + dernière mise à jour) au-dessus de la frise,
  * un point par étape, toutes nommées. La première étape est calée à gauche, la dernière à droite.
  */
 function Progress({ dossier }: { dossier: Dossier }) {
@@ -751,7 +751,7 @@ function Progress({ dossier }: { dossier: Dossier }) {
 
   return (
     <div className="mb-6 overflow-hidden rounded-xl border border-brand/40 bg-brand-soft">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-brand px-4 py-2.5 text-sm text-white">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-band px-4 py-2.5 text-sm text-brand-ink">
         {done ? <CircleCheck className="size-4 shrink-0" /> : <CircleDashed className="size-4 shrink-0" />}
         <span className="tabular-nums">{done ? "Terminé" : `Étape ${current + 1}/${steps.length}`}</span>
         <span className="font-semibold">{steps[current].label}</span>

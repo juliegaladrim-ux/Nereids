@@ -21,8 +21,6 @@ export default async function RoleLayout({ children, params }: LayoutProps<"/[ro
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset className="relative min-w-0">
-          {/* Bandeau dégradé derrière l'en-tête et le titre de page */}
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-linear-to-b from-band to-transparent" />
           <AppHeader />
           <div className="relative flex min-w-0 flex-1 flex-col px-4 pt-6 pb-24 sm:px-6 lg:px-8">{children}</div>
         </SidebarInset>
