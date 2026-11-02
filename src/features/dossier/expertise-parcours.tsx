@@ -177,6 +177,13 @@ export function ExpertiseParcoursBanner({
       text: "Dès que le client a signé, indiquez-le ici ou sur le voyant M : l'expert sera notifié pour sa pré-étude.",
       actions: <Button onClick={() => setValidation("mission", "ok")}><FileSignature /> Mission signée</Button>,
     }
+  } else if (phase === "signature" && role.id === "client") {
+    content = {
+      icon: <FileSignature />,
+      title: "Signature de la mission",
+      text: "Signez votre lettre de mission pour que l'expert puisse étudier votre dossier.",
+      actions: <Button onClick={() => setValidation("mission", "ok")}><FileSignature /> Signer la mission</Button>,
+    }
   } else if (phase === "pre_etude" && isExpert) {
     content = {
       icon: <SearchCheck />,
