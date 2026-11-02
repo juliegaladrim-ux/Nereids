@@ -419,8 +419,10 @@ export function AnnuairePage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {ORG_TYPES[o.type].label}
-                      {o.type === "cabinet" && <AbonnementBadge abonnement={o.abonnement} className="mt-1 flex w-fit" />}
+                      <span className="flex items-center gap-2">
+                        {ORG_TYPES[o.type].label}
+                        {o.type === "cabinet" && <AbonnementBadge abonnement={o.abonnement} />}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <DepCell address={o.address} />

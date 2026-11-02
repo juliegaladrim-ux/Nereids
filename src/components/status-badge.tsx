@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, Clock, Phone } from "lucide-react"
+import { CalendarDays, ChevronDown, Clock, FolderOpen, Phone } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -136,27 +136,31 @@ export function ValidationPills({
   )
 }
 
-/** Abonnement souscrit par le cabinet du dossier ; le détail des droits au survol */
-export function AbonnementBadge({ abonnement, className }: { abonnement?: Abonnement; className?: string }) {
+/** Abonnement souscrit par le cabinet du dossier : une icône par service, le libellé et le détail des droits au survol */
+export function AbonnementBadge({ abonnement, showLabel, className }: { abonnement?: Abonnement; showLabel?: boolean; className?: string }) {
   if (!abonnement) return <span className={cn("text-xs text-muted-foreground", className)}>Abonnement non renseigné</span>
   const a = ABONNEMENTS[abonnement]
+  const pastille = "flex size-6 items-center justify-center rounded-full ring-2 ring-card"
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <span
-            className={cn(
-              "inline-flex h-6 cursor-default items-center gap-1.5 rounded-md border bg-card px-2 text-xs font-medium whitespace-nowrap",
-              abonnement === "telephonie" && "border-tone-waiting/40 bg-tone-waiting-bg text-tone-waiting",
-              className,
-            )}
-          />
-        }
-      >
-        {abonnement === "telephonie" && <Phone className="size-3.5 shrink-0" />}
-        {a.label}
+      <TooltipTrigger render={<span aria-label={a.label} className={cn("inline-flex shrink-0 cursor-default items-center gap-2", className)} />}>
+        <span className="flex -space-x-1.5">
+          {abonnement !== "telephonie" && (
+            <span className={cn(pastille, "bg-brand text-white")}>
+              <FolderOpen className="size-3.5" />
+            </span>
+          )}
+          {abonnement !== "gestion" && (
+            <span className={cn(pastille, "bg-brand-soft text-brand-ink")}>
+              <Phone className="size-3.5" />
+            </span>
+          )}
+        </span>
+        {showLabel && <span className="text-sm whitespace-nowrap">{a.label}</span>}
       </TooltipTrigger>
-      <TooltipContent>{a.detail}</TooltipContent>
+      <TooltipContent>
+        <span className="font-semibold">{a.label}</span> · {a.detail}
+      </TooltipContent>
     </Tooltip>
   )
 }

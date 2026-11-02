@@ -527,7 +527,7 @@ export function DossierDetail({ id }: { id: string }) {
             {canSeeNotes && cabinet && (
               <HeaderCell label="Cabinet">
                 <span className="text-sm font-medium">{cabinet.nom}</span>
-                <AbonnementBadge abonnement={cabinet.abonnement} className="w-fit" />
+                <AbonnementBadge abonnement={cabinet.abonnement} showLabel className="w-fit" />
                 {rights.telephonieSeule && <span className="text-xs text-muted-foreground">Consultation et traçage des appels dans le suivi uniquement</span>}
               </HeaderCell>
             )}

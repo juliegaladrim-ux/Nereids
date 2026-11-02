@@ -273,10 +273,10 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
                     const cab = dossierCabinet(d, orgs)
                     if (!cab) return <span className="text-muted-foreground">—</span>
                     return (
-                      <>
+                      <span className="flex items-center gap-2">
                         {cab.nom}
-                        <AbonnementBadge abonnement={cab.abonnement} className="mt-1 flex w-fit" />
-                      </>
+                        <AbonnementBadge abonnement={cab.abonnement} />
+                      </span>
                     )
                   })()}
                 </TableCell>
