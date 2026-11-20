@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { appendText, DictationButton } from "@/components/dictation-button"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
 import { useDossierCabinet } from "@/lib/annuaire"
@@ -310,14 +311,17 @@ function Reply({ dossier, event }: { dossier: Dossier; event: TimelineEvent }) {
 
   return (
     <div className="mt-3 ml-4 flex flex-col gap-2">
-      <Textarea
-        autoFocus
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={2}
-        placeholder={`Répondre à ${fullName(getUser(event.author))}…`}
-        className="resize-none"
-      />
+      <div className="flex items-start gap-2">
+        <Textarea
+          autoFocus
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={2}
+          placeholder={`Répondre à ${fullName(getUser(event.author))}…`}
+          className="resize-none"
+        />
+        <DictationButton onText={(t) => setText((p) => appendText(p, t))} />
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">Une seule réponse possible par message.</p>
         <div className="flex gap-2">
@@ -407,6 +411,7 @@ function Composer({ dossier, pickRecipients }: { dossier: Dossier; pickRecipient
             placeholder={pickRecipients ? "Écrire un message dans le suivi…" : "Écrire un message à Nereids…"}
             className="min-h-0 resize-none"
           />
+          <DictationButton onText={(t) => setText((p) => appendText(p, t))} />
         </div>
         {open && (
           <div className="flex flex-col gap-3 pl-11">

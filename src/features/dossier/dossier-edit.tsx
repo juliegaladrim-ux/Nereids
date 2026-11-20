@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { DictableTextarea } from "@/components/dictable-textarea"
 import { cn } from "@/lib/utils"
 
 /**
@@ -67,15 +67,31 @@ export function EditDialog({ section, onOpenChange }: { section: EditSection | n
             .map((f) => {
               const id = `edit-${f.key}`
               const full = f.full || f.type === "textarea"
+              // Champ libre : micro de dictée à droite du libellé
+              if (f.type === "textarea")
+                return (
+                  <DictableTextarea
+                    key={f.key}
+                    id={id}
+                    className="sm:col-span-2"
+                    label={
+                      <>
+                        {f.label}
+                        {section.required?.includes(f.key) && " *"}
+                      </>
+                    }
+                    description={f.hint}
+                    value={v[f.key] ?? ""}
+                    onValueChange={(val) => set(f.key, val)}
+                  />
+                )
               return (
                 <Field key={f.key} className={cn(full && "sm:col-span-2")}>
                   <FieldLabel htmlFor={id}>
                     {f.label}
                     {section.required?.includes(f.key) && " *"}
                   </FieldLabel>
-                  {f.type === "textarea" ? (
-                    <Textarea id={id} rows={3} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
-                  ) : f.type === "select" ? (
+                  {f.type === "select" ? (
                     <SimpleSelect
                       id={id}
                       value={v[f.key] || null}

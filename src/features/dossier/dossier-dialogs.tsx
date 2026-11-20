@@ -18,10 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { DictableTextarea } from "@/components/dictable-textarea"
 import { AssignFields, NEW_INTERVENANT_FORM, NEW_LABELS, NewIntervenantForm, type AssignValue, type NewRole } from "@/features/admin/create-dossier"
 import {
   CLOSING_REASONS,
@@ -100,10 +100,7 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
               options={(Object.keys(STATUSES) as StatusId[]).map((s) => ({ value: s, label: STATUSES[s].label }))}
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="obs">Observation</FieldLabel>
-            <Textarea id="obs" rows={3} placeholder="Optionnel — visible dans le suivi" value={obs} onChange={(e) => setObs(e.target.value)} />
-          </Field>
+          <DictableTextarea id="obs" label="Observation" rows={3} placeholder="Optionnel — visible dans le suivi" value={obs} onValueChange={setObs} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -154,10 +151,7 @@ export function CloseDialog({ dossier, open, onOpenChange }: DialogProps) {
             <FieldLabel>Motif de clôture *</FieldLabel>
             <SimpleSelect placeholder="Choisir un motif" value={motif} onChange={setMotif} options={CLOSING_REASONS.map((m) => ({ value: m, label: m }))} />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="close-comment">Commentaire</FieldLabel>
-            <Textarea id="close-comment" rows={3} value={comment} onChange={(e) => setComment(e.target.value)} />
-          </Field>
+          <DictableTextarea id="close-comment" label="Commentaire" rows={3} value={comment} onValueChange={setComment} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -315,11 +309,14 @@ export function RelanceDialog({ dossier, open, onOpenChange }: DialogProps) {
             Destinataire : {target ? `${fullName(target)} (${target.structure})` : who === "client" ? `${personneName(dossier.client)} (client)` : dossier.compagnie?.nom ?? "compagnie"}
           </DialogDescription>
         </DialogHeader>
-        <Field>
-          <FieldLabel htmlFor="relance">Message (modèle modifiable)</FieldLabel>
-          <Textarea id="relance" rows={9} value={msg} onChange={(e) => setMsg(e.target.value)} />
-          <FieldDescription>Envoyé par e-mail et visible dans le suivi du dossier.</FieldDescription>
-        </Field>
+        <DictableTextarea
+          id="relance"
+          label="Message (modèle modifiable)"
+          description="Envoyé par e-mail et visible dans le suivi du dossier."
+          rows={9}
+          value={msg}
+          onValueChange={setMsg}
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuler

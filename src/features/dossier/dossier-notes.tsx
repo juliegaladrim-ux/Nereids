@@ -8,6 +8,7 @@ import { useRole } from "@/components/app-shell/role-context"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { appendText, DictationButton } from "@/components/dictation-button"
 import { Textarea } from "@/components/ui/textarea"
 import { fullName, getUser, type Dossier } from "@/lib/data"
 import { formatDateTime } from "@/lib/format"
@@ -47,6 +48,7 @@ export function DossierNotes({ dossier }: { dossier: Dossier }) {
               placeholder="Ajouter une note interne (appel, point d'attention, à faire…)"
               className="min-h-0 resize-none"
             />
+            <DictationButton onText={(t) => setText((p) => appendText(p, t))} />
           </div>
           {text && (
             <div className="flex justify-end gap-2 pl-11">

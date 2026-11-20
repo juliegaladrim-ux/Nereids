@@ -15,7 +15,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Textarea } from "@/components/ui/textarea"
+import { DictableTextarea } from "@/components/dictable-textarea"
 import {
   STATUS_ORDER,
   VALIDATION_ITEMS,
@@ -321,10 +321,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
                 <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€</span>
               </div>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="p-motif">Motif de la convocation *</FieldLabel>
-              <Textarea id="p-motif" rows={2} value={motif} onChange={(e) => setMotif(e.target.value)} />
-            </Field>
+            <DictableTextarea id="p-motif" label="Motif de la convocation *" rows={2} value={motif} onValueChange={setMotif} />
           </div>
         </FormSection>
 
