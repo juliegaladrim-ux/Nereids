@@ -40,7 +40,7 @@ export function MultiSelect({
           <Badge key={o} variant="secondary" className="h-6 gap-1 pr-1">
             {o}
             <button type="button" aria-label={`Retirer ${o}`} className="rounded-full p-0.5 hover:bg-foreground/10" onClick={() => toggle(o)}>
-              <X />
+              <X className="size-3" />
             </button>
           </Badge>
         ))}

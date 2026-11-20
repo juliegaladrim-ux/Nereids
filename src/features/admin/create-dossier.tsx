@@ -1036,7 +1036,7 @@ export function CreateDossier() {
                       <FieldLabel htmlFor="prix">Prix de la 1ʳᵉ expertise</FieldLabel>
                       <div className="grid grid-cols-[1fr_auto] gap-2">
                         <div className="relative">
-                          <Input id="prix" inputMode="decimal" className="pr-8" placeholder="1020" value={f.prix} onChange={(e) => set("prix", e.target.value)} />
+                          <Input id="prix" inputMode="decimal" className="pr-8" placeholder="Ex. 1020" value={f.prix} onChange={(e) => set("prix", e.target.value)} />
                           <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€</span>
                         </div>
                         <SimpleSelect
