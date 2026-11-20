@@ -11,7 +11,8 @@ export function visibleDossiers(all: Dossier[], role: RoleId, userId: string): D
       return all.filter((d) => d.intervenants.gestionnaire === userId)
     case "expert":
       // Le dossier n'apparaît à l'expert qu'une fois la lettre de mission signée (il est alors notifié pour sa pré-étude)
-      return all.filter((d) => d.intervenants.expert === userId && !["mission", "signature"].includes(expertisePhase(d) ?? ""))
+      // Un dossier créé par l'expert lui-même lui est toujours visible (pas de lettre de mission à attendre)
+      return all.filter((d) => d.createdBy === userId || (d.intervenants.expert === userId && !["mission", "signature"].includes(expertisePhase(d) ?? "")))
     case "reparateur":
       return all.filter((d) => d.intervenants.reparateur === userId)
     case "suiveur":
