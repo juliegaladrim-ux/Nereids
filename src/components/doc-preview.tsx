@@ -31,6 +31,7 @@ const KIND: Record<DocCategory, Kind> = {
   pre_rapport: "rapport",
   rapport: "rapport",
   rapport_compagnie: "rapport",
+  premier_rapport: "rapport",
   controle_technique: "rapport",
   recherche_marche: "rapport",
   courrier: "courrier",

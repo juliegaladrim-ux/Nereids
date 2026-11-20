@@ -157,7 +157,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
   // On garde la compagnie du dossier si elle correspond au type (pas celle de démo d'un autre type)
   const foreign = (Object.keys(DEFAULT_COMPAGNIE) as DossierType[]).some((t) => t !== s.type && DEFAULT_COMPAGNIE[t].nom === d.compagnie?.nom)
   const compagnie = d.type === s.type && d.compagnie && !foreign ? d.compagnie : DEFAULT_COMPAGNIE[s.type]
-  const expected = expectedDocs(s.type, s.litigeType)
+  const expected = expectedDocs(s.type, s.litigeType, s.sinistreType)
   // En attente client : il manque une pièce attendue
   const missing = status === "attente_client" ? expected[expected.length - 1] : undefined
 

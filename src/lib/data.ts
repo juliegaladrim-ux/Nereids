@@ -27,29 +27,97 @@ export const DOSSIER_TYPES: Record<DossierType, { label: string; short: string; 
   },
 }
 
-export type SinistreType = "responsable" | "non_resp_sans_tiers" | "non_resp_avec_tiers"
+export type SinistreType = "recours_direct" | "suivi_vei" | "suivi_vge" | "bris_de_glace"
 
+/**
+ * Qualification d'un sinistre. Plus de distinction « responsable / non responsable » (retours du 20/11) :
+ * tous les sinistres entrent dans le module (recours reste à true : il n'y a plus de dossier « hors périmètre » à la création).
+ */
 export const SINISTRE_TYPES: Record<SinistreType, { label: string; recours: boolean }> = {
-  responsable: { label: "Sinistre responsable", recours: false },
-  non_resp_sans_tiers: { label: "Non responsable, sans tiers", recours: false },
-  non_resp_avec_tiers: { label: "Non responsable, avec tiers", recours: true },
+  recours_direct: { label: "Recours direct", recours: true },
+  suivi_vei: { label: "Suivi VEI", recours: true },
+  suivi_vge: { label: "Suivi VGE", recours: true },
+  bris_de_glace: { label: "Bris de glace", recours: true },
 }
 
-export type LitigeAssurantielType =
-  | "valeur"
-  | "rapport_minore"
-  | "imputable"
-  | "incoherence"
-  | "indemnisation"
-  | "sans_reparation"
+/** Anciennes valeurs (dossiers déjà enregistrés dans le navigateur) → nouvelle qualification */
+export const LEGACY_SINISTRE_TYPES: Record<string, SinistreType> = {
+  responsable: "recours_direct",
+  non_resp_sans_tiers: "recours_direct",
+  non_resp_avec_tiers: "recours_direct",
+}
 
+/** Objet de la mission d'un sinistre (liste déroulante à la création) */
+export const OBJETS_MISSION = [
+  "Accident",
+  "Grêle",
+  "Véhicule volé retrouvé",
+  "Véhicule volé non retrouvé",
+  "Vandalisme",
+  "Bris de glace",
+  "Animal",
+]
+
+/** Type de mission d'un litige automobile : détermine le type et le titre du futur rapport d'expertise */
+export const TYPES_MISSION = [
+  "Assistance à titre privé",
+  "Arbitrage",
+  "Assistance technique dans le cadre d'une expertise judiciaire",
+  "Assistance technique dans le cadre d'une protection juridique",
+  "Assistance technique dans le cadre d'une responsabilité professionnelle",
+  "Assistance technique pour un garantisseur",
+  "Tierce expertise",
+]
+
+/** Objet de la panne ou du litige (choix multiple) : définit le champ d'intervention et précise la convocation */
+export const OBJETS_PANNE = [
+  "AdBlue", "Airbag", "Alerte au tableau de bord", "Allumage", "Amortisseur", "Autonomie", "Autoradio", "Banc de chassimétrie",
+  "Batterie", "Batterie de traction", "Bobine d'allumage", "Boîte de vitesses", "Boîte de transfert", "Boîtier électronique",
+  "Bougies", "Bougies de préchauffage", "Bras de suspension", "Bruit", "Capteurs", "Carburant", "Carrosserie", "Ceinture",
+  "Chaîne de distribution", "Châssis", "Chauffage", "Chauffe moteur", "Chiffrage", "Choc", "Climatisation", "Collage",
+  "Combiné d'instruments", "Compresseur", "Conformité", "Consommation d'huile", "Consommation de liquide de refroidissement",
+  "Contrôle technique", "Corrosion", "Courroie", "Débitmètre d'air", "Dépannage", "Devis de réparation", "Direction",
+  "Distribution", "Dysfonctionnement électronique", "Échappement", "Éclairage", "Électricité", "Embrayage", "Entrée d'eau",
+  "Essuie-glace", "Étanchéité", "Facture", "Filtres", "Filtre à particules", "Freinage", "Fuite d'huile de boîte de vitesses",
+  "Fuite d'huile de boîte de transfert", "Fuite d'huile moteur", "GPS", "Grêle", "Huile", "Incendie", "Injection", "Inondation",
+  "Isolation", "Jante", "Jeux", "Kilométrage", "Lève-vitre", "Limiteur de vitesse", "Location", "Mécanique", "Moisissure",
+  "Moteur", "Périphérique moteur", "Pneumatiques", "Pollution", "Pompe à eau", "Pompe à injection", "Pompe de gavage",
+  "Pont arrière", "Pont avant", "Radar", "Radiateur", "Refroidissement", "Régulateur de vitesse", "Remorquage", "Réparation",
+  "Réservoir", "Rétroviseur", "Roues", "Roulement", "Sécurité active", "Sécurité passive", "Siège", "Signalisation", "Soudure",
+  "Surchauffe", "Suspension", "Système d'air", "Tableau de bord", "Tablette", "Train roulant", "Transmission", "Turbocompresseur",
+  "Vibration", "Vitrage", "Vol de pièce", "Vol du véhicule", "Voyant au tableau de bord",
+  "Autre",
+]
+
+/** Types de frais quand le véhicule immobilisé génère des frais */
+export const TYPES_FRAIS = ["Frais de gardiennage", "Frais d'occupation de sol", "Frais d'occupation de pont élévateur"]
+
+export type OuiNonNsp = "oui" | "non" | "nsp"
+
+export type LitigeAssurantielType =
+  | "incoherence"
+  | "refus_prise_en_charge"
+  | "valeur"
+  | "imputable"
+  | "indemnisation"
+  | "rapport_minore"
+  | "sans_reparation"
+  | "autre"
+
+/**
+ * « Objet du litige » (liste déroulante, retours du 20/11). Les clés historiques sont conservées pour ne pas
+ * casser les dossiers existants ni les pièces attendues : seuls les libellés changent.
+ * L'ordre est celui de la liste fournie par le client.
+ */
 export const LITIGE_ASSUR_TYPES: Record<LitigeAssurantielType, { label: string; hint: string }> = {
-  valeur: { label: "Valeur contestée", hint: "La valeur retenue pour le véhicule est trop basse." },
-  rapport_minore: { label: "Rapport minoré", hint: "Le rapport de la compagnie sous-évalue les dommages." },
-  imputable: { label: "Problème imputable", hint: "Dommage causé lors d'une réparation ou expertise." },
   incoherence: { label: "Incohérence de déclaration", hint: "La compagnie conteste la déclaration." },
-  indemnisation: { label: "Problème d'indemnisation", hint: "Retard ou refus d'indemnisation." },
+  refus_prise_en_charge: { label: "Refus de prise en charge", hint: "La compagnie refuse de prendre le sinistre en charge." },
+  valeur: { label: "Contestation de valeur du véhicule", hint: "La valeur retenue pour le véhicule est trop basse." },
+  imputable: { label: "Problème d'imputation des dommages", hint: "Dommage causé lors d'une réparation ou expertise." },
+  indemnisation: { label: "Litige sur indemnisation", hint: "Retard ou refus d'indemnisation." },
+  rapport_minore: { label: "Désaccord sur chiffrage", hint: "Le rapport de la compagnie sous-évalue les dommages." },
   sans_reparation: { label: "Indemnisation sans réparation", hint: "Désaccord sur une indemnisation en l'état." },
+  autre: { label: "Autre", hint: "À préciser dans un champ libre." },
 }
 
 /** Statuts V1 (CDC §17) */
@@ -120,6 +188,7 @@ export type DocCategory =
   | "pre_rapport"
   | "rapport"
   | "controle_technique"
+  | "premier_rapport"
   | "facture_achat"
   | "entretien"
   | "recherche_marche"
@@ -138,6 +207,7 @@ export const DOC_CATEGORIES: Record<DocCategory, string> = {
   pre_rapport: "Pré-rapport",
   rapport: "Rapport d'expertise",
   controle_technique: "Contrôle technique",
+  premier_rapport: "Premier rapport d'expertise",
   facture_achat: "Factures d'achat",
   entretien: "Factures d'entretien",
   recherche_marche: "Recherche marché",
@@ -147,8 +217,12 @@ export const DOC_CATEGORIES: Record<DocCategory, string> = {
 }
 
 /** Pièces attendues à la création, selon le type (CDC §4) */
-export function expectedDocs(type: DossierType, sub?: LitigeAssurantielType): DocCategory[] {
-  if (type === "sinistre") return ["constat", "carte_grise", "photos"]
+export function expectedDocs(type: DossierType, sub?: LitigeAssurantielType, sinistre?: SinistreType): DocCategory[] {
+  if (type === "sinistre") {
+    // Suivi VEI / VGE : le premier rapport d'expertise s'ajoute aux pièces habituelles
+    if (sinistre === "suivi_vei" || sinistre === "suivi_vge") return ["constat", "carte_grise", "photos", "premier_rapport"]
+    return ["constat", "carte_grise", "photos"]
+  }
   if (type === "litige_auto")
     return ["facture_achat", "facture", "entretien", "carte_grise", "controle_technique"]
   switch (sub) {
@@ -274,6 +348,19 @@ export type Dossier = {
   type: DossierType
   sinistreType?: SinistreType
   litigeType?: LitigeAssurantielType
+  /** Précision quand l'objet du litige assurantiel est « Autre » */
+  litigeAutre?: string
+  /** Sinistre : objet de la mission (Accident, Grêle…) */
+  objetMission?: string
+  /** Litige automobile : type de mission (détermine le type et le titre du rapport) */
+  typeMission?: string
+  /** Litige automobile : objets de la panne ou du litige (choix multiple) + précision si « Autre » */
+  objetsPanne?: string[]
+  panneAutre?: string
+  /** Utilisateur qui a créé le dossier (un expert voit les dossiers qu'il a créés) */
+  createdBy?: string
+  /** Dossier saisi par un réparateur : à qualifier par Nereids */
+  demandeReparateur?: boolean
   status: StatusId
   createdAt: string
   updatedAt: string
@@ -282,6 +369,8 @@ export type Dossier = {
   proprietaire?: Personne
   vehicule: { marque: string; modele: string; immat: string; vin?: string }
   compagnie?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
+  /** Litige assurantiel : cabinet d'expertise visé (mêmes champs que la compagnie visée) */
+  cabinetVise?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
   tiers?: { nom: string; phone?: string; email?: string }[]
   refs: { sinistre?: string }
   region: string
@@ -303,6 +392,14 @@ export type Dossier = {
   documents: DocumentItem[]
   timeline: TimelineEvent[]
   description?: string
+  /** « Déclaration de la demande client et commentaire de l'expert » : saisie à la création, affichée dans l'onglet Général */
+  declaration?: string
+  /** « Souhait prioritaire du mandant » : saisi à la création, affiché dans l'onglet Général */
+  souhait?: string
+  /** Véhicule immobilisé et frais éventuels (litige automobile) */
+  immobilisation?: { immobilise?: OuiNonNsp; lieu?: string; frais?: OuiNonNsp; typeFrais?: string }
+  /** Tarif de la 1re expertise, saisi à la création */
+  tarif?: { prix?: number; mode: "ttc" | "ht"; afficher: boolean; observations?: string; signatureMandat: boolean }
   cloture?: { motif: string; commentaire?: string; at: string }
   horsPerimetre?: boolean
   /** Accès du client particulier : invitation e-mail → activation → envoi des pièces */
@@ -405,6 +502,12 @@ export function departementFromAddress(address?: string): string | undefined {
 
 /** Région d'un département (« 43 Haute-Loire » → Auvergne-Rhône-Alpes) */
 export const departementRegion = (dep: string) => Object.keys(REGION_DEPARTEMENTS).find((r) => REGION_DEPARTEMENTS[r].includes(dep))
+
+/** Dossier enregistré avant les retours du 20/11 : convertit les anciennes qualifications de sinistre */
+export function migrateDossier(d: Dossier): Dossier {
+  const legacy = d.sinistreType && LEGACY_SINISTRE_TYPES[d.sinistreType as string]
+  return legacy ? { ...d, sinistreType: legacy } : d
+}
 
 /** Catégorie du dossier : type + qualification (ex. « Sinistre » / « Non responsable, avec tiers ») */
 export function dossierCategory(d: Pick<Dossier, "type" | "sinistreType" | "litigeType">): { type: string; detail?: string } {
@@ -717,7 +820,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0142",
       ref: "NER-2026-0142",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "attente_expertise",
       createdAt: daysFromNow(-12),
       updatedAt: daysFromNow(-1),
@@ -768,7 +871,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0146",
       ref: "NER-2026-0146",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "recours_valide",
       createdAt: daysFromNow(-8, 10),
       updatedAt: daysFromNow(-1, 11),
@@ -835,7 +938,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0149",
       ref: "NER-2026-0149",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "nouveau",
       createdAt: daysFromNow(-2, 11),
       updatedAt: daysFromNow(-2, 11),
@@ -907,7 +1010,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2025-0412",
       ref: "NER-2025-0412",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "cloture",
       createdAt: daysFromNow(-260),
       updatedAt: daysFromNow(-150),
@@ -985,7 +1088,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0129",
       ref: "NER-2026-0129",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "attente_reparation",
       createdAt: daysFromNow(-35),
       updatedAt: daysFromNow(-9),
@@ -1048,7 +1151,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0103",
       ref: "NER-2026-0103",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "attente_paiement",
       createdAt: daysFromNow(-70),
       updatedAt: daysFromNow(-4),
@@ -1109,7 +1212,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0088",
       ref: "NER-2026-0088",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "attente_pv",
       createdAt: daysFromNow(-20),
       updatedAt: daysFromNow(-2),
@@ -1169,7 +1272,7 @@ export function seedDossiers(): Dossier[] {
       id: "NER-2026-0064",
       ref: "NER-2026-0064",
       type: "sinistre",
-      sinistreType: "non_resp_avec_tiers",
+      sinistreType: "recours_direct",
       status: "cloture",
       createdAt: daysFromNow(-120),
       updatedAt: daysFromNow(-15),

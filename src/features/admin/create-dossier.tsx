@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
-  AlertTriangle,
   BookUser,
   Car,
   Check,
@@ -21,9 +20,10 @@ import {
 
 import { useRole } from "@/components/app-shell/role-context"
 import { DateInput } from "@/components/date-input"
+import { DictableTextarea } from "@/components/dictable-textarea"
+import { MultiSelect } from "@/components/multi-select"
 import { Logo } from "@/components/logo"
 import { SimpleSelect } from "@/components/simple-select"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -31,14 +31,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   DOC_CATEGORIES,
   DOSSIER_TYPES,
   LITIGE_ASSUR_TYPES,
+  OBJETS_MISSION,
+  OBJETS_PANNE,
   REGION_DEPARTEMENTS,
   SINISTRE_TYPES,
-  USERS,
+  TYPES_FRAIS,
+  TYPES_MISSION,
   allUsers,
   compagnieLabel,
   daysFromNow,
@@ -50,12 +53,15 @@ import {
   type Dossier,
   type DossierType,
   type LitigeAssurantielType,
+  type OuiNonNsp,
   type Personne,
   type SinistreType,
   type TimelineEvent,
   type User,
   dossierRef,
 } from "@/lib/data"
+import { fromDateInput } from "@/features/dossier/dossier-edit"
+import { formatDateTime } from "@/lib/format"
 import { NewUserForm } from "@/features/admin/user-form"
 import { SimilarAlert, SuggestInput, orgSuggestion, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import { norm, searchOrgs, searchPeople, similarOrgs, similarPeople, useAnnuaire, type OrgType } from "@/lib/annuaire"
@@ -63,7 +69,7 @@ import { nextDossierRef, useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 /** Client ou propriétaire en cours de saisie */
-type PersonneForm = {
+export type PersonneForm = {
   kind: "physique" | "morale"
   firstName: string
   lastName: string
@@ -76,7 +82,7 @@ type PersonneForm = {
   contactId?: string
 }
 
-const EMPTY_PERSONNE: PersonneForm = { kind: "physique", firstName: "", lastName: "", societe: "", siret: "", phone: "", email: "", address: "" }
+export const EMPTY_PERSONNE: PersonneForm = { kind: "physique", firstName: "", lastName: "", societe: "", siret: "", phone: "", email: "", address: "" }
 
 type Form = {
   type?: DossierType
@@ -97,8 +103,36 @@ type Form = {
   gestionnaire: string | null
   expert: string | null
   reparateur: string | null
-  /** Ouvrir un compte au client (invitation e-mail) — activé par défaut, sauf pour les sinistres */
+  /** Envoyer le dossier au client (invitation e-mail) — activé par défaut, sauf pour les sinistres */
   clientAccount: boolean
+  /** Sinistre : objet de la mission */
+  objetMission: string | null
+  /** Litige automobile : type de mission, objets de la panne ou du litige (choix multiple) */
+  typeMission: string | null
+  objetsPanne: string[]
+  panneAutre: string
+  /** Litige assurantiel : précision quand l'objet du litige est « Autre » */
+  litigeAutre: string
+  /** Litige assurantiel : cabinet d'expertise visé */
+  cabinet: { nom: string; email: string; phone: string; address: string; reference: string }
+  /** Lieu d'expertise (ou le réparateur) et date si elle est déjà fixée */
+  lieu: { nom: string; adresse: string; estReparateur: boolean }
+  dateExpertise: string
+  /** Litige automobile : immobilisation et frais de gardiennage */
+  immobilise: OuiNonNsp | null
+  lieuImmoIdem: boolean
+  lieuImmo: string
+  frais: OuiNonNsp | null
+  typeFrais: string
+  /** Notes libres qui alimentent l'onglet Général */
+  declaration: string
+  souhait: string
+  /** Honoraires et envoi */
+  prix: string
+  prixMode: "ttc" | "ht"
+  afficherPrix: boolean
+  obsTarif: string
+  signatureMandat: boolean
 }
 
 const EMPTY: Form = {
@@ -116,6 +150,26 @@ const EMPTY: Form = {
   expert: null,
   reparateur: null,
   clientAccount: true,
+  objetMission: null,
+  typeMission: null,
+  objetsPanne: [],
+  panneAutre: "",
+  litigeAutre: "",
+  cabinet: { nom: "", email: "", phone: "", address: "", reference: "" },
+  lieu: { nom: "", adresse: "", estReparateur: false },
+  dateExpertise: "",
+  immobilise: null,
+  lieuImmoIdem: true,
+  lieuImmo: "",
+  frais: null,
+  typeFrais: TYPES_FRAIS[0],
+  declaration: "",
+  souhait: "",
+  prix: "",
+  prixMode: "ttc",
+  afficherPrix: true,
+  obsTarif: "",
+  signatureMandat: true,
 }
 
 const TYPE_ICONS: Record<DossierType, React.ComponentType<{ className?: string }>> = {
@@ -137,9 +191,9 @@ const FAKE_FILES: Partial<Record<DocCategory, string>> = {
 }
 
 // ─── Données fictives pour les champs laissés vides ─────────────────────────
-const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]
-const digits = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("")
-const letters = (n: number) => Array.from({ length: n }, () => pick("ABCDEFGHJKLMNPQRSTVWXYZ".split(""))).join("")
+export const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]
+export const digits = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("")
+export const letters = (n: number) => Array.from({ length: n }, () => pick("ABCDEFGHJKLMNPQRSTVWXYZ".split(""))).join("")
 const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "")
 
 const FIRST_NAMES = ["Camille", "Lucas", "Manon", "Hugo", "Léa", "Thomas", "Chloé", "Nicolas", "Sarah", "Julien", "Inès", "Antoine"]
@@ -159,7 +213,7 @@ const ADRESSES = [
 ]
 
 /** Personne laissée incomplète : on remplit les vides avec des données fictives */
-function personneDefaults(p: PersonneForm): PersonneForm {
+export function personneDefaults(p: PersonneForm): PersonneForm {
   const firstName = p.firstName.trim() || pick(FIRST_NAMES)
   const lastName = p.lastName.trim() || pick(LAST_NAMES)
   const societe = p.societe.trim() || pick(SOCIETES)
@@ -176,7 +230,7 @@ function personneDefaults(p: PersonneForm): PersonneForm {
   }
 }
 
-const toPersonne = (p: PersonneForm): Personne => ({
+export const toPersonne = (p: PersonneForm): Personne => ({
   kind: p.kind === "morale" ? "morale" : undefined,
   firstName: p.firstName,
   lastName: p.lastName,
@@ -188,7 +242,7 @@ const toPersonne = (p: PersonneForm): Personne => ({
   contactId: p.contactId,
 })
 
-const DEPARTEMENTS = Object.values(REGION_DEPARTEMENTS)
+export const DEPARTEMENTS = Object.values(REGION_DEPARTEMENTS)
   .flat()
   .sort()
   .map((d) => ({ value: d, label: d }))
@@ -207,7 +261,13 @@ function withRandomDefaults(f: Form): Form {
     ...f,
     type,
     sinistreType: type === "sinistre" ? (f.sinistreType ?? pick(Object.keys(SINISTRE_TYPES) as SinistreType[])) : undefined,
-    litigeType: type === "litige_assurantiel" ? (f.litigeType ?? pick(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[])) : undefined,
+    litigeType:
+      type === "litige_assurantiel"
+        ? (f.litigeType ?? pick((Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[]).filter((l) => l !== "autre")))
+        : undefined,
+    objetMission: type === "sinistre" ? (f.objetMission ?? pick(OBJETS_MISSION)) : null,
+    typeMission: type === "litige_auto" ? (f.typeMission ?? pick(TYPES_MISSION)) : null,
+    objetsPanne: type === "litige_auto" && f.objetsPanne.length === 0 ? [pick(OBJETS_PANNE.filter((o) => o !== "Autre"))] : f.objetsPanne,
     departement: f.departement ?? "43 Haute-Loire",
     client: personneDefaults(f.client),
     proprietaire: f.clientProprietaire ? f.proprietaire : personneDefaults(f.proprietaire),
@@ -240,30 +300,33 @@ export function CreateDossier() {
   const router = useRouter()
   // Gestionnaire Help You : le dossier lui est rattaché, l'assignation de l'expert reste à Nereids
   const isGest = role.id === "gestionnaire"
-  const [form, setF] = React.useState<Form>(isGest ? { ...EMPTY, gestionnaire: user.id } : EMPTY)
+  // Expert : le dossier qu'il crée lui est assigné
+  const isExpert = role.id === "expert"
+  const [form, setF] = React.useState<Form>(isGest ? { ...EMPTY, gestionnaire: user.id } : isExpert ? { ...EMPTY, expert: user.id } : EMPTY)
   const f = form
   /** Experts / réparateurs saisis à la main (hors liste) */
   const [added, setAdded] = React.useState<User[]>([])
   const [creating, setCreating] = React.useState<NewRole | null>(null)
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
-  const setIn = <K extends "vehicule" | "compagnie" | "probleme">(k: K, field: keyof Form[K], v: string) =>
+  const setIn = <K extends "vehicule" | "compagnie" | "cabinet" | "probleme">(k: K, field: keyof Form[K], v: string) =>
     setF((p) => ({ ...p, [k]: { ...p[k], [field]: v } }))
 
-  const horsRecours = f.type === "sinistre" && !!f.sinistreType && !SINISTRE_TYPES[f.sinistreType].recours
   const typeComplete =
     !!f.type &&
     (f.type !== "sinistre" || !!f.sinistreType) &&
     (f.type !== "litige_assurantiel" || !!f.litigeType)
-  const docsExpected = f.type ? expectedDocs(f.type, f.litigeType) : []
+  const docsExpected = f.type ? expectedDocs(f.type, f.litigeType, f.sinistreType) : []
   const minPhotos = f.litigeType === "imputable" ? 3 : 1
+  // Assurance adverse : recours direct uniquement. Les autres sinistres n'ont pas de section « parties ».
+  const hasParties = f.type === "litige_auto" || f.type === "litige_assurantiel" || (f.type === "sinistre" && f.sinistreType === "recours_direct")
 
   // Complétude affichée dans les étapes (non bloquante : les vides sont remplis à la création)
   const errors = {
     type: !typeComplete,
     clientNom: f.client.kind === "morale" ? !f.client.societe.trim() : !f.client.lastName.trim() || !f.client.firstName.trim(),
     clientContact: !f.client.phone.trim() && !f.client.email.trim(),
-    // L'invitation part par e-mail : pas de compte sans adresse
+    // L'invitation part par e-mail : pas d'envoi sans adresse
     clientEmail: f.clientAccount && !f.client.email.trim(),
     immat: !f.vehicule.immat.trim(),
     marque: !f.vehicule.marque.trim(),
@@ -287,17 +350,30 @@ export function CreateDossier() {
   function submit() {
     // Proto : aucun champ bloquant, les champs laissés vides sont remplis avec des données fictives
     const f = withRandomDefaults(form)
-    const horsRecours = f.type === "sinistre" && !!f.sinistreType && !SINISTRE_TYPES[f.sinistreType].recours
     const minPhotos = f.litigeType === "imputable" ? 3 : 1
-    const missingDocs = expectedDocs(f.type!, f.litigeType).filter((c) => {
+    const missingDocs = expectedDocs(f.type!, f.litigeType, f.sinistreType).filter((c) => {
       const n = f.docs[c]?.length ?? 0
       return c === "photos" ? n < minPhotos : n === 0
     })
     const now = new Date().toISOString()
     const ref = nextDossierRef(dossiers)
-    const assigned = !!f.gestionnaire && !!f.expert
+    const people = [...allUsers(), ...added]
+    const expertUser = people.find((u) => u.id === f.expert)
+    const repUser = people.find((u) => u.id === f.reparateur)
+    // Gestionnaire + expert assignés, ou dossier créé par l'expert lui-même
+    const assigned = (!!f.gestionnaire && !!f.expert) || (isExpert && !!f.expert)
     const invite = f.clientAccount
-    const status = horsRecours ? "cloture" : assigned ? "en_etude" : "nouveau"
+    const status = assigned ? "en_etude" : "nouveau"
+    const hasParties = f.type === "litige_auto" || f.type === "litige_assurantiel" || (f.type === "sinistre" && f.sinistreType === "recours_direct")
+
+    // Lieu d'expertise : celui du réparateur assigné si la case est cochée
+    const lieuNom = f.lieu.estReparateur && repUser ? repUser.structure : f.lieu.nom.trim()
+    const lieuAdresse = f.lieu.estReparateur && repUser ? (repUser.address ?? "") : f.lieu.adresse.trim()
+    const lieu = [lieuNom, lieuAdresse].filter(Boolean).join(", ")
+    const dateExpertise = fromDateInput(f.dateExpertise)
+    const immobilise = f.type === "litige_auto" ? f.immobilise : null
+    const lieuImmo = immobilise === "oui" ? (f.lieuImmoIdem ? lieu : f.lieuImmo.trim()) : ""
+    const prix = Number(f.prix.replace(/\s/g, "").replace(",", "."))
 
     const documents = [
       ...Object.entries(f.docs).flatMap(([cat, files]) =>
@@ -340,32 +416,41 @@ export function CreateDossier() {
         title: "Intervenants assignés",
         body: [f.gestionnaire, f.expert, f.reparateur]
           .filter(Boolean)
-          .map((id) => fullName([...USERS, ...added].find((u) => u.id === id)))
+          .map((id) => fullName(people.find((u) => u.id === id)))
           .join(" · "),
       })
     if (status !== "nouveau")
+      timeline.push({ id: `e-${ref}-4`, at: now, kind: "status", author: "system", title: "Statut → En étude" })
+    if (dateExpertise)
       timeline.push({
-        id: `e-${ref}-4`,
+        id: `e-${ref}-5`,
         at: now,
-        kind: "status",
-        author: "system",
-        title: horsRecours ? "Statut → Clôturé" : "Statut → En étude",
-        body: horsRecours ? "Motif : Hors périmètre (sinistre hors recours direct)" : undefined,
+        kind: "expertise",
+        author: user.id,
+        title: "Date d'expertise provisoire à confirmer",
+        body: [formatDateTime(dateExpertise), lieu].filter(Boolean).join(" — "),
       })
 
     const d: Dossier = {
       id: ref,
-      ref: dossierRef(f.client, now, [...allUsers(), ...added].find((u) => u.id === f.expert)?.structure),
+      ref: dossierRef(f.client, now, expertUser?.structure),
       type: f.type!,
       sinistreType: f.sinistreType,
       litigeType: f.litigeType,
+      litigeAutre: f.litigeType === "autre" ? f.litigeAutre.trim() || undefined : undefined,
+      objetMission: f.type === "sinistre" ? (f.objetMission ?? undefined) : undefined,
+      typeMission: f.type === "litige_auto" ? (f.typeMission ?? undefined) : undefined,
+      objetsPanne: f.type === "litige_auto" ? f.objetsPanne : undefined,
+      panneAutre: f.type === "litige_auto" && f.objetsPanne.includes("Autre") ? f.panneAutre.trim() || undefined : undefined,
+      createdBy: user.id,
       status,
       createdAt: now,
       updatedAt: now,
       client: { ...toPersonne(f.client), userId: allUsers().find((u) => u.id === f.client.contactId && u.role === "client")?.id },
       proprietaire: f.clientProprietaire ? undefined : toPersonne(f.proprietaire),
       vehicule: { ...f.vehicule, immat: f.vehicule.immat.toUpperCase(), vin: f.vehicule.vin || undefined },
-      compagnie: f.compagnie.nom ? { ...f.compagnie } : undefined,
+      compagnie: hasParties && f.type !== "litige_auto" && f.compagnie.nom ? { ...f.compagnie } : undefined,
+      cabinetVise: f.type === "litige_assurantiel" && f.cabinet.nom.trim() ? { ...f.cabinet } : undefined,
       tiers: f.type === "litige_auto" ? f.tiers.filter((t) => t.nom).map((t) => ({ nom: t.nom, phone: t.phone || undefined, email: t.email || undefined })) : undefined,
       refs: { sinistre: f.compagnie.reference || undefined },
       region: departementRegion(f.departement!) ?? "Auvergne-Rhône-Alpes",
@@ -376,31 +461,48 @@ export function CreateDossier() {
         reparateur: f.reparateur ?? undefined,
         suiveurs: [],
       },
-      pilotage: horsRecours
-        ? { ouEnEst: "Dossier enregistré, hors module recours direct.", attente: "—", prochaineAction: "Archiver le dossier", quiDoitAgir: "nereids" }
-        : assigned
-          ? {
-              ouEnEst: "Dossier créé et transmis à l'expert pour étude.",
-              attente: missingDocs.length ? `Validation de l'expert · ${missingDocs.length} pièce(s) manquante(s)` : "Validation du dossier par l'expert",
-              prochaineAction: "Étudier le dossier et valider le recours",
-              quiDoitAgir: "expert",
-              echeance: daysFromNow(3),
-            }
-          : {
-              ouEnEst: "Dossier créé, en attente d'assignation.",
-              attente: f.gestionnaire ? "Assignation d'un expert" : "Assignation d'un gestionnaire et d'un expert",
-              prochaineAction: "Assigner les intervenants",
-              quiDoitAgir: "nereids",
-              echeance: daysFromNow(1),
-            },
-      expertise: { convoques: [] },
+      pilotage: assigned
+        ? {
+            ouEnEst: "Dossier créé et transmis à l'expert pour étude.",
+            attente: missingDocs.length ? `Validation de l'expert · ${missingDocs.length} pièce(s) manquante(s)` : "Validation du dossier par l'expert",
+            prochaineAction: "Étudier le dossier et valider le recours",
+            quiDoitAgir: "expert",
+            echeance: daysFromNow(3),
+          }
+        : {
+            ouEnEst: "Dossier créé, en attente d'assignation.",
+            attente: f.gestionnaire ? "Assignation d'un expert" : "Assignation d'un gestionnaire et d'un expert",
+            prochaineAction: "Assigner les intervenants",
+            quiDoitAgir: "nereids",
+            echeance: daysFromNow(1),
+          },
+      // Date saisie à la création : l'expertise est considérée comme programmée (convocations à envoyer depuis la fiche)
+      expertise: { convoques: [], date: dateExpertise, lieu: lieu || undefined },
       documents,
       timeline,
       description: f.probleme.description || undefined,
-      horsPerimetre: horsRecours || undefined,
+      declaration: f.declaration.trim() || undefined,
+      souhait: f.souhait.trim() || undefined,
+      immobilisation:
+        f.type === "litige_auto" && immobilise
+          ? {
+              immobilise,
+              lieu: lieuImmo || undefined,
+              frais: immobilise === "oui" ? (f.frais ?? undefined) : undefined,
+              typeFrais: immobilise === "oui" && f.frais === "oui" ? f.typeFrais : undefined,
+            }
+          : undefined,
+      tarif: {
+        prix: Number.isFinite(prix) && f.prix.trim() ? prix : undefined,
+        mode: f.prixMode,
+        afficher: f.afficherPrix,
+        observations: f.obsTarif.trim() || undefined,
+        signatureMandat: f.signatureMandat,
+      },
+      // Mandat sans signature : la lettre de mission est considérée comme validée d'emblée
+      validation: f.signatureMandat ? undefined : { mission: "ok", devis: "a_faire", reglement: "a_faire" },
       clientAccess: invite ? { invitedAt: now } : undefined,
       noClientAccount: invite ? undefined : true,
-      cloture: horsRecours ? { motif: "Hors périmètre", at: now } : undefined,
     }
     createDossier(d)
     // Intervenant ajouté à la main : invité comme depuis « Utilisateurs »
@@ -408,7 +510,9 @@ export function CreateDossier() {
     toast.success(`Dossier ${ref} créé`, {
       description: [
         assigned && "Les intervenants assignés ont été notifiés.",
-        isGest && !horsRecours && !assigned && "Nereids est notifié pour assigner l'expert.", invite ? "Le client a reçu une invitation par e-mail." : "Aucun compte client ouvert."].filter(Boolean).join(" ") || undefined,
+        isGest && !assigned && "Nereids est notifié pour assigner l'expert.",
+        invite ? "Le dossier a été envoyé au client par e-mail." : "Aucun compte client ouvert.",
+      ].filter(Boolean).join(" ") || undefined,
     })
     router.push(href(`dossiers/${ref}`))
   }
@@ -416,6 +520,15 @@ export function CreateDossier() {
   const sectionNum = (n: number) => (
     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand/10 text-xs font-semibold text-brand-ink">{n}</span>
   )
+  // Numéros des sections (certaines n'apparaissent que selon le type de dossier)
+  let n = 1
+  const nClient = ++n
+  const nParties = hasParties ? ++n : 0
+  const nExpertise = ++n
+  const nPieces = ++n
+  const nInterv = ++n
+  const nDemande = ++n
+  const nTarif = ++n
 
   return (
     // Assistant plein écran façon Deel : logo + fermeture en haut, étapes à droite, actions en pied de page
@@ -461,33 +574,80 @@ export function CreateDossier() {
               </div>
 
               {f.type === "sinistre" && (
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-medium">Type de sinistre</p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {(Object.keys(SINISTRE_TYPES) as SinistreType[]).map((s) => (
-                      <ChoiceCard key={s} compact selected={f.sinistreType === s} onClick={() => set("sinistreType", s)} title={SINISTRE_TYPES[s].label} description={SINISTRE_TYPES[s].recours ? "Recours direct" : undefined} />
-                    ))}
+                <div className="flex flex-col gap-5">
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium">Type de sinistre</p>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      {(Object.keys(SINISTRE_TYPES) as SinistreType[]).map((s) => (
+                        <ChoiceCard key={s} compact selected={f.sinistreType === s} onClick={() => set("sinistreType", s)} title={SINISTRE_TYPES[s].label} />
+                      ))}
+                    </div>
                   </div>
-                  {horsRecours && (
-                    <Alert variant="warning">
-                      <AlertTriangle />
-                      <AlertTitle>Hors module recours direct</AlertTitle>
-                      <AlertDescription>
-                        Le dossier sera enregistré et classé « hors périmètre ». Seules les informations client et véhicule sont nécessaires.
-                      </AlertDescription>
-                    </Alert>
+                  <Field className="sm:max-w-sm">
+                    <FieldLabel htmlFor="objet-mission">Objet de la mission</FieldLabel>
+                    <SimpleSelect
+                      id="objet-mission"
+                      placeholder="Choisir un objet"
+                      options={OBJETS_MISSION.map((o) => ({ value: o, label: o }))}
+                      value={f.objetMission}
+                      onChange={(v) => set("objetMission", v)}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {f.type === "litige_auto" && (
+                <div className="flex flex-col gap-5">
+                  <Field>
+                    <FieldLabel htmlFor="type-mission">Type de mission</FieldLabel>
+                    <SimpleSelect
+                      id="type-mission"
+                      placeholder="Choisir un type de mission"
+                      options={TYPES_MISSION.map((o) => ({ value: o, label: o }))}
+                      value={f.typeMission}
+                      onChange={(v) => set("typeMission", v)}
+                    />
+                    <FieldDescription>Le type de mission déterminera le type et le titre du rapport d&apos;expertise.</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="objets-panne">Objet de la panne ou du litige</FieldLabel>
+                    <FieldDescription>Sert à définir le champ d&apos;intervention et à donner des précisions pour la convocation. Choix multiples possibles.</FieldDescription>
+                    <MultiSelect
+                      id="objets-panne"
+                      options={OBJETS_PANNE}
+                      value={f.objetsPanne}
+                      onChange={(v) => set("objetsPanne", v)}
+                      emptyLabel="Aucun objet sélectionné"
+                      filterPlaceholder="Filtrer la liste (ex. boîte, fuite, voyant)…"
+                    />
+                  </Field>
+                  {f.objetsPanne.includes("Autre") && (
+                    <Field className="sm:max-w-sm">
+                      <FieldLabel htmlFor="panne-autre">Précisez l&apos;objet (Autre)</FieldLabel>
+                      <Input id="panne-autre" value={f.panneAutre} onChange={(e) => set("panneAutre", e.target.value)} />
+                    </Field>
                   )}
                 </div>
               )}
 
               {f.type === "litige_assurantiel" && (
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-medium">Type de litige</p>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[]).map((l) => (
-                      <ChoiceCard key={l} compact selected={f.litigeType === l} onClick={() => set("litigeType", l)} title={LITIGE_ASSUR_TYPES[l].label} description={LITIGE_ASSUR_TYPES[l].hint} />
-                    ))}
-                  </div>
+                <div className="flex flex-col gap-5">
+                  <Field className="sm:max-w-sm">
+                    <FieldLabel htmlFor="objet-litige">Objet du litige</FieldLabel>
+                    <SimpleSelect
+                      id="objet-litige"
+                      placeholder="Choisir un objet"
+                      options={(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[]).map((l) => ({ value: l, label: LITIGE_ASSUR_TYPES[l].label }))}
+                      value={f.litigeType ?? null}
+                      onChange={(v) => set("litigeType", (v as LitigeAssurantielType | null) ?? undefined)}
+                    />
+                  </Field>
+                  {f.litigeType === "autre" && (
+                    <Field className="sm:max-w-sm">
+                      <FieldLabel htmlFor="litige-autre">Précisez l&apos;objet du litige</FieldLabel>
+                      <Input id="litige-autre" value={f.litigeAutre} onChange={(e) => set("litigeAutre", e.target.value)} />
+                    </Field>
+                  )}
                 </div>
               )}
 
@@ -505,23 +665,11 @@ export function CreateDossier() {
               {/* 2. Client & véhicule */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">{sectionNum(2)} Client et véhicule</CardTitle>
+                  <CardTitle className="flex items-center gap-2">{sectionNum(nClient)} Client et véhicule</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <FieldGroup>
                     <PersonneFields id="c" value={f.client} onChange={(v) => set("client", v)} />
-
-                    <Field orientation="horizontal" className="rounded-lg border p-3">
-                      <Switch id="c-account" checked={f.clientAccount} onCheckedChange={(v) => set("clientAccount", v)} />
-                      <div className="flex flex-col gap-0.5">
-                        <FieldLabel htmlFor="c-account">Ouvrir un compte au client</FieldLabel>
-                        <FieldDescription>
-                          {f.clientAccount
-                            ? "Le client reçoit une invitation par e-mail pour suivre son dossier et envoyer ses pièces."
-                            : "Aucune invitation envoyée : Nereids gère le dossier seul. Vous pourrez inviter le client plus tard depuis la fiche."}
-                        </FieldDescription>
-                      </div>
-                    </Field>
 
                     <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
                       <Field>
@@ -559,175 +707,394 @@ export function CreateDossier() {
                 </CardContent>
               </Card>
 
-              {!horsRecours && (
-                <>
-                  {/* 3. Compagnie / parties */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        {sectionNum(3)} {f.type === "litige_auto" ? "Parties au litige" : compagnieLabel(f.type!)}
-                      </CardTitle>
-                      <CardDescription>
-                        {f.type === "sinistre" && "Compagnie du tiers responsable, si elle est connue."}
-                        {f.type === "litige_assurantiel" && "La compagnie contestée par le client."}
-                        {f.type === "litige_auto" && "Vendeur, garage…"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <FieldGroup>
-                        {f.type === "litige_auto" &&
-                          f.tiers.map((t, i) => (
-                            <div key={i} className="grid gap-4 sm:grid-cols-3">
-                              <Field>
-                                <FieldLabel>Tiers {i + 1} — nom ou raison sociale</FieldLabel>
-                                <OrgSuggest
-                                  value={t.nom}
-                                  placeholder="Ex. garage, vendeur…"
-                                  onChange={(nom) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom } : x)))}
-                                  onPick={(o) => set("tiers", f.tiers.map((x, j) => (j === i ? { nom: o.nom, phone: o.phone ?? "", email: o.email ?? "" } : x)))}
-                                />
-                              </Field>
-                              <Field>
-                                <FieldLabel>Téléphone</FieldLabel>
-                                <Input type="tel" value={t.phone} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
-                              </Field>
-                              <Field>
-                                <FieldLabel>E-mail</FieldLabel>
-                                <div className="flex gap-2">
-                                  <Input type="email" value={t.email} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
-                                  {i > 0 && (
-                                    <Button variant="ghost" size="icon" aria-label="Retirer" onClick={() => set("tiers", f.tiers.filter((_, j) => j !== i))}>
-                                      <Trash2 />
-                                    </Button>
-                                  )}
-                                </div>
-                              </Field>
-                            </div>
-                          ))}
-                        {f.type === "litige_auto" && f.tiers.length < 2 && (
-                          <Button variant="outline" size="sm" className="w-fit" onClick={() => set("tiers", [...f.tiers, { nom: "", phone: "", email: "" }])}>
-                            <Plus /> Ajouter un 2ᵉ tiers
-                          </Button>
-                        )}
-
-                        {f.type !== "litige_auto" && (
-                          <div className="grid gap-4 sm:grid-cols-2">
+              {/* 3. Compagnie / parties */}
+              {hasParties && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      {sectionNum(nParties)} {f.type === "litige_auto" ? "Parties au litige" : f.type === "litige_assurantiel" ? "Compagnie et cabinet visés" : compagnieLabel(f.type!)}
+                    </CardTitle>
+                    <CardDescription>
+                      {f.type === "sinistre" && "Compagnie du tiers responsable, si elle est connue."}
+                      {f.type === "litige_assurantiel" && "La compagnie contestée par le client, et le cabinet d'expertise qui a rendu le rapport contesté."}
+                      {f.type === "litige_auto" && "Vendeur, garage…"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldGroup>
+                      {f.type === "litige_auto" &&
+                        f.tiers.map((t, i) => (
+                          <div key={i} className="grid gap-4 sm:grid-cols-3">
                             <Field>
-                              <FieldLabel htmlFor="co-nom">Nom de la compagnie</FieldLabel>
+                              <FieldLabel>Tiers {i + 1} — nom ou raison sociale</FieldLabel>
                               <OrgSuggest
-                                id="co-nom"
-                                types={["assurance", "juridique"]}
-                                value={f.compagnie.nom}
-                                onChange={(nom) => setIn("compagnie", "nom", nom)}
-                                onPick={(o) => setF((p) => ({ ...p, compagnie: { ...p.compagnie, nom: o.nom, email: o.email ?? "", phone: o.phone ?? "", address: o.address ?? "" } }))}
+                                value={t.nom}
+                                placeholder="Ex. garage, vendeur…"
+                                onChange={(nom) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom } : x)))}
+                                onPick={(o) => set("tiers", f.tiers.map((x, j) => (j === i ? { nom: o.nom, phone: o.phone ?? "", email: o.email ?? "" } : x)))}
                               />
                             </Field>
                             <Field>
-                              <FieldLabel htmlFor="co-ref">Référence sinistre</FieldLabel>
-                              <Input id="co-ref" value={f.compagnie.reference} onChange={(e) => setIn("compagnie", "reference", e.target.value)} />
+                              <FieldLabel>Téléphone</FieldLabel>
+                              <Input type="tel" value={t.phone} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
                             </Field>
                             <Field>
-                              <FieldLabel htmlFor="co-phone">Téléphone</FieldLabel>
-                              <Input id="co-phone" type="tel" value={f.compagnie.phone} onChange={(e) => setIn("compagnie", "phone", e.target.value)} />
+                              <FieldLabel>E-mail</FieldLabel>
+                              <div className="flex gap-2">
+                                <Input type="email" value={t.email} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+                                {i > 0 && (
+                                  <Button variant="ghost" size="icon" aria-label="Retirer" onClick={() => set("tiers", f.tiers.filter((_, j) => j !== i))}>
+                                    <Trash2 />
+                                  </Button>
+                                )}
+                              </div>
+                            </Field>
+                          </div>
+                        ))}
+                      {f.type === "litige_auto" && f.tiers.length < 2 && (
+                        <Button variant="outline" size="sm" className="w-fit" onClick={() => set("tiers", [...f.tiers, { nom: "", phone: "", email: "" }])}>
+                          <Plus /> Ajouter un 2ᵉ tiers
+                        </Button>
+                      )}
+
+                      {f.type !== "litige_auto" && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <Field>
+                            <FieldLabel htmlFor="co-nom">Nom de la compagnie</FieldLabel>
+                            <OrgSuggest
+                              id="co-nom"
+                              types={["assurance", "juridique"]}
+                              value={f.compagnie.nom}
+                              onChange={(nom) => setIn("compagnie", "nom", nom)}
+                              onPick={(o) => setF((p) => ({ ...p, compagnie: { ...p.compagnie, nom: o.nom, email: o.email ?? "", phone: o.phone ?? "", address: o.address ?? "" } }))}
+                            />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="co-ref">Référence sinistre</FieldLabel>
+                            <Input id="co-ref" value={f.compagnie.reference} onChange={(e) => setIn("compagnie", "reference", e.target.value)} />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="co-phone">Téléphone</FieldLabel>
+                            <Input id="co-phone" type="tel" value={f.compagnie.phone} onChange={(e) => setIn("compagnie", "phone", e.target.value)} />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="co-mail">E-mail</FieldLabel>
+                            <Input id="co-mail" type="email" value={f.compagnie.email} onChange={(e) => setIn("compagnie", "email", e.target.value)} />
+                          </Field>
+                          <Field className="sm:col-span-2">
+                            <FieldLabel htmlFor="co-address">Adresse postale</FieldLabel>
+                            <Input id="co-address" value={f.compagnie.address} onChange={(e) => setIn("compagnie", "address", e.target.value)} />
+                          </Field>
+                        </div>
+                      )}
+
+                      {/* Litige assurantiel : même bloc pour le cabinet d'expertise visé */}
+                      {f.type === "litige_assurantiel" && (
+                        <div className="flex flex-col gap-4 border-t pt-5">
+                          <p className="text-sm font-medium">Cabinet d&apos;expertise visé</p>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <Field>
+                              <FieldLabel htmlFor="cab-nom">Nom du cabinet</FieldLabel>
+                              <OrgSuggest
+                                id="cab-nom"
+                                types={["cabinet"]}
+                                value={f.cabinet.nom}
+                                onChange={(nom) => setIn("cabinet", "nom", nom)}
+                                onPick={(o) => setF((p) => ({ ...p, cabinet: { ...p.cabinet, nom: o.nom, email: o.email ?? "", phone: o.phone ?? "", address: o.address ?? "" } }))}
+                              />
                             </Field>
                             <Field>
-                              <FieldLabel htmlFor="co-mail">E-mail</FieldLabel>
-                              <Input id="co-mail" type="email" value={f.compagnie.email} onChange={(e) => setIn("compagnie", "email", e.target.value)} />
+                              <FieldLabel htmlFor="cab-ref">Référence du cabinet</FieldLabel>
+                              <Input id="cab-ref" value={f.cabinet.reference} onChange={(e) => setIn("cabinet", "reference", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="cab-phone">Téléphone</FieldLabel>
+                              <Input id="cab-phone" type="tel" value={f.cabinet.phone} onChange={(e) => setIn("cabinet", "phone", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="cab-mail">E-mail</FieldLabel>
+                              <Input id="cab-mail" type="email" value={f.cabinet.email} onChange={(e) => setIn("cabinet", "email", e.target.value)} />
                             </Field>
                             <Field className="sm:col-span-2">
-                              <FieldLabel htmlFor="co-address">Adresse postale</FieldLabel>
-                              <Input id="co-address" value={f.compagnie.address} onChange={(e) => setIn("compagnie", "address", e.target.value)} />
+                              <FieldLabel htmlFor="cab-address">Adresse postale</FieldLabel>
+                              <Input id="cab-address" value={f.cabinet.address} onChange={(e) => setIn("cabinet", "address", e.target.value)} />
                             </Field>
                           </div>
-                        )}
+                        </div>
+                      )}
 
-                        {f.litigeType === "imputable" && (
-                          <div className="grid gap-4 border-t pt-5 sm:grid-cols-[1fr_200px]">
-                            <Field>
-                              <FieldLabel htmlFor="pb-desc">Problème constaté</FieldLabel>
-                              <Textarea id="pb-desc" rows={3} value={f.probleme.description} onChange={(e) => setIn("probleme", "description", e.target.value)} placeholder="Décrivez le dommage et ses circonstances" />
-                            </Field>
-                            <Field>
-                              <FieldLabel htmlFor="pb-date">Date de constatation</FieldLabel>
-                              <DateInput id="pb-date" value={f.probleme.date} onChange={(val) => setIn("probleme", "date", val)} />
-                            </Field>
-                          </div>
-                        )}
-                      </FieldGroup>
-                    </CardContent>
-                  </Card>
-
-                  {/* 4. Pièces */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">{sectionNum(4)} Pièces du dossier</CardTitle>
-                      <CardDescription>Les pièces manquantes peuvent être ajoutées plus tard, par vous ou par le client.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-2">
-                      {docsExpected.map((c) => {
-                        const files = f.docs[c] ?? []
-                        const ok = c === "photos" ? files.length >= minPhotos : files.length > 0
-                        return (
-                          <div key={c} className="rounded-lg border p-3">
-                            <div className="flex items-center gap-3">
-                              {ok ? <Check className="size-4 text-tone-done" /> : <CircleDashed className="size-4 text-muted-foreground" />}
-                              <span className="flex-1 text-sm font-medium">
-                                {DOC_CATEGORIES[c]}
-                                {c === "photos" && minPhotos > 1 && (
-                                  <span className="ml-2 font-normal text-muted-foreground">
-                                    {files.length}/{minPhotos} minimum
-                                  </span>
-                                )}
-                              </span>
-                              <Button size="sm" variant="outline" onClick={() => addFile(c)}>
-                                <Upload /> Ajouter
-                              </Button>
-                            </div>
-                            {files.length > 0 && (
-                              <ul className="mt-2 flex flex-wrap gap-1.5 pl-7">
-                                {files.map((name, i) => (
-                                  <li key={i} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-                                    <Paperclip className="size-3" /> {name}
-                                    <button className="ml-1 text-muted-foreground hover:text-foreground" onClick={() => removeFile(c, i)} aria-label="Retirer">
-                                      ×
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )
-                      })}
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => set("autres", [...f.autres, `Pièce complémentaire ${f.autres.length + 1}.pdf`])}>
-                          <Plus /> Autre pièce utile
-                        </Button>
-                        {f.autres.map((name, i) => (
-                          <span key={i} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-                            <Paperclip className="size-3" /> {name}
-                          </span>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* 5. Intervenants (Nereids ou gestionnaire Help You, point client 22/10) */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">{sectionNum(5)} Intervenants</CardTitle>
-                      <CardDescription>Optionnel : vous pourrez assigner les intervenants depuis la fiche dossier.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <AssignFields
-                        value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur }}
-                        onChange={(k, v) => set(k, v)}
-                        added={added}
-                        onCreate={setCreating}
-                      />
-                    </CardContent>
-                  </Card>
-                </>
+                      {f.litigeType === "imputable" && (
+                        <div className="grid gap-4 border-t pt-5 sm:grid-cols-[1fr_200px]">
+                          <DictableTextarea
+                            id="pb-desc"
+                            label="Problème constaté"
+                            value={f.probleme.description}
+                            onValueChange={(v) => setIn("probleme", "description", v)}
+                            placeholder="Décrivez le dommage et ses circonstances"
+                          />
+                          <Field>
+                            <FieldLabel htmlFor="pb-date">Date de constatation</FieldLabel>
+                            <DateInput id="pb-date" value={f.probleme.date} onChange={(val) => setIn("probleme", "date", val)} />
+                          </Field>
+                        </div>
+                      )}
+                    </FieldGroup>
+                  </CardContent>
+                </Card>
               )}
+
+              {/* Expertise : lieu, date si déjà fixée, immobilisation */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">{sectionNum(nExpertise)} Expertise</CardTitle>
+                  <CardDescription>Lieu et date de l&apos;expertise, si vous les connaissez déjà.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FieldGroup>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="lieu-nom">Lieu d&apos;expertise</FieldLabel>
+                        <Input
+                          id="lieu-nom"
+                          placeholder="Garage, domicile, société…"
+                          disabled={f.lieu.estReparateur}
+                          value={f.lieu.estReparateur ? "" : f.lieu.nom}
+                          onChange={(e) => set("lieu", { ...f.lieu, nom: e.target.value })}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="lieu-adresse">Adresse du lieu</FieldLabel>
+                        <Input
+                          id="lieu-adresse"
+                          placeholder="N°, rue, code postal, ville"
+                          disabled={f.lieu.estReparateur}
+                          value={f.lieu.estReparateur ? "" : f.lieu.adresse}
+                          onChange={(e) => set("lieu", { ...f.lieu, adresse: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+                    <Field orientation="horizontal">
+                      <Checkbox id="lieu-rep" checked={f.lieu.estReparateur} onCheckedChange={(v) => set("lieu", { ...f.lieu, estReparateur: !!v })} />
+                      <div className="flex flex-col gap-0.5">
+                        <FieldLabel htmlFor="lieu-rep" className="font-normal">
+                          Le lieu d&apos;expertise est le réparateur
+                        </FieldLabel>
+                        {f.lieu.estReparateur && <FieldDescription>Le lieu sera celui du réparateur choisi dans « Intervenants ».</FieldDescription>}
+                      </div>
+                    </Field>
+
+                    <Field className="sm:max-w-sm">
+                      <FieldLabel htmlFor="date-exp">Date d&apos;expertise (si déjà fixée)</FieldLabel>
+                      <DateInput id="date-exp" withTime value={f.dateExpertise} onChange={(v) => set("dateExpertise", v)} />
+                      <FieldDescription>Par exemple quand vous représentez une personne convoquée : la date est déjà fixée.</FieldDescription>
+                    </Field>
+
+                    {f.type === "litige_auto" && (
+                      <div className="flex flex-col gap-5 border-t pt-5">
+                        <OuiNonNspField label="Le véhicule est-il immobilisé ?" value={f.immobilise} onChange={(v) => set("immobilise", v)} />
+                        {f.immobilise === "oui" && (
+                          <>
+                            <Field orientation="horizontal">
+                              <Checkbox id="immo-idem" checked={f.lieuImmoIdem} onCheckedChange={(v) => set("lieuImmoIdem", !!v)} />
+                              <FieldLabel htmlFor="immo-idem" className="font-normal">
+                                Le lieu d&apos;immobilisation est le même que le lieu d&apos;expertise
+                              </FieldLabel>
+                            </Field>
+                            {!f.lieuImmoIdem && (
+                              <Field>
+                                <FieldLabel htmlFor="immo-lieu">Lieu d&apos;immobilisation</FieldLabel>
+                                <Input id="immo-lieu" placeholder="Au domicile du propriétaire, garage…" value={f.lieuImmo} onChange={(e) => set("lieuImmo", e.target.value)} />
+                              </Field>
+                            )}
+                            <OuiNonNspField label="Y a-t-il des frais de gardiennage ?" value={f.frais} onChange={(v) => set("frais", v)} />
+                            {f.frais === "oui" && (
+                              <Field>
+                                <FieldLabel>Type de frais</FieldLabel>
+                                <RadioGroup value={f.typeFrais} onValueChange={(v) => set("typeFrais", v as string)} className="flex flex-col gap-2">
+                                  {TYPES_FRAIS.map((t) => (
+                                    <label key={t} className="flex items-center gap-2 text-sm">
+                                      <RadioGroupItem value={t} />
+                                      {t}
+                                    </label>
+                                  ))}
+                                </RadioGroup>
+                              </Field>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </FieldGroup>
+                </CardContent>
+              </Card>
+
+              {/* 4. Pièces */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">{sectionNum(nPieces)} Pièces du dossier</CardTitle>
+                  <CardDescription>Les pièces manquantes peuvent être ajoutées plus tard, par vous ou par le client.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  {docsExpected.map((c) => {
+                    const files = f.docs[c] ?? []
+                    const ok = c === "photos" ? files.length >= minPhotos : files.length > 0
+                    return (
+                      <div key={c} className="rounded-lg border p-3">
+                        <div className="flex items-center gap-3">
+                          {ok ? <Check className="size-4 text-tone-done" /> : <CircleDashed className="size-4 text-muted-foreground" />}
+                          <span className="flex-1 text-sm font-medium">
+                            {DOC_CATEGORIES[c]}
+                            {c === "photos" && minPhotos > 1 && (
+                              <span className="ml-2 font-normal text-muted-foreground">
+                                {files.length}/{minPhotos} minimum
+                              </span>
+                            )}
+                          </span>
+                          <Button size="sm" variant="outline" onClick={() => addFile(c)}>
+                            <Upload /> Ajouter
+                          </Button>
+                        </div>
+                        {files.length > 0 && (
+                          <ul className="mt-2 flex flex-wrap gap-1.5 pl-7">
+                            {files.map((name, i) => (
+                              <li key={i} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+                                <Paperclip className="size-3" /> {name}
+                                <button className="ml-1 text-muted-foreground hover:text-foreground" onClick={() => removeFile(c, i)} aria-label="Retirer">
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => set("autres", [...f.autres, `Pièce complémentaire ${f.autres.length + 1}.pdf`])}>
+                      <Plus /> Autre pièce utile
+                    </Button>
+                    {f.autres.map((name, i) => (
+                      <span key={i} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+                        <Paperclip className="size-3" /> {name}
+                      </span>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 5. Intervenants (Nereids ou gestionnaire Help You, point client 22/10) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">{sectionNum(nInterv)} Intervenants</CardTitle>
+                  <CardDescription>Optionnel : vous pourrez assigner les intervenants depuis la fiche dossier.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AssignFields
+                    value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur }}
+                    onChange={(k, v) => set(k, v)}
+                    added={added}
+                    onCreate={setCreating}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Demande : notes libres qui alimentent l'onglet Général du dossier */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">{sectionNum(nDemande)} Demande</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <FieldGroup>
+                    <DictableTextarea
+                      id="n-decl"
+                      label="Déclaration de la demande client et commentaire de l'expert"
+                      description="Alimente l'onglet Général du dossier."
+                      rows={4}
+                      value={f.declaration}
+                      onValueChange={(v) => set("declaration", v)}
+                    />
+                    <DictableTextarea
+                      id="n-souhait"
+                      label="Souhait prioritaire du mandant"
+                      description="Alimente l'onglet Général du dossier."
+                      placeholder="Faire réparer le véhicule, céder le véhicule, obtenir un remboursement, etc."
+                      value={f.souhait}
+                      onValueChange={(v) => set("souhait", v)}
+                    />
+                  </FieldGroup>
+                </CardContent>
+              </Card>
+
+              {/* Honoraires et envoi */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">{sectionNum(nTarif)} Honoraires et envoi</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <FieldGroup>
+                    <Field className="sm:max-w-md">
+                      <FieldLabel htmlFor="prix">Prix de la 1ʳᵉ expertise</FieldLabel>
+                      <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <div className="relative">
+                          <Input id="prix" inputMode="decimal" className="pr-8" placeholder="1020" value={f.prix} onChange={(e) => set("prix", e.target.value)} />
+                          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                        </div>
+                        <SimpleSelect
+                          className="w-40"
+                          options={[
+                            { value: "ttc", label: "Prix fixe (TTC)" },
+                            { value: "ht", label: "Prix fixe (HT)" },
+                          ]}
+                          value={f.prixMode}
+                          onChange={(v) => set("prixMode", v === "ht" ? "ht" : "ttc")}
+                        />
+                      </div>
+                    </Field>
+
+                    <Field orientation="horizontal">
+                      <Switch id="afficher-prix" checked={f.afficherPrix} onCheckedChange={(v) => set("afficherPrix", v)} />
+                      <FieldLabel htmlFor="afficher-prix" className="font-medium">
+                        Afficher le prix de l&apos;expertise au client
+                      </FieldLabel>
+                    </Field>
+
+                    <DictableTextarea
+                      id="obs-tarif"
+                      label="Observations concernant le tarif"
+                      description="Cette information sera visible par le client et apparaîtra sur le récapitulatif de mission."
+                      value={f.obsTarif}
+                      onValueChange={(v) => set("obsTarif", v)}
+                    />
+
+                    <Field orientation="horizontal" className="rounded-lg border p-3">
+                      <Switch id="c-account" checked={f.clientAccount} onCheckedChange={(v) => set("clientAccount", v)} />
+                      <div className="flex flex-col gap-0.5">
+                        <FieldLabel htmlFor="c-account">Envoyer le dossier au client</FieldLabel>
+                        <FieldDescription>
+                          {f.clientAccount
+                            ? "Le client reçoit une invitation par e-mail pour suivre son dossier, compléter les informations manquantes et envoyer ses pièces."
+                            : "Aucune invitation envoyée : Nereids gère le dossier seul. Vous pourrez inviter le client plus tard depuis la fiche."}
+                        </FieldDescription>
+                        {f.clientAccount && (
+                          <div className="mt-1 text-sm">
+                            <span className="text-muted-foreground">Nom du client : </span>
+                            {personneName(f.client) || "—"}
+                            {errors.clientEmail && <p className="text-destructive">Aucune adresse e-mail définie, le dossier ne sera pas envoyé.</p>}
+                          </div>
+                        )}
+                      </div>
+                    </Field>
+
+                    <Field orientation="horizontal" className="rounded-lg border p-3">
+                      <Switch id="signature-mandat" checked={f.signatureMandat} onCheckedChange={(v) => set("signatureMandat", v)} />
+                      <div className="flex flex-col gap-0.5">
+                        <FieldLabel htmlFor="signature-mandat">La signature du mandat est nécessaire</FieldLabel>
+                        <FieldDescription>Si vous activez cette option, le client devra accepter les conditions générales de l&apos;expert.</FieldDescription>
+                      </div>
+                    </Field>
+                  </FieldGroup>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
@@ -746,7 +1113,7 @@ export function CreateDossier() {
                   ok={!errors.clientNom && !errors.clientContact && !errors.clientEmail}
                   label="Client"
                   detail={
-                    [(f.client.lastName || f.client.societe) && personneName(f.client), typeComplete && (f.clientAccount ? "Compte ouvert" : "Sans compte")]
+                    [(f.client.lastName || f.client.societe) && personneName(f.client), typeComplete && (f.clientAccount ? "Dossier envoyé" : "Sans compte")]
                       .filter(Boolean)
                       .join(" · ") || undefined
                   }
@@ -759,9 +1126,15 @@ export function CreateDossier() {
                     undefined
                   }
                 />
-                {!horsRecours && typeComplete && (
+                {typeComplete && (
                   <>
-                    {f.type !== "litige_auto" && <RecapItem optional ok={!!f.compagnie.nom} label={compagnieLabel(f.type!)} detail={f.compagnie.nom || undefined} />}
+                    {hasParties && f.type !== "litige_auto" && <RecapItem optional ok={!!f.compagnie.nom} label={compagnieLabel(f.type!)} detail={f.compagnie.nom || undefined} />}
+                    <RecapItem
+                      optional
+                      ok={!!f.dateExpertise || !!f.lieu.nom.trim() || f.lieu.estReparateur}
+                      label="Expertise"
+                      detail={f.dateExpertise ? formatDateTime(fromDateInput(f.dateExpertise)) : f.lieu.nom.trim() || undefined}
+                    />
                     <RecapItem optional ok={missingDocs.length === 0} label="Pièces" detail={missingDocs.length ? `${missingDocs.length} manquante(s)` : "Complètes"} />
                     <RecapItem optional ok={!!f.gestionnaire && !!f.expert} label="Intervenants" detail={f.gestionnaire && f.expert ? "Gestionnaire et expert" : "À assigner"} />
                   </>
@@ -779,7 +1152,7 @@ export function CreateDossier() {
           <Button variant="ghost" render={<Link href={href("dossiers")} />} nativeButton={false}>
             Annuler
           </Button>
-          <Button onClick={submit}>{horsRecours ? "Enregistrer" : "Créer le dossier"}</Button>
+          <Button onClick={submit}>Créer le dossier</Button>
         </div>
       </footer>
 
@@ -816,8 +1189,31 @@ export function CreateDossier() {
   )
 }
 
+/** Question fermée « Oui / Non / Je ne sais pas » */
+function OuiNonNspField({ label, value, onChange }: { label: string; value: OuiNonNsp | null; onChange: (v: OuiNonNsp) => void }) {
+  return (
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <RadioGroup value={value ?? ""} onValueChange={(v) => onChange(v as OuiNonNsp)} className="flex flex-wrap gap-x-5 gap-y-2">
+        {(
+          [
+            ["oui", "Oui"],
+            ["non", "Non"],
+            ["nsp", "Je ne sais pas"],
+          ] as const
+        ).map(([v, l]) => (
+          <label key={v} className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value={v} />
+            {l}
+          </label>
+        ))}
+      </RadioGroup>
+    </Field>
+  )
+}
+
 /** Client ou propriétaire : personne physique (prénom, nom) ou morale (société, SIRET), puis coordonnées */
-function PersonneFields({ id, value: p, onChange }: { id: string; value: PersonneForm; onChange: (p: PersonneForm) => void }) {
+export function PersonneFields({ id, value: p, onChange }: { id: string; value: PersonneForm; onChange: (p: PersonneForm) => void }) {
   const { people, orgs } = useAnnuaire()
   // Changer le nom détache la fiche de l'annuaire (ce n'est peut-être plus la même personne)
   const set = (k: keyof PersonneForm, v: string) =>
@@ -950,7 +1346,7 @@ function OrgSuggest({
   )
 }
 
-function ChoiceCard({
+export function ChoiceCard({
   selected,
   onClick,
   icon,
@@ -984,7 +1380,7 @@ function ChoiceCard({
 }
 
 /** Étape façon Deel : « Terminé » en vert au-dessus du libellé quand c'est rempli */
-function RecapItem({ ok, label, detail, optional }: { ok: boolean; label: string; detail?: string; optional?: boolean }) {
+export function RecapItem({ ok, label, detail, optional }: { ok: boolean; label: string; detail?: string; optional?: boolean }) {
   return (
     <li className={cn("flex items-start gap-2.5 rounded-md px-2 py-2", !ok && !optional && "bg-muted/70")}>
       {ok ? (

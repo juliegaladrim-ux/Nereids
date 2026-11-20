@@ -17,7 +17,7 @@ export function clientTypeLabel(d: Dossier): string {
 
 /** Pièces attendues du client, et celles qui manquent encore */
 export function clientDocsStatus(d: Dossier) {
-  const expected = expectedDocs(d.type, d.litigeType)
+  const expected = expectedDocs(d.type, d.litigeType, d.sinistreType)
   const missing = expected.filter((c) => !d.documents.some((doc) => doc.category === c))
   return { expected, missing }
 }

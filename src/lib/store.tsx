@@ -16,6 +16,7 @@ import {
   type TimelineEvent,
   withDemoExpertise,
   withRef,
+  migrateDossier,
 } from "./data"
 import type { AnnuaireData, Contact, Organisation } from "./annuaire"
 
@@ -74,7 +75,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Données déjà sauvegardées : on y ajoute les consultations fictives et les notes internes d'exemple si elles n'existent pas encore
       if (raw) {
         const seed = seedDossiers()
-        initial = (JSON.parse(raw) as Dossier[]).map((d) =>
+        initial = (JSON.parse(raw) as Dossier[]).map(migrateDossier).map((d) =>
           withConsultations({
             ...d,
             notes: d.notes ?? seed.find((x) => x.id === d.id)?.notes,
