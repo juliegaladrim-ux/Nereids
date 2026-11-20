@@ -100,7 +100,7 @@ export const REPARATEUR_PROMPT_EVENT = "proto:reparateur-prompt"
 
 type DialogId = "status" | "close" | "assign" | "relance" | "doc" | null
 
-export type SectionId = "client" | "vehicule" | "compagnie" | "dossier" | "tiers" | "description" | "refs" | "expertise" | "cloture"
+export type SectionId = "client" | "vehicule" | "compagnie" | "cabinet" | "dossier" | "tiers" | "description" | "refs" | "expertise" | "cloture"
 
 const opts = <T extends string>(rec: Record<T, string | { label: string }>) =>
   (Object.entries(rec) as [T, string | { label: string }][]).map(([value, l]) => ({ value, label: typeof l === "string" ? l : l.label }))
@@ -1022,6 +1022,8 @@ function InfoRows({ rows, inline }: { rows: [React.ReactNode, React.ReactNode][]
   )
 }
 
+const ouiNonNsp = (v?: "oui" | "non" | "nsp") => (v === "oui" ? "Oui" : v === "non" ? "Non" : v === "nsp" ? "Je ne sais pas" : undefined)
+
 function General({
   dossier: d,
   cabinet,
@@ -1097,11 +1099,30 @@ function General({
         ]}
         onEdit={editable("compagnie")}
       />
+      {d.type === "litige_assurantiel" && (
+        <InfoCard
+          title="Cabinet d'expertise visé"
+          rows={[
+            ["Nom", d.cabinetVise?.nom],
+            ["Téléphone", d.cabinetVise?.phone],
+            ["E-mail", d.cabinetVise?.email],
+            ["Adresse", d.cabinetVise?.address],
+            ["Référence", d.cabinetVise?.reference],
+          ]}
+          onEdit={editable("cabinet")}
+        />
+      )}
       <InfoCard
         title="Dossier"
         rows={[
           ["Type", DOSSIER_TYPES[d.type].label],
           ["Qualification", d.sinistreType ? SINISTRE_TYPES[d.sinistreType].label : d.litigeType ? LITIGE_ASSUR_TYPES[d.litigeType].label : "—"],
+          ...(d.litigeType === "autre" && d.litigeAutre ? ([["Précision", d.litigeAutre]] as [string, React.ReactNode][]) : []),
+          ...(d.objetMission ? ([["Objet de la mission", d.objetMission]] as [string, React.ReactNode][]) : []),
+          ...(d.typeMission ? ([["Type de mission", d.typeMission]] as [string, React.ReactNode][]) : []),
+          ...(d.objetsPanne?.length
+            ? ([["Objet de la panne ou du litige", d.objetsPanne.map((o) => (o === "Autre" && d.panneAutre ? `Autre : ${d.panneAutre}` : o)).join(", ")]] as [string, React.ReactNode][])
+            : []),
           ["Créé le", formatDate(d.createdAt)],
           ["Région", d.region],
           ["Département d'intervention", dossierDepartement(d)],
@@ -1113,7 +1134,37 @@ function General({
         rows={d.tiers?.length ? d.tiers.map((t, i) => [`Tiers ${i + 1}`, [t.nom, t.phone, t.email].filter(Boolean).join(" · ")]) : [["Tiers", null]]}
         onEdit={editable("tiers")}
       />
-      <InfoCard title="Description" rows={[["Problème", d.description]]} onEdit={editable("description")} />
+      <InfoCard
+        title="Description"
+        rows={[
+          ["Problème", d.description],
+          ["Déclaration de la demande client et commentaire de l'expert", d.declaration],
+          ["Souhait prioritaire du mandant", d.souhait],
+        ]}
+        onEdit={editable("description")}
+      />
+      {d.type === "litige_auto" && d.immobilisation && (
+        <InfoCard
+          title="Immobilisation"
+          rows={[
+            ["Véhicule immobilisé", ouiNonNsp(d.immobilisation.immobilise)],
+            ["Lieu d'immobilisation", d.immobilisation.lieu],
+            ["Frais de gardiennage", ouiNonNsp(d.immobilisation.frais)],
+            ["Type de frais", d.immobilisation.typeFrais],
+          ]}
+        />
+      )}
+      {showAccount && d.tarif && (
+        <InfoCard
+          title="Honoraires de la 1re expertise"
+          rows={[
+            ["Prix", d.tarif.prix !== undefined ? `${eur(d.tarif.prix)} ${d.tarif.mode === "ht" ? "HT" : "TTC"}` : undefined],
+            ["Affiché au client", d.tarif.afficher ? "Oui" : "Non"],
+            ["Observations sur le tarif", d.tarif.observations],
+            ["Signature du mandat", d.tarif.signatureMandat ? "Nécessaire" : "Non nécessaire"],
+          ]}
+        />
+      )}
       <InfoCard
         title="Expert"
         rows={
@@ -1148,7 +1199,7 @@ function Documents({
   onEditDoc: (id: string) => void
   onDeleteDoc: (id: string) => void
 }) {
-  const expected = expectedDocs(d.type, d.litigeType)
+  const expected = expectedDocs(d.type, d.litigeType, d.sinistreType)
   const missing = expected.filter((c) => !d.documents.some((doc) => doc.category === c))
   // Classement : date du document, de la plus ancienne à la plus récente (ex. carte grise 11/06 avant facture d'entretien 15/06)
   const sorted = [...d.documents].sort((a, b) => docDate(a).localeCompare(docDate(b)))
@@ -1686,6 +1737,30 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
             : undefined,
         })),
       }
+    case "cabinet":
+      return {
+        title: "Modifier — Cabinet d'expertise visé",
+        fields: [
+          { key: "nom", label: "Nom", full: true },
+          { key: "phone", label: "Téléphone", type: "tel" },
+          { key: "email", label: "E-mail", type: "email" },
+          { key: "address", label: "Adresse postale", full: true },
+          { key: "reference", label: "Référence" },
+        ],
+        initial: {
+          nom: d.cabinetVise?.nom ?? "",
+          phone: d.cabinetVise?.phone ?? "",
+          email: d.cabinetVise?.email ?? "",
+          address: d.cabinetVise?.address ?? "",
+          reference: d.cabinetVise?.reference ?? "",
+        },
+        onSave: save("Cabinet d'expertise visé", (x, v) => ({
+          ...x,
+          cabinetVise: Object.values(v).some((t) => opt(t))
+            ? { nom: v.nom, phone: opt(v.phone), email: opt(v.email), address: opt(v.address), reference: opt(v.reference) }
+            : undefined,
+        })),
+      }
     case "dossier":
       return {
         title: "Modifier le dossier",
@@ -1753,9 +1828,13 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
     case "description":
       return {
         title: "Modifier la description",
-        fields: [{ key: "description", label: "Problème", type: "textarea" }],
-        initial: { description: d.description ?? "" },
-        onSave: save("Description", (x, v) => ({ ...x, description: opt(v.description) })),
+        fields: [
+          { key: "description", label: "Problème", type: "textarea" },
+          { key: "declaration", label: "Déclaration de la demande client et commentaire de l'expert", type: "textarea" },
+          { key: "souhait", label: "Souhait prioritaire du mandant", type: "textarea" },
+        ],
+        initial: { description: d.description ?? "", declaration: d.declaration ?? "", souhait: d.souhait ?? "" },
+        onSave: save("Description", (x, v) => ({ ...x, description: opt(v.description), declaration: opt(v.declaration), souhait: opt(v.souhait) })),
       }
     case "refs":
       return {
