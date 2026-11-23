@@ -37,6 +37,7 @@ import { useRole } from "@/components/app-shell/role-context"
 import { DocThumbnail, useDocPreview } from "@/components/doc-preview"
 import { Immat } from "@/components/immat"
 import { AbonnementBadge, ExpertiseBadge, LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
+import { RoleBadge } from "@/components/role-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -846,8 +847,9 @@ function Intervenants({
           <li className="flex items-center gap-3">
             <UserAvatar user={dossier.client} role="client" />
             <div className="min-w-0 text-sm">
-              <p className="truncate font-medium">
+              <p className="flex items-center gap-1.5 truncate font-medium">
                 {personneName(dossier.client)}
+                <RoleBadge role="client" />
               </p>
               <p className="text-xs text-muted-foreground">Client</p>
             </div>
@@ -858,7 +860,10 @@ function Intervenants({
               <li key={i} className="flex items-center gap-3">
                 {u ? <UserAvatar user={u} /> : <span className="grid size-7 place-items-center rounded-full border border-dashed"><CircleDashed className="size-3.5 text-muted-foreground" /></span>}
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className={cn("truncate", u ? "font-medium" : "text-muted-foreground italic")}>{u ? fullName(u) : "Non assigné"}</p>
+                  <p className={cn("flex items-center gap-1.5 truncate", u ? "font-medium" : "text-muted-foreground italic")}>
+                    {u ? fullName(u) : "Non assigné"}
+                    {u && <RoleBadge role={u.role} />}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {r.label}
                     {u && u.structure !== fullName(u) && ` · ${u.structure}`}
@@ -1301,7 +1306,7 @@ function Documents({
                   <p className="truncate text-sm font-medium">{doc.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {DOC_CATEGORIES[doc.category]} · <span className="text-foreground">Document du {formatDate(docDate(doc))}</span> · ajouté par{" "}
-                    {fullName(author)} le {formatDateTime(doc.addedAt)} · {doc.size}
+                    {fullName(author)}{author && <RoleBadge role={author.role} className="mx-1 h-4 align-middle" />}le {formatDateTime(doc.addedAt)} · {doc.size}
                   </p>
                 </div>
                 {actions(doc)}

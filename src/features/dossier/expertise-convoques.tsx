@@ -4,6 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { Building2, Copy, Hash, Mail, MapPin, Phone, Plus, UserRound, X } from "lucide-react"
 
+import { RoleBadge } from "@/components/role-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -134,7 +135,7 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
                       )}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      <Tag>{roleLabel(u)}</Tag>
+                      <RoleBadge role={u.role} label={roleLabel(u)} className="h-6 px-2.5 text-xs" />
                       {hosts && (
                         <Tag muted>
                           <MapPin className="size-3" /> Lieu de l&apos;expertise

@@ -27,6 +27,7 @@ import {
 
 import { useRole } from "@/components/app-shell/role-context"
 import { useDocPreview } from "@/components/doc-preview"
+import { RoleBadge } from "@/components/role-badge"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -168,7 +169,7 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
                   <span>
                     <span className="font-medium text-foreground">{fullName(author)}</span> a consulté le dossier
                   </span>
-                  {author && <span>· {ACTOR_LABELS[author.role]}</span>}
+                  {author && <RoleBadge role={author.role} />}
                   <span className="ml-auto whitespace-nowrap">{formatDateTime(e.at)}</span>
                 </p>
               </li>
@@ -204,6 +205,7 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
                       {author ? `par ${fullName(author)}` : "automatique"}
                     </span>
                   )}
+                  {isMsg && author && <RoleBadge role={author.role} />}
                   {isMsg && author && <span className="text-xs text-muted-foreground">{author.structure}</span>}
                   <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(e.at)}</span>
                 </div>
@@ -282,6 +284,7 @@ function Reply({ dossier, event }: { dossier: Dossier; event: TimelineEvent }) {
         <div className="min-w-0 flex-1 pt-0.5">
           <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
             <span className="font-medium">{author?.role === "admin" ? `${fullName(author)} (Nereids)` : fullName(author)}</span>
+            {author && <RoleBadge role={author.role} />}
             <span className="text-xs text-muted-foreground">{toMe ? "vous a répondu" : "a répondu"}</span>
             <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(event.reply.at)}</span>
           </p>
