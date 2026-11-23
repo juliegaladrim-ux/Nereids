@@ -411,7 +411,14 @@ export type Dossier = {
   client: Personne & { userId?: string }
   /** Propriétaire du véhicule, s'il n'est pas le client (absent = le client est propriétaire) */
   proprietaire?: Personne
-  vehicule: { marque: string; modele: string; immat: string; vin?: string }
+  vehicule: {
+    marque: string
+    modele: string
+    immat: string
+    vin?: string
+    /** Autres caractéristiques (onglet Véhicule, repères de la carte grise) : clé du champ → valeur ; les dates sont en ISO */
+    details?: Record<string, string>
+  }
   compagnie?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
   /** Litige assurantiel : cabinet d'expertise visé (mêmes champs que la compagnie visée) */
   cabinetVise?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }

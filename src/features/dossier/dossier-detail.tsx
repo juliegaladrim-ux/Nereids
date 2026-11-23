@@ -102,6 +102,7 @@ import { AddDocDialog, AssignDialog, CloseDialog, RelanceDialog, StatusDialog } 
 import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditField, type EditSection, type Values } from "./dossier-edit"
 import { DossierNotes } from "./dossier-notes"
 import { PartiesCard } from "./dossier-parties"
+import { VehiculeTab } from "./dossier-vehicule"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
 import { convoqueName, EditableValidationPills, eur, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
@@ -596,6 +597,7 @@ export function DossierDetail({ id }: { id: string }) {
             <TabsList variant="line" className="mb-2">
               <TabsTrigger value="suivi">Suivi <Count n={d.timeline.filter((e) => rights.canSeeEvent(e) && e.kind !== "consultation").length} /></TabsTrigger>
               <TabsTrigger value="general">Général</TabsTrigger>
+              <TabsTrigger value="vehicule">Véhicule</TabsTrigger>
               <TabsTrigger value="documents">
                 Documents <Count n={d.documents.filter((doc) => docVisibleTo(doc, role.id, d)).length} />
                 {d.documents.some((doc) => docVisibleTo(doc, role.id, d) && isNewDoc(doc, user.id)) && <span className="size-2 rounded-full bg-tone-alert" aria-label="Nouveaux documents" />}
@@ -615,6 +617,9 @@ export function DossierDetail({ id }: { id: string }) {
           </TabsContent>
           <TabsContent value="general">
             <General dossier={d} cabinet={cabinet} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
+          </TabsContent>
+          <TabsContent value="vehicule">
+            <VehiculeTab dossier={d} canEdit={!!editable("vehicule")} />
           </TabsContent>
           <TabsContent value="documents">
             <Documents
