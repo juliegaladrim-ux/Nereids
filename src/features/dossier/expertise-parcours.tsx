@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { CalendarCheck, CalendarDays, FileSignature, FileText, Hourglass, MapPin, SearchCheck, User, UserPlus } from "lucide-react"
+import { CalendarCheck, CalendarDays, FileSignature, FileText, Hourglass, MapPin, Plus, SearchCheck, User, UserPlus } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { DateInput } from "@/components/date-input"
+import { SimpleSelect } from "@/components/simple-select"
 import { ValidationPills } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { DictableTextarea } from "@/components/dictable-textarea"
 import {
+  QUALITES_INTERVENANT,
   STATUS_ORDER,
   VALIDATION_ITEMS,
   clientConvoqueId,
@@ -56,13 +58,20 @@ function convocables(d: Dossier): { id: string; label: string; detail: string }[
       label: fullName(u) || u.structure,
       detail: u.role === "expert" ? "Expert" : u.role === "reparateur" ? `Réparateur${u.structure && fullName(u) ? ` · ${u.structure}` : ""}` : u.fonction || "Intervenant suiveur",
     }))
-  return [{ id: clientConvoqueId(d), label: personneName(d.client), detail: "Client" }, ...people]
+  const parties = (d.parties ?? []).map((p) => ({
+    id: p.id,
+    label: p.kind === "morale" ? (p.societe ?? "Société") : [p.firstName, p.lastName].filter(Boolean).join(" ") || p.societe || "Intervenant",
+    detail: p.qualite === "Autre" && p.qualiteAutre ? p.qualiteAutre : p.qualite,
+  }))
+  return [{ id: clientConvoqueId(d), label: personneName(d.client), detail: "Client" }, ...people, ...parties]
 }
 
 export function convoqueName(d: Dossier, id: string): string {
   if (id === clientConvoqueId(d)) return personneName(d.client)
   const u = getUser(id)
-  return u ? fullName(u) || u.structure : id
+  if (u) return fullName(u) || u.structure
+  const p = d.parties?.find((x) => x.id === id)
+  return p ? (p.kind === "morale" ? (p.societe ?? "Société") : [p.firstName, p.lastName].filter(Boolean).join(" ") || p.societe || "Intervenant") : id
 }
 
 /** Actions du parcours partagées par la bannière et les voyants M/D/R de l'en-tête */
@@ -275,27 +284,72 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
   const [lieuMode, setLieuMode] = React.useState<"client" | "autre">(d.lieuClient ? "client" : "autre")
   const [autre, setAutre] = React.useState({ nom: "", adresse: "", cp: "", ville: "" })
   const [dates, setDates] = React.useState(["", "", ""])
+  const [confirme, setConfirme] = React.useState(false)
+  const [observations, setObservations] = React.useState("")
+  // Personnes ajoutées par l'expert : elles deviennent des intervenants du dossier à l'envoi
+  const [extras, setExtras] = React.useState<{ tmp: string; qualite: string; nom: string; societe: string; phone: string; email: string }[]>([])
+  const [addOpen, setAddOpen] = React.useState(false)
+  const [nv, setNv] = React.useState({ qualite: "", nom: "", societe: "", phone: "", email: "" })
   const lieuClient = d.lieuClient ? [d.lieuClient.nom, d.lieuClient.adresse].filter(Boolean).join(", ") : ""
   const autreComplet = !!(autre.nom.trim() && autre.adresse.trim() && /^\d{5}$/.test(autre.cp) && autre.ville.trim())
   const lieu =
     lieuMode === "client" ? lieuClient : autreComplet ? `${autre.nom.trim()}, ${autre.adresse.trim()}, ${autre.cp} ${autre.ville.trim()}` : ""
   const amount = Number(honoraires.replace(",", "."))
   const valid = amount > 0 && motif.trim() && convoques.length > 0 && lieu && dates.every(Boolean)
+  const allPeople = [...people, ...extras.map((e) => ({ id: e.tmp, label: e.nom || e.societe, detail: e.qualite }))]
+
+  function addExtra() {
+    if (!nv.qualite || !(nv.nom.trim() || nv.societe.trim())) return
+    const tmp = `new-${extras.length + 1}`
+    setExtras((all) => [...all, { tmp, ...nv }])
+    setConvoques((all) => [...all, tmp])
+    setNv({ qualite: "", nom: "", societe: "", phone: "", email: "" })
+    setAddOpen(false)
+  }
 
   function send() {
     const isoDates = dates.map((v) => fromDateInput(v)!)
-    updateDossier(d.id, (x) => ({
-      ...x,
-      proposition: { at: new Date().toISOString(), expert: user.id, honoraires: amount, motif: motif.trim(), lieu, lieuConfirme: lieuMode === "client", dates: isoDates },
-      expertise: { ...x.expertise, aConvoquer: convoques },
-      pilotage: {
-        ...x.pilotage,
-        ouEnEst: "Mission acceptée par l'expert.",
-        attente: "Programmation de l'expertise",
-        prochaineAction: "Appeler le lieu d'expertise et générer les convocations",
-        quiDoitAgir: x.intervenants.gestionnaire ? "gestionnaire" : "nereids",
-      },
-    }))
+    updateDossier(d.id, (x) => {
+      // Les personnes ajoutées rejoignent les intervenants du dossier (ids définitifs)
+      const base = Math.max(0, ...(x.parties ?? []).map((p) => Number(p.id.slice(1)) || 0))
+      const ids = Object.fromEntries(extras.map((e, i) => [e.tmp, `p${base + i + 1}`]))
+      const newParties = extras.map((e) => {
+        const [firstName, ...rest] = e.nom.trim().split(" ")
+        return {
+          id: ids[e.tmp],
+          qualite: e.qualite,
+          kind: e.nom.trim() ? undefined : ("morale" as const),
+          firstName: e.nom.trim() ? firstName : undefined,
+          lastName: e.nom.trim() ? rest.join(" ") || undefined : undefined,
+          societe: e.societe.trim() || undefined,
+          phone: e.phone.trim() || undefined,
+          email: e.email.trim() || undefined,
+        }
+      })
+      return {
+        ...x,
+        parties: [...(x.parties ?? []), ...newParties],
+        proposition: {
+          at: new Date().toISOString(),
+          expert: user.id,
+          honoraires: amount,
+          motif: motif.trim(),
+          lieu,
+          lieuConfirme: lieuMode === "client",
+          dates: isoDates,
+          confirmeTelephone: confirme || undefined,
+          observations: observations.trim() || undefined,
+        },
+        expertise: { ...x.expertise, aConvoquer: convoques.map((id) => ids[id] ?? id) },
+        pilotage: {
+          ...x.pilotage,
+          ouEnEst: "Mission acceptée par l'expert.",
+          attente: "Programmation de l'expertise",
+          prochaineAction: "Appeler le lieu d'expertise et générer les convocations",
+          quiDoitAgir: x.intervenants.gestionnaire ? "gestionnaire" : "nereids",
+        },
+      }
+    })
     addEvent(d.id, { kind: "expertise", author: user.id, title: "Mission acceptée par l'expert", body: "Dates et lieu d'expertise proposés au gestionnaire." })
     toast.success("Proposition envoyée au gestionnaire", { description: "Il organise l'expertise et vous enverra la convocation." })
     onClose()
@@ -327,7 +381,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
 
         <FormSection n={2} title="Personnes à convoquer *">
           <div className="grid gap-2 sm:grid-cols-2">
-            {people.map((p) => (
+            {allPeople.map((p) => (
               <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-brand/50 has-data-checked:border-brand has-data-checked:bg-brand-soft">
                 <Checkbox
                   checked={convoques.includes(p.id)}
@@ -340,6 +394,46 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
               </label>
             ))}
           </div>
+          {!addOpen ? (
+            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setAddOpen(true)}>
+              <Plus /> Ajouter une personne à convoquer
+            </Button>
+          ) : (
+            <div className="grid gap-3 rounded-lg bg-muted/50 p-3 sm:grid-cols-2">
+              <Field className="sm:col-span-2">
+                <FieldLabel>Qualité *</FieldLabel>
+                <SimpleSelect placeholder="Sélectionner" value={nv.qualite || null} onChange={(v) => setNv((a) => ({ ...a, qualite: v ?? "" }))} options={QUALITES_INTERVENANT.map((q) => ({ value: q, label: q }))} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="p-n-nom">Nom et prénom</FieldLabel>
+                <Input id="p-n-nom" value={nv.nom} onChange={(e) => setNv((a) => ({ ...a, nom: e.target.value }))} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="p-n-soc">Société</FieldLabel>
+                <Input id="p-n-soc" value={nv.societe} onChange={(e) => setNv((a) => ({ ...a, societe: e.target.value }))} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="p-n-tel">Téléphone</FieldLabel>
+                <Input id="p-n-tel" type="tel" value={nv.phone} onChange={(e) => setNv((a) => ({ ...a, phone: e.target.value }))} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="p-n-mail">E-mail</FieldLabel>
+                <Input id="p-n-mail" type="email" value={nv.email} onChange={(e) => setNv((a) => ({ ...a, email: e.target.value }))} />
+              </Field>
+              <div className="flex gap-2 sm:col-span-2">
+                <Button type="button" size="sm" onClick={addExtra} disabled={!nv.qualite || !(nv.nom.trim() || nv.societe.trim())}>
+                  Ajouter
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setAddOpen(false)}>
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          )}
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-sm">
+            <Checkbox className="mt-0.5" checked={confirme} onCheckedChange={(c) => setConfirme(!!c)} />
+            <span>J&apos;ai joint par téléphone le client et le lieu d&apos;expertise : ils confirment leur accord sur la date d&apos;expertise.</span>
+          </label>
         </FormSection>
 
         <FormSection n={3} title="Lieu de l'expertise *">
@@ -406,6 +500,10 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
               </div>
             ))}
           </div>
+        </FormSection>
+
+        <FormSection n={5} title="Observations">
+          <DictableTextarea id="p-obs" label="Observations (facultatif)" rows={3} placeholder="Précisions pour le gestionnaire…" value={observations} onValueChange={setObservations} />
         </FormSection>
 
         <DialogFooter>
@@ -511,6 +609,8 @@ function PropositionRows({ dossier: d, withDates = true, className }: { dossier:
     ["Motif", p.motif],
     ["Lieu", <span key="l">{p.lieu}<span className="block text-xs text-muted-foreground">{p.lieuConfirme ? "Lieu proposé par le client, confirmé" : "Autre lieu proposé par l'expert"}</span></span>],
     ["À convoquer", (d.expertise.aConvoquer ?? []).map((id) => convoqueName(d, id)).join(", ")],
+    p.confirmeTelephone && ["Accord par téléphone", "Client et lieu d'expertise joints : d'accord sur la date"],
+    p.observations && ["Observations", p.observations],
     withDates && [
       "Dates proposées",
       <ol key="d" className="flex flex-col gap-0.5">

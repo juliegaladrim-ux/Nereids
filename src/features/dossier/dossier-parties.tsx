@@ -160,6 +160,7 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
       key: p.id,
       name: morale ? (p.societe ?? "Société") : [p.civilite, p.firstName, p.lastName].filter(Boolean).join(" ") || "Intervenant",
       qualites: [p.qualite === "Autre" && p.qualiteAutre ? p.qualiteAutre : p.qualite],
+      tags: allExpertises(d).some((e) => (e.convoques.length ? e.convoques : (e.aConvoquer ?? [])).includes(p.id)) ? ["Convoqué à l'expertise"] : undefined,
       siret: morale ? p.siret : undefined,
       societe: !morale ? p.societe : undefined,
       address: p.address,

@@ -488,6 +488,10 @@ export type PropositionExpert = {
   lieuConfirme: boolean
   /** 3 dates (ISO) par ordre de priorité */
   dates: string[]
+  /** L'expert a joint le client et le lieu d'expertise par téléphone : ils sont d'accord sur la date */
+  confirmeTelephone?: boolean
+  /** Observations libres de l'expert */
+  observations?: string
 }
 
 /** Étape du parcours d'expertise, tant que l'expertise n°1 n'est pas programmée (null = programmée, ou hors parcours) */
