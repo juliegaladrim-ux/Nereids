@@ -387,6 +387,8 @@ export type Dossier = {
   /** Litige assurantiel : cabinet d'expertise visé (mêmes champs que la compagnie visée) */
   cabinetVise?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
   tiers?: { nom: string; phone?: string; email?: string }[]
+  /** Autres intervenants ajoutés à la main (avocat, assureur adverse, débosseleur…), avec leur qualité */
+  parties?: Partie[]
   refs: { sinistre?: string }
   region: string
   /** Département d'intervention (ex. « 43 Haute-Loire ») — à défaut, déduit du code postal du client */
@@ -484,12 +486,16 @@ export const LIEU_CLIENT_DEMO = { nom: "Garage Benali Carrosserie", adresse: "12
 export type Personne = {
   /** Absent = personne physique */
   kind?: "physique" | "morale"
+  /** Monsieur, Madame, Maître… (personne physique) */
+  civilite?: string
   firstName: string
   lastName: string
   societe?: string
   siret?: string
   phone: string
   email: string
+  /** Deuxième adresse e-mail */
+  email2?: string
   /** Adresse postale */
   address?: string
   /** Fiche de l'annuaire d'où viennent ces infos (copiées à la création : le dossier n'est pas modifié si la fiche change) */
@@ -1433,4 +1439,71 @@ export function hasUpcomingExpertise(d: Dossier, days = 7): boolean {
   if (!d.expertise.date || d.expertise.realisee) return false
   const t = new Date(d.expertise.date).getTime()
   return t >= Date.now() - DAY && t <= Date.now() + days * DAY
+}
+
+// ─── Parties et intervenants d'un dossier (onglet Général) ──────────────────
+
+/** Qualité d'un intervenant sur le dossier, dans l'ordre alphabétique ; « Autre » ouvre un champ libre */
+export const QUALITES_INTERVENANT = [
+  "Assureur",
+  "Assureur adverse",
+  "Avocat",
+  "Cabinet d'expertise",
+  "Commissaire de justice",
+  "Conseiller technique",
+  "Constructeur",
+  "Contrôleur technique",
+  "Débosseleur",
+  "Dépositaire",
+  "Dernier intervenant",
+  "Expert judiciaire",
+  "Fabricant",
+  "Importateur",
+  "Intermédiaire",
+  "Lésé",
+  "Locataire",
+  "Loueur",
+  "Mandant",
+  "Mandataire",
+  "Propriétaire",
+  "Récupérateur",
+  "Remorqueur",
+  "Réparateur",
+  "Sapiteur",
+  "Sous-traitant",
+  "Technicien chiffreur",
+  "Témoin",
+  "Utilisateur du véhicule",
+  "Vendeur de pièces détachées",
+  "Autre",
+] as const
+
+export const CIVILITES = ["Monsieur", "Madame", "Maître", "Docteur", "Professeur"] as const
+
+/** Intervenant ajouté à la main sur le dossier (en plus du client, des intervenants assignés, de la compagnie, des tiers…) */
+export type Partie = {
+  id: string
+  qualite: string
+  /** Précision quand la qualité est « Autre » */
+  qualiteAutre?: string
+  /** Absent = personne physique */
+  kind?: "physique" | "morale"
+  civilite?: string
+  firstName?: string
+  lastName?: string
+  societe?: string
+  siret?: string
+  address?: string
+  phone?: string
+  email?: string
+  /** Deuxième adresse e-mail */
+  email2?: string
+  representant?: string
+  /** Référence interne de l'intervenant */
+  refInterne?: string
+  /** Nom de son mandant et référence de son mandant */
+  mandant?: string
+  refMandant?: string
+  /** Clé de la partie à laquelle celle-ci est liée (ex. l'expert d'un assureur) */
+  lieeA?: string
 }

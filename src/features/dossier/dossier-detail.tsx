@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  CIVILITES,
   CLOSING_REASONS,
   DOC_CATEGORIES,
   DOSSIER_TYPES,
@@ -92,6 +93,7 @@ import { cn } from "@/lib/utils"
 import { AddDocDialog, AssignDialog, CloseDialog, RelanceDialog, StatusDialog } from "./dossier-dialogs"
 import { EditDialog, fromDateInput, opt, toDateInput, toDateTimeInput, type EditField, type EditSection, type Values } from "./dossier-edit"
 import { DossierNotes } from "./dossier-notes"
+import { PartiesCard } from "./dossier-parties"
 import { DossierSuivi } from "./dossier-suivi"
 import { ConvoquesCard } from "./expertise-convoques"
 import { convoqueName, EditableValidationPills, eur, ExpertiseParcoursBanner, PreparationCard } from "./expertise-parcours"
@@ -1094,30 +1096,11 @@ function General({
         ]}
         onEdit={editable("vehicule")}
       />
-      <InfoCard
-        title={compagnieLabel(d.type)}
-        rows={[
-          ["Nom", d.compagnie?.nom],
-          ["Téléphone", d.compagnie?.phone],
-          ["E-mail", d.compagnie?.email],
-          ["Adresse", d.compagnie?.address],
-          ["Référence", d.compagnie?.reference],
-        ]}
-        onEdit={editable("compagnie")}
+      <PartiesCard
+        dossier={d}
+        canEdit={!!editable("tiers")}
+        onEditSection={(id) => editable(id)}
       />
-      {d.type === "litige_assurantiel" && (
-        <InfoCard
-          title="Cabinet d'expertise visé"
-          rows={[
-            ["Nom", d.cabinetVise?.nom],
-            ["Téléphone", d.cabinetVise?.phone],
-            ["E-mail", d.cabinetVise?.email],
-            ["Adresse", d.cabinetVise?.address],
-            ["Référence", d.cabinetVise?.reference],
-          ]}
-          onEdit={editable("cabinet")}
-        />
-      )}
       <InfoCard
         title="Dossier"
         rows={[
@@ -1134,11 +1117,6 @@ function General({
           ["Département d'intervention", dossierDepartement(d)],
         ]}
         onEdit={editable("dossier")}
-      />
-      <InfoCard
-        title="Tiers"
-        rows={d.tiers?.length ? d.tiers.map((t, i) => [`Tiers ${i + 1}`, [t.nom, t.phone, t.email].filter(Boolean).join(" · ")]) : [["Tiers", null]]}
-        onEdit={editable("tiers")}
       />
       <InfoCard
         title="Description"
@@ -1637,12 +1615,20 @@ function personneFields(hidden: (v: Values) => boolean = () => false): EditField
       ],
       hidden,
     },
+    {
+      key: "civilite",
+      label: "Civilité",
+      type: "select",
+      options: CIVILITES.map((c) => ({ value: c, label: c })),
+      hidden: (v) => hidden(v) || morale(v),
+    },
     { key: "firstName", label: "Prénom", hidden: (v) => hidden(v) || morale(v) },
     { key: "lastName", label: "Nom", hidden: (v) => hidden(v) || morale(v) },
     { key: "societe", label: "Nom de la société", hidden: (v) => hidden(v) || !morale(v) },
     { key: "siret", label: "N° de SIRET", hidden: (v) => hidden(v) || !morale(v) },
     { key: "phone", label: "Téléphone", type: "tel", hidden },
     { key: "email", label: "E-mail", type: "email", hidden },
+    { key: "email2", label: "Deuxième e-mail", type: "email", hidden },
     { key: "address", label: "Adresse postale", full: true, hidden },
   ]
 }
@@ -1650,12 +1636,14 @@ function personneFields(hidden: (v: Values) => boolean = () => false): EditField
 function personneInitial(p?: Personne): Values {
   return {
     kind: p?.kind ?? "physique",
+    civilite: p?.civilite ?? "",
     firstName: p?.firstName ?? "",
     lastName: p?.lastName ?? "",
     societe: p?.societe ?? "",
     siret: p?.siret ?? "",
     phone: p?.phone ?? "",
     email: p?.email ?? "",
+    email2: p?.email2 ?? "",
     address: p?.address ?? "",
   }
 }
@@ -1664,12 +1652,14 @@ function personneFromValues(v: Values): Personne {
   const morale = v.kind === "morale"
   return {
     kind: morale ? "morale" : undefined,
+    civilite: morale ? undefined : opt(v.civilite ?? ""),
     firstName: morale ? "" : v.firstName,
     lastName: morale ? "" : v.lastName,
     societe: morale ? opt(v.societe) : undefined,
     siret: morale ? opt(v.siret) : undefined,
     phone: v.phone,
     email: v.email,
+    email2: opt(v.email2 ?? ""),
     address: opt(v.address),
   }
 }
