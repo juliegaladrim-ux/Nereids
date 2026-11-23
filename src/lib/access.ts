@@ -55,6 +55,7 @@ const CLIENT_DOC_CATEGORIES: DocCategory[] = [
   "recherche_marche",
   "rapport_compagnie",
   "courrier",
+  "mail",
   "autre",
 ]
 

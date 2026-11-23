@@ -342,6 +342,7 @@ export function AddDocDialog({
   const { updateDossier, addEvent } = useStore()
   const [cat, setCat] = React.useState<string | null>(defaultCategory ?? null)
   const [file, setFile] = React.useState<string | null>(null)
+  const [libelle, setLibelle] = React.useState("")
   const [notify, setNotify] = React.useState(true)
   // Date figurant sur la pièce : sert au classement des documents (aujourd'hui par défaut)
   const [date, setDate] = React.useState("")
@@ -354,17 +355,28 @@ export function AddDocDialog({
   }, [open, defaultCategory])
 
   function save() {
-    if (!cat || !file) return
+    if (!cat || !file || (cat === "autre" && !libelle.trim())) return
     const now = new Date().toISOString()
+    const label = cat === "autre" ? libelle.trim() : DOC_CATEGORIES[cat as DocCategory]
     updateDossier(dossier.id, (d) => ({
       ...d,
-      documents: [...d.documents, { id: `d${Date.now()}`, name: file, category: cat as DocCategory, addedBy: user.id, addedAt: now, docDate: fromDateInput(date) ?? now, size: "1,4 Mo" }],
+      documents: [
+        ...d.documents,
+        { id: `d${Date.now()}`, name: file, category: cat as DocCategory, libelle: cat === "autre" ? label : undefined, addedBy: user.id, addedAt: now, docDate: fromDateInput(date) ?? now, size: "1,4 Mo" },
+      ],
     }))
-    addEvent(dossier.id, { kind: "document", author: user.id, title: `Document ajouté — ${DOC_CATEGORIES[cat as DocCategory]}`, body: file })
+    addEvent(dossier.id, { kind: "document", author: user.id, title: `Document ajouté — ${label}`, body: file })
     toast.success("Document ajouté", { description: notify ? "Les intervenants concernés ont été notifiés." : undefined })
     setFile(null)
+    setLibelle("")
     onOpenChange(false)
   }
+
+  // Alphabétique, « Autre » en dernier ; le rapport de la compagnie n'est plus proposé
+  const categoryOptions = (categories ?? (Object.keys(DOC_CATEGORIES) as DocCategory[]))
+    .filter((c) => c !== "rapport_compagnie")
+    .sort((a, b) => (a === "autre" ? 1 : b === "autre" ? -1 : DOC_CATEGORIES[a].localeCompare(DOC_CATEGORIES[b], "fr")))
+    .map((value) => ({ value, label: DOC_CATEGORIES[value] }))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -390,8 +402,14 @@ export function AddDocDialog({
           </button>
           <Field>
             <FieldLabel>Catégorie *</FieldLabel>
-            <SimpleSelect placeholder="Choisir une catégorie" value={cat} onChange={setCat} options={(categories ?? (Object.keys(DOC_CATEGORIES) as DocCategory[])).map((value) => ({ value, label: DOC_CATEGORIES[value] }))} />
+            <SimpleSelect placeholder="Choisir une catégorie" value={cat} onChange={setCat} options={categoryOptions} />
           </Field>
+          {cat === "autre" && (
+            <Field>
+              <FieldLabel htmlFor="doc-libelle">Intitulé du document *</FieldLabel>
+              <Input id="doc-libelle" placeholder="Ex. Attestation de l'employeur" value={libelle} onChange={(e) => setLibelle(e.target.value)} />
+            </Field>
+          )}
           <Field>
             <FieldLabel htmlFor="doc-date">Date du document</FieldLabel>
             <DateInput id="doc-date" value={date} onChange={setDate} />
@@ -407,7 +425,7 @@ export function AddDocDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
-          <Button onClick={save} disabled={!cat || !file}>
+          <Button onClick={save} disabled={!cat || !file || (cat === "autre" && !libelle.trim())}>
             Ajouter
           </Button>
         </DialogFooter>

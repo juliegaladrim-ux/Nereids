@@ -37,7 +37,7 @@ import { appendText, DictationButton } from "@/components/dictation-button"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
 import { useDossierCabinet } from "@/lib/annuaire"
-import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, isClosedStatus, nextAction, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
+import { ACTOR_LABELS, STATUSES, docLabel, fullName, getUser, isClosedStatus, nextAction, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -255,7 +255,7 @@ function Attachments({ dossier, event }: { dossier: Dossier; event: TimelineEven
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{doc.name}</p>
             <p className="text-xs text-muted-foreground">
-              {DOC_CATEGORIES[doc.category]} · {doc.size}
+              {docLabel(doc)} · {doc.size}
             </p>
           </div>
           <Button variant="ghost" size="icon-sm" className="relative" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>

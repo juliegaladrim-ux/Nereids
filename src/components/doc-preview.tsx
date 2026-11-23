@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import { DOC_CATEGORIES, docDate, type DocCategory, type DocumentItem } from "@/lib/data"
+import { docDate, docLabel, type DocCategory, type DocumentItem } from "@/lib/data"
 import { formatDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -35,6 +35,8 @@ const KIND: Record<DocCategory, Kind> = {
   controle_technique: "rapport",
   recherche_marche: "rapport",
   courrier: "courrier",
+  mail: "courrier",
+  mandat: "courrier",
   autre: "courrier",
 }
 
@@ -343,7 +345,7 @@ export function DocPreviewDialog({ doc, onOpenChange }: { doc: DocumentItem | nu
               <div className="min-w-0 flex-1">
                 <DialogTitle className="truncate text-left text-base">{d.name}</DialogTitle>
                 <DialogDescription className="truncate text-left">
-                  {DOC_CATEGORIES[d.category]} · Document du {formatDate(docDate(d))} · {d.size}
+                  {docLabel(d)} · Document du {formatDate(docDate(d))} · {d.size}
                 </DialogDescription>
               </div>
               <Button variant="outline" size="sm" onClick={() => toast.info(`Téléchargement de « ${d.name} » — simulation`)}>

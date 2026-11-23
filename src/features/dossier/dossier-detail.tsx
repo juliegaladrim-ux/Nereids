@@ -19,6 +19,8 @@ import {
   Flag,
   LayoutGrid,
   List,
+  Lock,
+  LockOpen,
   Mail,
   MapPin,
   MoreHorizontal,
@@ -48,8 +50,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  ADMIN_DOC_CATEGORIES,
   CIVILITES,
   CLOSING_REASONS,
   DOC_CATEGORIES,
@@ -65,6 +69,10 @@ import {
   clientValidation,
   compagnieLabel,
   allExpertises,
+  docLabel,
+  docVisibleTo,
+  isNewDoc,
+  type DocumentItem,
   docDate,
   dossierDepartement,
   expertisePeople,
@@ -588,7 +596,10 @@ export function DossierDetail({ id }: { id: string }) {
             <TabsList variant="line" className="mb-2">
               <TabsTrigger value="suivi">Suivi <Count n={d.timeline.filter((e) => rights.canSeeEvent(e) && e.kind !== "consultation").length} /></TabsTrigger>
               <TabsTrigger value="general">Général</TabsTrigger>
-              <TabsTrigger value="documents">Documents <Count n={d.documents.length} /></TabsTrigger>
+              <TabsTrigger value="documents">
+                Documents <Count n={d.documents.filter((doc) => docVisibleTo(doc, role.id, d)).length} />
+                {d.documents.some((doc) => docVisibleTo(doc, role.id, d) && isNewDoc(doc, user.id)) && <span className="size-2 rounded-full bg-tone-alert" aria-label="Nouveaux documents" />}
+              </TabsTrigger>
               <TabsTrigger value="expertise">Expertise</TabsTrigger>
               {d.type === "litige_assurantiel" && <TabsTrigger value="tierce">Tierce expertise</TabsTrigger>}
               {canSeeNotes && (
@@ -1183,16 +1194,55 @@ function Documents({
   onEditDoc: (id: string) => void
   onDeleteDoc: (id: string) => void
 }) {
+  const { user, role } = useRole()
+  const { patchDocs } = useStore()
   const expected = expectedDocs(d.type, d.litigeType, d.sinistreType)
   const missing = expected.filter((c) => !d.documents.some((doc) => doc.category === c))
+  // Selon le rôle : documents confidentiels et rapport d'expertise (tant que le règlement n'est pas reçu) masqués
+  const visible = d.documents.filter((doc) => docVisibleTo(doc, role.id, d))
+  const [section, setSection] = React.useState<"dossier" | "admin">("dossier")
+  const inSection = visible.filter((doc) => ADMIN_DOC_CATEGORIES.includes(doc.category) === (section === "admin"))
   // Classement : date du document, de la plus ancienne à la plus récente (ex. carte grise 11/06 avant facture d'entretien 15/06)
-  const sorted = [...d.documents].sort((a, b) => docDate(a).localeCompare(docDate(b)))
+  const sorted = [...inSection].sort((a, b) => docDate(a).localeCompare(docDate(b)))
   const [view, setView] = React.useState<"liste" | "galerie">("liste")
+  const [selected, setSelected] = React.useState<string[]>([])
   const preview = useDocPreview()
+  // Nereids, gestionnaire et expert décident de la confidentialité
+  const canSetConfidential = role.id === "admin" || role.id === "gestionnaire" || role.id === "expert"
+  const newIds = visible.filter((doc) => isNewDoc(doc, user.id)).map((doc) => doc.id)
+  const countOf = (adm: boolean) => visible.filter((doc) => ADMIN_DOC_CATEGORIES.includes(doc.category) === adm).length
+  const newIn = (adm: boolean) => visible.filter((doc) => ADMIN_DOC_CATEGORIES.includes(doc.category) === adm && isNewDoc(doc, user.id)).length
+  const markSeen = (ids: string[]) => patchDocs(d.id, ids, (doc) => ({ ...doc, seenBy: [...(doc.seenBy ?? []), user.id] }))
+  const openDoc = (doc: DocumentItem) => {
+    preview.open(doc)
+    if (isNewDoc(doc, user.id)) markSeen([doc.id])
+  }
+  const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  const allChecked = sorted.length > 0 && sorted.every((doc) => selected.includes(doc.id))
+  const picked = selected.filter((id) => sorted.some((doc) => doc.id === id))
+
+  function setConfidential(doc: DocumentItem) {
+    patchDocs(d.id, [doc.id], (x) => ({ ...x, confidentiel: !x.confidentiel }))
+    toast.success(doc.confidentiel ? "Document visible par tous les intervenants" : "Document confidentiel", {
+      description: doc.confidentiel ? undefined : "Visible uniquement par Nereids, les gestionnaires, les experts et le client.",
+    })
+  }
 
   function actions(doc: Dossier["documents"][number], className?: string) {
     return (
       <div className={cn("relative z-10 flex shrink-0", className)}>
+        {canSetConfidential && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={doc.confidentiel ? "Retirer la confidentialité" : "Marquer comme confidentiel"}
+            aria-pressed={!!doc.confidentiel}
+            title={doc.confidentiel ? "Confidentiel — cliquer pour retirer" : "Marquer comme confidentiel"}
+            onClick={() => setConfidential(doc)}
+          >
+            {doc.confidentiel ? <Lock className="text-tone-alert" /> : <LockOpen className="text-muted-foreground" />}
+          </Button>
+        )}
         <Button variant="ghost" size="icon-sm" aria-label="Télécharger" onClick={() => toast.info(`Téléchargement de « ${doc.name} » — simulation`)}>
           <Download />
         </Button>
@@ -1215,11 +1265,71 @@ function Documents({
     )
   }
 
+  /** Pastilles à côté du nom : nouveau, confidentiel */
+  const badges = (doc: DocumentItem) => (
+    <>
+      {isNewDoc(doc, user.id) && (
+        <span className="inline-flex h-5 items-center gap-1 rounded-full bg-tone-alert-bg px-2 text-[0.7rem] font-semibold text-tone-alert">
+          <span className="size-1.5 rounded-full bg-tone-alert" /> Nouveau
+        </span>
+      )}
+      {doc.confidentiel && (
+        <span className="inline-flex h-5 items-center gap-1 rounded-full bg-muted px-2 text-[0.7rem] font-medium text-foreground">
+          <Lock className="size-3" /> Confidentiel
+        </span>
+      )}
+    </>
+  )
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Documents du dossier / documents de gestion du dossier (devis, mandats, factures) */}
+      <div className="flex rounded-lg border p-0.5 self-start" role="group" aria-label="Type de documents">
+        {(
+          [
+            ["dossier", "Documents du dossier", false],
+            ["admin", "Documents administratifs", true],
+          ] as const
+        ).map(([id, label, adm]) => (
+          <Button
+            key={id}
+            variant="ghost"
+            size="sm"
+            aria-pressed={section === id}
+            onClick={() => {
+              setSection(id)
+              setSelected([])
+            }}
+            className={cn(section === id ? "bg-foreground text-background hover:bg-foreground hover:text-background" : "text-muted-foreground")}
+          >
+            {label}
+            <span className="tabular-nums opacity-70">{countOf(adm)}</span>
+            {newIn(adm) > 0 && <span className="size-2 rounded-full bg-tone-alert" aria-label="Nouveaux documents" />}
+          </Button>
+        ))}
+      </div>
+
+      {newIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-tone-alert/30 bg-tone-alert-bg/60 px-4 py-2.5 text-sm">
+          <span className="size-2 shrink-0 rounded-full bg-tone-alert" />
+          <span className="font-medium">
+            {newIds.length} nouveau{newIds.length > 1 ? "x" : ""} document{newIds.length > 1 ? "s" : ""} depuis votre dernière visite
+          </span>
+          <Button size="xs" variant="outline" className="ml-auto bg-background" onClick={() => markSeen(newIds)}>
+            Tout marquer comme lu
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <p className="text-sm text-muted-foreground">{d.documents.length} document(s)</p>
+          {sorted.length > 0 && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={allChecked} onCheckedChange={(c) => setSelected(c ? sorted.map((doc) => doc.id) : [])} aria-label="Tout sélectionner" />
+              {picked.length > 0 ? `${picked.length} sélectionné(s)` : `${sorted.length} document(s)`}
+            </label>
+          )}
+          {sorted.length === 0 && <p className="text-sm text-muted-foreground">0 document</p>}
           <div className="flex rounded-lg border p-0.5" role="group" aria-label="Affichage">
             {(
               [
@@ -1242,9 +1352,15 @@ function Documents({
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => toast.info("Téléchargement groupé (ZIP) — simulation")}>
-            <Download /> Tout télécharger
-          </Button>
+          {picked.length > 0 ? (
+            <Button variant="outline" size="sm" onClick={() => toast.info(`Téléchargement de ${picked.length} document(s) (ZIP) — simulation`)}>
+              <Download /> Télécharger la sélection ({picked.length})
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => toast.info("Téléchargement groupé (ZIP) — simulation")}>
+              <Download /> Tout télécharger
+            </Button>
+          )}
           {onAdd && (
             <Button size="sm" onClick={() => onAdd()}>
               <Plus /> Ajouter un document
@@ -1253,7 +1369,7 @@ function Documents({
         </div>
       </div>
 
-      {onAdd && missing.length > 0 && !isClosedStatus(d.status) && (
+      {onAdd && section === "dossier" && missing.length > 0 && !isClosedStatus(d.status) && (
         <Card size="sm" className="bg-tone-waiting-bg/50 ring-tone-waiting/20">
           <CardContent>
             <p className="mb-2 text-sm font-medium">Pièces manquantes</p>
@@ -1268,23 +1384,33 @@ function Documents({
         </Card>
       )}
 
-      {d.documents.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun document pour le moment.</p>}
+      {sorted.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun document pour le moment.</p>}
 
-      {d.documents.length > 0 && view === "liste" && (
+      {sorted.length > 0 && view === "liste" && (
         <ul className="divide-y rounded-xl border bg-card">
           {sorted.map((doc) => {
             const author = getUser(doc.addedBy)
             return (
               <li key={doc.id} className="relative flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
-                <button type="button" className="absolute inset-0 cursor-pointer" aria-label={`Aperçu de ${doc.name}`} onClick={() => preview.open(doc)} />
+                <button type="button" className="absolute inset-0 cursor-pointer" aria-label={`Aperçu de ${doc.name}`} onClick={() => openDoc(doc)} />
+                <Checkbox
+                  className="relative z-10"
+                  checked={selected.includes(doc.id)}
+                  onCheckedChange={() => toggle(doc.id)}
+                  aria-label={`Sélectionner ${doc.name}`}
+                />
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
                   <FileText className="size-4 text-muted-foreground" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{doc.name}</p>
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className={cn("truncate text-sm", isNewDoc(doc, user.id) ? "font-semibold" : "font-medium")}>{doc.name}</span>
+                    {badges(doc)}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    {DOC_CATEGORIES[doc.category]} · <span className="text-foreground">Document du {formatDate(docDate(doc))}</span> · ajouté par{" "}
-                    {fullName(author)}{author && <RoleBadge role={author.role} className="mx-1 h-4 align-middle" />}le {formatDateTime(doc.addedAt)} · {doc.size}
+                    {docLabel(doc)} · <span className="text-foreground">Document du {formatDate(docDate(doc))}</span> · ajouté par{" "}
+                    {fullName(author)}
+                    {author && <RoleBadge role={author.role} className="mx-1 h-4 align-middle" />}le {formatDateTime(doc.addedAt)} · {doc.size}
                   </p>
                 </div>
                 {actions(doc)}
@@ -1294,22 +1420,29 @@ function Documents({
         </ul>
       )}
 
-      {d.documents.length > 0 && view === "galerie" && (
+      {sorted.length > 0 && view === "galerie" && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {sorted.map((doc) => {
             return (
               <li key={doc.id} className="group relative flex flex-col overflow-hidden rounded-xl border bg-card">
-                <button type="button" className="absolute inset-0 z-[1] cursor-pointer" aria-label={`Aperçu de ${doc.name}`} onClick={() => preview.open(doc)} />
+                <button type="button" className="absolute inset-0 z-[1] cursor-pointer" aria-label={`Aperçu de ${doc.name}`} onClick={() => openDoc(doc)} />
                 <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                   <DocThumbnail doc={doc} className="transition-transform duration-200 group-hover:scale-[1.03]" />
+                  <Checkbox
+                    className="absolute top-2 left-2 z-10 bg-background"
+                    checked={selected.includes(doc.id)}
+                    onCheckedChange={() => toggle(doc.id)}
+                    aria-label={`Sélectionner ${doc.name}`}
+                  />
                   {actions(doc, "absolute top-1.5 right-1.5 rounded-lg bg-background/90 shadow-xs")}
                 </div>
                 <div className="min-w-0 p-3">
                   <p className="truncate text-sm font-medium" title={doc.name}>
                     {doc.name}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{DOC_CATEGORIES[doc.category]}</p>
+                  <p className="truncate text-xs text-muted-foreground">{docLabel(doc)}</p>
                   <p className="text-xs">Document du {formatDate(docDate(doc))}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">{badges(doc)}</div>
                 </div>
               </li>
             )

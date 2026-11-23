@@ -209,6 +209,8 @@ export type DocCategory =
   | "recherche_marche"
   | "rapport_compagnie"
   | "courrier"
+  | "mail"
+  | "mandat"
   | "autre"
 
 export const DOC_CATEGORIES: Record<DocCategory, string> = {
@@ -228,8 +230,13 @@ export const DOC_CATEGORIES: Record<DocCategory, string> = {
   recherche_marche: "Recherche marché",
   rapport_compagnie: "Rapport de la compagnie",
   courrier: "Courrier",
+  mail: "E-mails",
+  mandat: "Mandat",
   autre: "Autre",
 }
+
+/** Documents « de gestion du dossier » : devis, mandats et factures, séparés des pièces du dossier */
+export const ADMIN_DOC_CATEGORIES: DocCategory[] = ["devis", "mandat", "facture", "facture_proforma"]
 
 /** Pièces attendues à la création, selon le type (CDC §4) */
 export function expectedDocs(type: DossierType, sub?: LitigeAssurantielType, sinistre?: SinistreType): DocCategory[] {
@@ -301,7 +308,29 @@ export type DocumentItem = {
   /** Date figurant sur la pièce (ex. date du certificat d'immatriculation) — ISO ; à défaut, la date d'ajout */
   docDate?: string
   size: string
+  /** Visible uniquement par Nereids, les gestionnaires, les experts et le client */
+  confidentiel?: boolean
+  /** Intitulé saisi quand la catégorie est « Autre » */
+  libelle?: string
+  /** Personnes qui ont déjà vu ce document (sert à repérer les nouveaux) */
+  seenBy?: string[]
 }
+
+/** Intitulé du type de document : la saisie libre pour « Autre » */
+export const docLabel = (doc: Pick<DocumentItem, "category" | "libelle">) => (doc.category === "autre" && doc.libelle ? doc.libelle : DOC_CATEGORIES[doc.category])
+
+/** Nereids, gestionnaire et expert voient tout ; le client voit aussi les documents confidentiels */
+export function docVisibleTo(doc: DocumentItem, role: RoleId, d: Dossier): boolean {
+  const internal = role === "admin" || role === "gestionnaire" || role === "expert"
+  if (doc.confidentiel && !internal && role !== "client") return false
+  // Le rapport d'expertise n'est communiqué aux autres qu'une fois le règlement reçu
+  if (doc.category === "rapport" && !internal && clientValidation(d).reglement !== "ok") return false
+  return true
+}
+
+/** Document déposé par quelqu'un d'autre, pas encore vu, et récent */
+export const isNewDoc = (doc: DocumentItem, userId: string) =>
+  doc.addedBy !== userId && !doc.seenBy?.includes(userId) && Date.now() - new Date(doc.addedAt).getTime() < 3 * 86_400_000
 
 /** Date du document, utilisée pour le classement par défaut de l'onglet Documents */
 export const docDate = (doc: DocumentItem) => doc.docDate ?? doc.addedAt

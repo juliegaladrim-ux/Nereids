@@ -13,6 +13,7 @@ import {
   type Account,
   type User,
   type Dossier,
+  type DocumentItem,
   type TimelineEvent,
   withDemoExpertise,
   withRef,
@@ -39,6 +40,8 @@ type Store = {
   addEvent: (id: string, e: Omit<TimelineEvent, "id" | "at"> & { at?: string }) => void
   /** Trace l'ouverture d'un dossier (sans changer sa date de dernière activité) */
   logConsultation: (id: string, userId: string) => void
+  /** Marque des documents comme vus par une personne, ou change leur confidentialité (sans changer la date de dernière activité) */
+  patchDocs: (id: string, docIds: string[], patch: (doc: DocumentItem) => DocumentItem) => void
   /** Réponse unique à un message du suivi (ignorée si le message a déjà une réponse) */
   replyToMessage: (id: string, eventId: string, author: string, body: string) => void
   /** Notes internes Nereids — n'affectent pas la date de dernière activité (invisible des autres rôles) */
@@ -163,6 +166,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const e: TimelineEvent = { id: `c${Date.now()}`, at: new Date().toISOString(), kind: "consultation", author: userId, title: "A consulté le dossier" }
           return all.map((x) => (x.id === id ? { ...x, timeline: [...x.timeline, e] } : x))
         }),
+      patchDocs: (id, docIds, patch) =>
+        setDossiers((all) =>
+          (all ?? []).map((d) => (d.id === id ? { ...d, documents: d.documents.map((doc) => (docIds.includes(doc.id) ? patch(doc) : doc)) } : d)),
+        ),
       replyToMessage: (id, eventId, author, body) =>
         setDossiers((all) =>
           (all ?? []).map((d) =>
