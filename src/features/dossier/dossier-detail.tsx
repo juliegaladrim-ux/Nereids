@@ -57,6 +57,7 @@ import {
   REGION_DEPARTEMENTS,
   SINISTRE_TYPES,
   STATUS_ORDER,
+  isClosedStatus,
   SUIVEUR_QUALITES,
   WORKFLOW_STEPS,
   clientValidation,
@@ -153,7 +154,7 @@ export function DossierDetail({ id }: { id: string }) {
     )
   }
 
-  const closed = d.status === "cloture" || d.status === "archive"
+  const closed = isClosedStatus(d.status)
   const late = isLate(d)
   // L'admin, c'est Nereids : « Nereids doit agir » = c'est à lui
   const { quiDoitAgir } = nextAction(d)
@@ -737,7 +738,7 @@ function Count({ n }: { n: number }) {
  */
 function Progress({ dossier }: { dossier: Dossier }) {
   const steps = WORKFLOW_STEPS[dossier.type]
-  const done = dossier.status === "cloture" || dossier.status === "archive"
+  const done = isClosedStatus(dossier.status)
   const current = done ? steps.length - 1 : Math.max(0, steps.findIndex((s) => s.statuses.includes(dossier.status)))
   const last = steps.length - 1
   const at = (i: number) => `${(i / last) * 100}%`
@@ -1269,7 +1270,7 @@ function Documents({
         </div>
       </div>
 
-      {onAdd && missing.length > 0 && d.status !== "cloture" && d.status !== "archive" && (
+      {onAdd && missing.length > 0 && !isClosedStatus(d.status) && (
         <Card size="sm" className="bg-tone-waiting-bg/50 ring-tone-waiting/20">
           <CardContent>
             <p className="mb-2 text-sm font-medium">Pièces manquantes</p>

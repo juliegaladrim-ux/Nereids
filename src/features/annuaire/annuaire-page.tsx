@@ -50,6 +50,7 @@ import {
   type Dossier,
   type EmailSecondaire,
   type StatusId,
+  isClosedStatus,
 } from "@/lib/data"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -61,7 +62,7 @@ import { cn } from "@/lib/utils"
 
 type Tab = "personnes" | "organisations"
 
-const isActive = (d: Dossier) => d.status !== "cloture" && d.status !== "archive"
+const isActive = (d: Dossier) => !isClosedStatus(d.status)
 
 /** Compte de la personne : intervenant (statut d'invitation) ou client (accès ouvert depuis son dossier) */
 function accountStatus(p: PersonEntry, dossiers: Dossier[], accounts: Record<string, Account>): { status: AccountStatus; lastLoginAt?: string } | null {

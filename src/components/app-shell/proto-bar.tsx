@@ -30,6 +30,7 @@ import {
   type LitigeAssurantielType,
   type SinistreType,
   type StatusId,
+  isClosedStatus,
 } from "@/lib/data"
 import { ROLES } from "@/lib/roles"
 import { PHASE_OPTIONS, applyExpertisePhase, applyScenario, isHorsRecours } from "@/lib/proto-scenario"
@@ -233,7 +234,7 @@ function DossierControls() {
                     <DropdownMenuRadioItem
                       key={st}
                       value={st}
-                      disabled={hors && st !== "cloture" && st !== "archive"}
+                      disabled={hors && !isClosedStatus(st)}
                       // Client : à chaque clic sur « Recours validé », la fiche dossier lui demande son réparateur
                       onClick={
                         role.id === "client" && st === "recours_valide"

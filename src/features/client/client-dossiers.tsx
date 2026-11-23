@@ -6,14 +6,14 @@ import { ChevronRight } from "lucide-react"
 import { useRole } from "@/components/app-shell/role-context"
 import { Immat } from "@/components/immat"
 import { PageHeader } from "@/components/page-header"
-import type { Dossier } from "@/lib/data"
+import { isClosedStatus, type Dossier } from "@/lib/data"
 import { visibleDossiers } from "@/lib/access"
 import { formatDate } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { CLIENT_STEPS, clientDocsStatus, clientTypeLabel } from "./client-docs"
 
-const isClosed = (d: Dossier) => d.status === "cloture" || d.status === "archive"
+const isClosed = (d: Dossier) => isClosedStatus(d.status)
 
 /** « Mes dossiers » du client : en cours puis terminés, une carte par dossier */
 export function ClientDossiers() {

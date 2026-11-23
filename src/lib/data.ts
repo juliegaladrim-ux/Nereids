@@ -123,11 +123,14 @@ export const LITIGE_ASSUR_TYPES: Record<LitigeAssurantielType, { label: string; 
 /** Statuts V1 (CDC §17) */
 export type StatusId =
   | "nouveau"
+  | "en_constitution"
   | "en_etude"
   | "recours_valide"
   | "attente_client"
-  | "attente_tiers"
+  | "attente_parties"
   | "attente_compagnie"
+  | "attente_devis"
+  | "convocation_a_faire"
   | "attente_expertise"
   | "attente_pv"
   | "attente_rapport"
@@ -136,7 +139,11 @@ export type StatusId =
   | "reclamation_envoyee"
   | "attente_retour"
   | "attente_paiement"
+  | "attente_facture"
+  | "facture_a_transmettre"
   | "cloture"
+  | "annule"
+  | "refuse"
   | "archive"
 
 /** Ton visuel du statut — les couleurs seront recalées sur la charte */
@@ -144,11 +151,14 @@ export type StatusTone = "new" | "progress" | "waiting" | "alert" | "final" | "d
 
 export const STATUSES: Record<StatusId, { label: string; tone: StatusTone }> = {
   nouveau: { label: "Nouveau", tone: "new" },
+  en_constitution: { label: "En cours de constitution", tone: "new" },
   en_etude: { label: "En étude", tone: "progress" },
   recours_valide: { label: "Recours validé", tone: "progress" },
   attente_client: { label: "En attente client", tone: "waiting" },
-  attente_tiers: { label: "En attente tiers", tone: "waiting" },
+  attente_parties: { label: "En attente des parties", tone: "waiting" },
   attente_compagnie: { label: "En attente compagnie", tone: "waiting" },
+  attente_devis: { label: "En attente du devis", tone: "waiting" },
+  convocation_a_faire: { label: "Convocation à faire", tone: "alert" },
   attente_expertise: { label: "En attente expertise", tone: "waiting" },
   attente_pv: { label: "En attente PV", tone: "waiting" },
   attente_rapport: { label: "En attente rapport", tone: "waiting" },
@@ -157,16 +167,21 @@ export const STATUSES: Record<StatusId, { label: string; tone: StatusTone }> = {
   reclamation_envoyee: { label: "Réclamation envoyée", tone: "final" },
   attente_retour: { label: "En attente retour", tone: "final" },
   attente_paiement: { label: "En attente paiement", tone: "final" },
+  attente_facture: { label: "En attente de facture", tone: "final" },
+  facture_a_transmettre: { label: "Facture à transmettre", tone: "alert" },
   cloture: { label: "Clôturé", tone: "done" },
+  annule: { label: "Annulé", tone: "muted" },
+  refuse: { label: "Dossier refusé", tone: "muted" },
   archive: { label: "Archivé", tone: "muted" },
 }
+
+/** Dossier terminé : clôturé, archivé, annulé ou refusé */
+export const isClosedStatus = (s: StatusId) => s === "cloture" || s === "archive" || s === "annule" || s === "refuse"
 
 /** Ordre d'avancement des statuts (sert à savoir si une étape est atteinte, ex. « En attente PV ») */
 export const STATUS_ORDER = Object.keys(STATUSES) as StatusId[]
 
-export const ACTIVE_STATUSES = (Object.keys(STATUSES) as StatusId[]).filter(
-  (s) => s !== "cloture" && s !== "archive",
-)
+export const ACTIVE_STATUSES = (Object.keys(STATUSES) as StatusId[]).filter((s) => !isClosedStatus(s))
 
 export const CLOSING_REASONS = [
   "Dossier terminé",
@@ -441,7 +456,7 @@ export type PropositionExpert = {
 export type ExpertisePhase = "refus" | "mission" | "signature" | "pre_etude" | "programmation"
 
 export function expertisePhase(d: Dossier): ExpertisePhase | null {
-  if (d.status === "cloture" || d.status === "archive" || d.expertise.date || convocationSent(d)) return null
+  if (isClosedStatus(d.status) || d.expertise.date || convocationSent(d)) return null
   // Dossiers de démo plus avancés : hors parcours tant que rien n'y a été fait (voyants, proposition, refus)
   if (d.status !== "nouveau" && d.status !== "en_etude" && !d.validation && !d.proposition && !d.refusExpert) return null
   if (!d.intervenants.expert) return d.refusExpert ? "refus" : null
@@ -506,7 +521,9 @@ export const departementRegion = (dep: string) => Object.keys(REGION_DEPARTEMENT
 /** Dossier enregistré avant les retours du 20/11 : convertit les anciennes qualifications de sinistre */
 export function migrateDossier(d: Dossier): Dossier {
   const legacy = d.sinistreType && LEGACY_SINISTRE_TYPES[d.sinistreType as string]
-  return legacy ? { ...d, sinistreType: legacy } : d
+  // « En attente tiers » n'existe plus : c'est « En attente des parties »
+  const status = (d.status as string) === "attente_tiers" ? "attente_parties" : d.status
+  return legacy || status !== d.status ? { ...d, status, ...(legacy && { sinistreType: legacy }) } : d
 }
 
 /** Catégorie du dossier : type + qualification (ex. « Sinistre » / « Non responsable, avec tiers ») */
@@ -538,9 +555,12 @@ export function clientValidation(d: Dossier): ClientValidation {
     // falls through
     case "attente_client":
       return { mission: "ok", devis: "en_attente", reglement: "a_faire" }
+    case "attente_devis":
+      return { mission: "ok", devis: "en_attente", reglement: "a_faire" }
     case "recours_valide":
-    case "attente_tiers":
+    case "attente_parties":
     case "attente_compagnie":
+    case "convocation_a_faire":
       return { mission: "ok", devis: "ok", reglement: "en_attente" }
     case "complement":
       // Expertise complémentaire : nouveau devis à faire signer, nouveau règlement à attendre
@@ -640,7 +660,7 @@ export function withDemoExpertise(d: Dossier): Dossier {
 }
 
 export function isLate(d: Dossier): boolean {
-  if (d.status === "cloture" || d.status === "archive") return false
+  if (isClosedStatus(d.status)) return false
   return !!d.pilotage.echeance && new Date(d.pilotage.echeance).getTime() < Date.now()
 }
 
@@ -1326,33 +1346,35 @@ export function seedDossiers(): Dossier[] {
 /** Étapes du workflow par type — utilisé pour la frise de progression */
 export const WORKFLOW_STEPS: Record<DossierType, { label: string; statuses: StatusId[] }[]> = {
   sinistre: [
-    { label: "Création", statuses: ["nouveau"] },
+    { label: "Création", statuses: ["nouveau", "en_constitution"] },
     { label: "Étude", statuses: ["en_etude", "attente_client"] },
-    { label: "Recours validé", statuses: ["recours_valide", "attente_tiers", "attente_compagnie"] },
+    { label: "Recours validé", statuses: ["recours_valide", "attente_parties", "attente_compagnie", "attente_devis", "convocation_a_faire"] },
     { label: "Expertise", statuses: ["attente_expertise", "attente_pv", "complement"] },
     { label: "Réparation", statuses: ["attente_reparation"] },
     { label: "Rapport", statuses: ["attente_rapport"] },
     { label: "Réclamation", statuses: ["reclamation_envoyee", "attente_retour"] },
-    { label: "Paiement", statuses: ["attente_paiement"] },
-    { label: "Clôture", statuses: ["cloture", "archive"] },
+    { label: "Paiement", statuses: ["attente_paiement", "attente_facture", "facture_a_transmettre"] },
+    { label: "Clôture", statuses: ["annule", "refuse", "cloture", "archive"] },
   ],
   litige_auto: [
-    { label: "Création", statuses: ["nouveau"] },
-    { label: "Étude", statuses: ["en_etude", "attente_client"] },
-    { label: "Validé", statuses: ["recours_valide", "attente_tiers", "attente_compagnie"] },
+    { label: "Création", statuses: ["nouveau", "en_constitution"] },
+    { label: "Attente documents", statuses: ["en_etude", "attente_client"] },
+    { label: "Dossier validé", statuses: ["recours_valide", "attente_parties", "attente_compagnie", "attente_devis", "convocation_a_faire"] },
     { label: "Expertise", statuses: ["attente_expertise", "attente_pv", "complement"] },
+    { label: "Réparation", statuses: ["attente_reparation"] },
     // CDC §4.3 : pré-rapport, discussion, rapport final et relances sont suivis dans la timeline
-    { label: "Rapport", statuses: ["attente_rapport"] },
-    { label: "Clôture", statuses: ["cloture", "archive"] },
+    { label: "Rapport en rédaction", statuses: ["attente_rapport"] },
+    { label: "Rapport envoyé", statuses: ["reclamation_envoyee", "attente_retour", "attente_paiement", "attente_facture", "facture_a_transmettre"] },
+    { label: "Clôture", statuses: ["annule", "refuse", "cloture", "archive"] },
   ],
   litige_assurantiel: [
-    { label: "Création", statuses: ["nouveau"] },
-    { label: "Étude", statuses: ["en_etude", "attente_client"] },
-    { label: "Validé", statuses: ["recours_valide", "attente_compagnie", "attente_tiers"] },
-    { label: "Tierce expertise", statuses: ["attente_expertise", "attente_pv", "complement", "attente_rapport", "attente_reparation"] },
-    { label: "Réclamation", statuses: ["reclamation_envoyee", "attente_retour"] },
-    { label: "Paiement", statuses: ["attente_paiement"] },
-    { label: "Clôture", statuses: ["cloture", "archive"] },
+    { label: "Création", statuses: ["nouveau", "en_constitution"] },
+    { label: "Attente documents", statuses: ["en_etude", "attente_client"] },
+    { label: "Dossier validé", statuses: ["recours_valide", "attente_parties", "attente_compagnie", "attente_devis", "convocation_a_faire"] },
+    { label: "Expertise", statuses: ["attente_expertise", "attente_pv", "complement", "attente_reparation"] },
+    { label: "Rapport en rédaction", statuses: ["attente_rapport"] },
+    { label: "Rapport envoyé", statuses: ["reclamation_envoyee", "attente_retour", "attente_paiement", "attente_facture", "facture_a_transmettre"] },
+    { label: "Clôture", statuses: ["annule", "refuse", "cloture", "archive"] },
   ],
 }
 
@@ -1380,7 +1402,14 @@ export function defaultPilotage(status: StatusId, type: DossierType): Omit<Dossi
       delayDays: 5,
     },
     attente_client: { ouEnEst: "Informations ou pièces demandées au client.", attente: "Retour du client", prochaineAction: "Relancer le client si besoin", quiDoitAgir: "client", delayDays: 5 },
-    attente_tiers: { ouEnEst: "Demande envoyée au tiers.", attente: "Retour du tiers", prochaineAction: "Relancer le tiers", quiDoitAgir: "nereids", delayDays: 7 },
+    en_constitution: { ouEnEst: "Dossier en cours de constitution.", attente: "Complétion du dossier", prochaineAction: "Compléter les informations et les pièces", quiDoitAgir: "nereids", delayDays: 3 },
+    attente_parties: { ouEnEst: "Demande envoyée aux parties.", attente: "Retour des parties", prochaineAction: "Relancer les parties", quiDoitAgir: "nereids", delayDays: 7 },
+    attente_devis: { ouEnEst: "Devis demandé.", attente: "Devis à signer", prochaineAction: "Relancer pour la signature du devis", quiDoitAgir: "client", delayDays: 5 },
+    convocation_a_faire: { ouEnEst: "Dossier validé, expertise à organiser.", attente: "Convocation des parties", prochaineAction: "Envoyer la convocation", quiDoitAgir: "gestionnaire", delayDays: 2 },
+    attente_facture: { ouEnEst: "Rapport envoyé.", attente: "Facture de l'expert", prochaineAction: "Déposer la facture", quiDoitAgir: "expert", delayDays: 7 },
+    facture_a_transmettre: { ouEnEst: "Facture reçue.", attente: "Transmission de la facture", prochaineAction: "Transmettre la facture", quiDoitAgir: "nereids", delayDays: 3 },
+    annule: { ouEnEst: "Dossier annulé.", attente: "—", prochaineAction: "—", quiDoitAgir: "nereids" },
+    refuse: { ouEnEst: "Dossier refusé.", attente: "—", prochaineAction: "—", quiDoitAgir: "nereids" },
     attente_compagnie: { ouEnEst: "Demande envoyée à la compagnie.", attente: "Retour de la compagnie", prochaineAction: "Relancer la compagnie", quiDoitAgir: "nereids", delayDays: 15 },
     attente_expertise: { ouEnEst: "Expertise programmée, convocations envoyées.", attente: "Réalisation de l'expertise", prochaineAction: "Réaliser l'expertise", quiDoitAgir: "expert", delayDays: 7 },
     attente_pv: { ouEnEst: "Expertise réalisée.", attente: "PV d'expertise (sous 24 h)", prochaineAction: "Déposer le PV", quiDoitAgir: "expert", delayDays: 1 },

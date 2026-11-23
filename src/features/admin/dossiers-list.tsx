@@ -28,6 +28,7 @@ import {
   personneName,
   type Dossier,
   type StatusId,
+  isClosedStatus,
 } from "@/lib/data"
 import { matchesSearch, visibleDossiers } from "@/lib/access"
 import { dossierCabinet, useAnnuaire } from "@/lib/annuaire"
@@ -38,7 +39,7 @@ import { cn } from "@/lib/utils"
 type View = "tous" | "a-assigner" | "en-retard" | "expertises" | "clotures"
 
 const VIEWS: { id: View; label: string; icon: LucideIcon; tone?: "primary" | "danger"; filter: (d: Dossier) => boolean }[] = [
-  { id: "tous", label: "En cours", icon: FolderOpen, filter: (d) => d.status !== "cloture" && d.status !== "archive" },
+  { id: "tous", label: "En cours", icon: FolderOpen, filter: (d) => !isClosedStatus(d.status) },
   { id: "a-assigner", label: "À assigner", icon: UserPlus, tone: "primary", filter: needsAssignment },
   { id: "en-retard", label: "En retard", icon: AlertTriangle, tone: "danger", filter: isLate },
   {
@@ -47,7 +48,7 @@ const VIEWS: { id: View; label: string; icon: LucideIcon; tone?: "primary" | "da
     icon: CalendarClock,
     filter: (d) => hasUpcomingExpertise(d, 365),
   },
-  { id: "clotures", label: "Clôturés", icon: CircleCheck, filter: (d) => d.status === "cloture" },
+  { id: "clotures", label: "Clôturés", icon: CircleCheck, filter: (d) => d.status === "cloture" || d.status === "annule" || d.status === "refuse" },
 ]
 
 const EXPERTS = USERS.filter((u) => u.role === "expert")

@@ -9,7 +9,7 @@ import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { InfoBlock, PasswordStep, StepLayout, TextField } from "@/features/client/activation-flow"
 import { visibleDossiers } from "@/lib/access"
-import { getUser, type Dossier, type User } from "@/lib/data"
+import { getUser, isClosedStatus, type Dossier, type User } from "@/lib/data"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -19,7 +19,7 @@ const NUMBERED: SuiveurActivationStep[] = ["password", "infos"]
 
 type Infos = Pick<User, "firstName" | "lastName" | "fonction" | "structure" | "phone" | "email">
 
-const isClosed = (d: Dossier) => d.status === "cloture" || d.status === "archive"
+const isClosed = (d: Dossier) => isClosedStatus(d.status)
 
 /** Activation du compte intervenant suiveur (avocat, protection juridique), ouverte depuis le lien de l'e-mail d'invitation */
 export function SuiveurActivation({ userId, initialStep }: { userId: string; initialStep?: SuiveurActivationStep }) {

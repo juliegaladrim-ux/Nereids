@@ -20,7 +20,7 @@ import { UserAvatar } from "@/components/user-avatar"
 import { FilterPill } from "@/features/admin/dossiers-list"
 import { SimilarAlert, SuggestInput, personSuggestion } from "@/features/annuaire/annuaire-fields"
 import { DEFAULT_STRUCTURE, UserFields, cleanValues, missingFields, newUser, toForm, type FormValues } from "@/features/admin/user-form"
-import { SEED_LAST_LOGIN, USERS, allUsers, daysFromNow, fullName, personneName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
+import { SEED_LAST_LOGIN, USERS, allUsers, isClosedStatus, daysFromNow, fullName, personneName, type Account, type Dossier, type StatusId, type User } from "@/lib/data"
 import { searchPeople, similarPeople, toContact, useAnnuaire } from "@/lib/annuaire"
 import { formatDate } from "@/lib/format"
 import { PROFILES, ROLES, getProfile, userProfile, type ProfileId, type RoleId } from "@/lib/roles"
@@ -75,7 +75,7 @@ type Row = {
 const involves = (d: Dossier, id: string) =>
   d.intervenants.gestionnaire === id || d.intervenants.expert === id || d.intervenants.reparateur === id || d.intervenants.suiveurs.includes(id)
 
-const isActive = (d: Dossier) => d.status !== "cloture" && d.status !== "archive"
+const isActive = (d: Dossier) => !isClosedStatus(d.status)
 
 /** Sans connexion depuis 6 mois, un compte activé passe « Inactif » */
 const INACTIVE_MONTHS = 6

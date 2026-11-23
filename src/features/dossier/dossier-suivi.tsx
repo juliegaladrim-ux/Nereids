@@ -36,7 +36,7 @@ import { appendText, DictationButton } from "@/components/dictation-button"
 import { Textarea } from "@/components/ui/textarea"
 import { dossierRights } from "@/lib/access"
 import { useDossierCabinet } from "@/lib/annuaire"
-import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, nextAction, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
+import { ACTOR_LABELS, DOC_CATEGORIES, STATUSES, fullName, getUser, isClosedStatus, nextAction, type Dossier, type StatusId, type TimelineEvent, type TimelineKind } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { formatDateTime } from "@/lib/format"
 import { useStore } from "@/lib/store"
@@ -93,7 +93,7 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
   // Filtres cumulables : aucune sélection = « Tout »
   const [selected, setSelected] = React.useState<Filter[]>([])
   const active = filters.filter((f) => selected.includes(f.id))
-  const closed = dossier.status === "cloture" || dossier.status === "archive"
+  const closed = isClosedStatus(dossier.status)
   // Prochaine étape attendue, en tête du fil (vue « Tout » ou avec « Étapes & statuts »)
   const showNext = !closed && (!selected.length || selected.includes("etapes"))
 

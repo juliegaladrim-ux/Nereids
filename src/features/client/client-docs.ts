@@ -29,13 +29,13 @@ export function clientDocsStatus(d: Dossier) {
 export const CLIENT_STEPS: { label: string; statuses: StatusId[]; title: string; next: string }[] = [
   {
     label: "Ouverture",
-    statuses: ["nouveau"],
+    statuses: ["nouveau", "en_constitution"],
     title: "Nereids vérifie votre dossier",
     next: "Il sera confié à un expert automobile sous 48 h.",
   },
   {
     label: "Étude",
-    statuses: ["en_etude", "attente_client", "recours_valide", "attente_tiers", "attente_compagnie"],
+    statuses: ["en_etude", "attente_client", "recours_valide", "attente_parties", "attente_compagnie", "attente_devis", "convocation_a_faire"],
     title: "Un expert étudie votre dossier",
     next: "Il vérifie que le recours est possible, puis organise l'expertise.",
   },
@@ -47,13 +47,13 @@ export const CLIENT_STEPS: { label: string; statuses: StatusId[]; title: string;
   },
   {
     label: "Indemnisation",
-    statuses: ["reclamation_envoyee", "attente_retour", "attente_paiement"],
+    statuses: ["reclamation_envoyee", "attente_retour", "attente_paiement", "attente_facture", "facture_a_transmettre"],
     title: "Nereids réclame votre indemnisation",
     next: "Vous serez prévenu dès que l'assurance aura répondu.",
   },
   {
     label: "Terminé",
-    statuses: ["cloture", "archive"],
+    statuses: ["annule", "refuse", "cloture", "archive"],
     title: "Votre dossier est terminé",
     next: "Merci de votre confiance.",
   },

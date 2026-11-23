@@ -30,6 +30,7 @@ import {
   type LitigeAssurantielType,
   type SinistreType,
   type StatusId,
+  isClosedStatus,
   type TimelineEvent,
   withRef,
 } from "./data"
@@ -47,7 +48,7 @@ export function isHorsRecours(s: Pick<Scenario, "type" | "sinistreType">): boole
 }
 
 /** Statuts « de passage » : on n'y passe que si c'est le statut courant */
-const DETOURS: StatusId[] = ["attente_client", "complement", "attente_tiers", "attente_compagnie"]
+const DETOURS: StatusId[] = ["en_constitution", "attente_client", "complement", "attente_parties", "attente_compagnie", "attente_devis", "convocation_a_faire", "attente_facture", "facture_a_transmettre", "annule", "refuse"]
 
 const STEP_DAYS = 3
 
@@ -224,10 +225,10 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
           }
         }
         break
-      case "attente_tiers":
+      case "attente_parties":
       case "attente_compagnie":
         statusEv(t, x, gestionnaire)
-        addEv(at(i, 11), "relance", gestionnaire!, `Relance envoyée — ${x === "attente_tiers" ? "tiers" : compagnie.nom}`)
+        addEv(at(i, 11), "relance", gestionnaire!, `Relance envoyée — ${x === "attente_parties" ? "parties" : compagnie.nom}`)
         break
       case "attente_expertise": {
         const date = past ? at(i + 1, 9) : daysFromNow(2, 9)
@@ -247,7 +248,7 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
         statusEv(t, x)
         break
       default:
-        statusEv(t, x, x === "cloture" || x === "archive" ? "u-admin" : "system")
+        statusEv(t, x, isClosedStatus(x) ? "u-admin" : "system")
     }
 
     // Pièces produites en quittant une étape
@@ -284,11 +285,16 @@ export function applyScenario(d: Dossier, s: Scenario): Dossier {
   if (pv) expertise.pvDocId = pv.id
   if (rapport) expertise.rapportDocId = rapport.id
 
-  if (status === "cloture" || status === "archive") {
-    const i = path.indexOf("cloture")
+  if (isClosedStatus(status)) {
+    const stop = status === "annule" || status === "refuse" ? status : "cloture"
+    const i = path.indexOf(stop)
     cloture = hors
       ? { motif: "Hors périmètre", commentaire: "Sinistre hors recours direct", at: at(i) }
-      : { motif: path.includes("attente_paiement") ? "Paiement reçu" : "Dossier terminé", at: at(i) }
+      : stop === "annule"
+        ? { motif: "Dossier annulé", at: at(i) }
+        : stop === "refuse"
+          ? { motif: "Dossier refusé", at: at(i) }
+          : { motif: path.includes("attente_paiement") ? "Paiement reçu" : "Dossier terminé", at: at(i) }
   }
 
   const p = defaultPilotage(status, s.type)

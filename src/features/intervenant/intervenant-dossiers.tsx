@@ -13,13 +13,13 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FilterPill } from "@/features/admin/dossiers-list"
-import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, expertisePhase, fullName, getUser, isLate, lateDays, personneName, type Dossier } from "@/lib/data"
+import { DOSSIER_TYPES, STATUS_ORDER, STATUSES, expertisePhase, fullName, getUser, isClosedStatus, isLate, lateDays, personneName, type Dossier } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
 import { formatDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
 
 type View = "en_cours" | "termines"
-const isClosed = (d: Dossier) => d.status === "cloture" || d.status === "archive"
+const isClosed = (d: Dossier) => isClosedStatus(d.status)
 
 /** Expertise à afficher : la prochaine non réalisée, sinon la dernière programmée */
 const shownExpertise = (d: Dossier) => {

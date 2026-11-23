@@ -28,6 +28,7 @@ import {
   DOC_CATEGORIES,
   STATUSES,
   STATUS_ORDER,
+  isClosedStatus,
   daysFromNow,
   defaultPilotage,
   fullName,
@@ -61,7 +62,7 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
     const expert = dossier.intervenants.expert ?? "u-expert"
     const now = new Date().toISOString()
     const pv =
-      rank(dossier.status) <= rank("attente_pv") && rank(s) > rank("attente_pv") && s !== "cloture" && s !== "archive" && !dossier.documents.some((x) => x.category === "pv")
+      rank(dossier.status) <= rank("attente_pv") && rank(s) > rank("attente_pv") && !isClosedStatus(s) && !dossier.documents.some((x) => x.category === "pv")
         ? { id: `d${Date.now()}`, name: "PV d'expertise.pdf", category: "pv" as const, addedBy: expert, addedAt: now, docDate: now, size: "310 Ko" }
         : undefined
     updateDossier(dossier.id, (d) => ({
@@ -69,7 +70,7 @@ export function StatusDialog({ dossier, open, onOpenChange }: DialogProps) {
       status: s,
       pilotage: { ...p, echeance: p.delayDays ? daysFromNow(p.delayDays) : undefined },
       // Réouverture : la clôture précédente ne s'applique plus
-      cloture: s === "cloture" || s === "archive" ? d.cloture : undefined,
+      cloture: isClosedStatus(s) ? d.cloture : undefined,
       ...(pv && { documents: [...d.documents, pv], expertise: { ...d.expertise, pvDocId: pv.id } }),
     }))
     if (pv) addEvent(dossier.id, { kind: "document", author: expert, title: "PV d'expertise déposé", docIds: [pv.id] })
