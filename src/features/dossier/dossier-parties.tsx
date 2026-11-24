@@ -22,6 +22,7 @@ import {
   type Dossier,
   type Partie,
   type Personne,
+  clientConvoqueId,
 } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { cn } from "@/lib/utils"
@@ -42,6 +43,7 @@ type Card = {
   siret?: string
   address?: string
   phone?: string
+  phone2?: string
   email?: string
   email2?: string
   representant?: string
@@ -66,6 +68,7 @@ function personneCard(key: string, p: Personne, qualites: string[]): Card {
     siret: morale ? p.siret : undefined,
     address: p.address,
     phone: p.phone,
+    phone2: p.phone2,
     email: p.email,
     email2: p.email2,
   }
@@ -74,6 +77,14 @@ function personneCard(key: string, p: Personne, qualites: string[]): Card {
 /** Dernière convocation envoyée à une personne du dossier (lettre d'expertise) */
 function convocationFor(d: Dossier, userId?: string): DocumentItem | undefined {
   if (!userId) return undefined
+  // Convocation générée pour cette personne (la plus récente si plusieurs expertises)
+  const own = allExpertises(d)
+    .map((e) => e.convocationDocs?.[userId])
+    .filter(Boolean)
+    .map((id) => d.documents.find((doc) => doc.id === id))
+    .filter((doc): doc is DocumentItem => !!doc)
+    .sort((a, b) => b.addedAt.localeCompare(a.addedAt))[0]
+  if (own) return own
   const convoque = allExpertises(d).some((e) => e.convoques.includes(userId))
   if (!convoque) return undefined
   return d.documents
@@ -95,6 +106,7 @@ function userCard(d: Dossier, key: string, userId: string, qualite: string, liee
     societe: u.structure && u.structure !== "Particulier" ? u.structure : undefined,
     address: u.address,
     phone: u.phone,
+    phone2: u.phone2,
     email: u.email,
     email2: u.autresEmails?.[0]?.email,
     representant: fullName(u),
@@ -112,7 +124,7 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
   const cards: Card[] = []
 
   // Client : mandant et lésé à la fois
-  cards.push({ ...personneCard("client", d.client, ["Mandant", "Lésé"]), role: "client", onEdit: onEditSection("client") })
+  cards.push({ ...personneCard("client", d.client, ["Mandant", "Lésé"]), role: "client", convocation: convocationFor(d, clientConvoqueId(d)), onEdit: onEditSection("client") })
   if (d.proprietaire) cards.push({ ...personneCard("proprietaire", d.proprietaire, ["Propriétaire du véhicule"]), onEdit: onEditSection("vehicule") })
 
   // Intervenants assignés
@@ -133,7 +145,9 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
       qualites: [compagnieLabel(d.type)],
       address: d.compagnie.address,
       phone: d.compagnie.phone,
+      phone2: d.compagnie.phone2,
       email: d.compagnie.email,
+      email2: d.compagnie.email2,
       refInterne: d.compagnie.reference,
       onEdit: onEditSection("compagnie"),
     })
@@ -144,13 +158,15 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
       qualites: ["Cabinet d'expertise"],
       address: d.cabinetVise.address,
       phone: d.cabinetVise.phone,
+      phone2: d.cabinetVise.phone2,
       email: d.cabinetVise.email,
+      email2: d.cabinetVise.email2,
       refInterne: d.cabinetVise.reference,
       lieeA: d.compagnie?.nom ? "compagnie" : undefined,
       onEdit: onEditSection("cabinet"),
     })
   ;(d.tiers ?? []).forEach((t, i) =>
-    cards.push({ key: `tiers-${i}`, name: t.nom, qualites: ["Tiers"], phone: t.phone, email: t.email, onEdit: onEditSection("tiers") }),
+    cards.push({ key: `tiers-${i}`, name: t.nom, qualites: ["Tiers"], phone: t.phone, phone2: t.phone2, email: t.email, email2: t.email2, onEdit: onEditSection("tiers") }),
   )
 
   // Intervenants ajoutés à la main
@@ -165,6 +181,7 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
       societe: !morale ? p.societe : undefined,
       address: p.address,
       phone: p.phone,
+      phone2: p.phone2,
       email: p.email,
       email2: p.email2,
       representant: p.representant,
@@ -172,6 +189,7 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
       refMandant: p.refMandant,
       mandant: p.mandant,
       lieeA: p.lieeA,
+      convocation: convocationFor(d, p.id),
       onEdit: editParty(p),
       onRemove: removeParty(p),
     })
@@ -187,6 +205,10 @@ function buildCards(d: Dossier, onEditSection: (id: "client" | "vehicule" | "com
       qualites: ["Lieu d'expertise"],
       tags: [e.date ? `Expertise ${i + 1} du ${longDate(e.date)}` : `Expertise ${i + 1}`],
       address: rest.join(",").trim() || undefined,
+      phone: e.lieuPhone,
+      phone2: e.lieuPhone2,
+      email: e.lieuEmail,
+      email2: e.lieuEmail2,
     })
   })
   return cards
@@ -233,6 +255,7 @@ function PartyCard({ c, onOpenConvocation }: { c: Card; onOpenConvocation: (doc:
           {c.siret && <Line icon={Hash}>SIRET {c.siret}</Line>}
           {c.address && <Line icon={MapPin}>{c.address}</Line>}
           {c.phone && <Line icon={Phone}>{c.phone}</Line>}
+          {c.phone2 && <Line icon={Phone}>{c.phone2}</Line>}
           {c.email && <Line icon={Mail}>{c.email}</Line>}
           {c.email2 && <Line icon={Mail}>{c.email2}</Line>}
           {c.representant && c.representant !== c.name && <Line icon={UserRound}>Représentant : {c.representant}</Line>}
@@ -298,6 +321,7 @@ function partieSection(d: Dossier, p: Partie | null, cards: Card[], onSave: (v: 
       { key: "representant", label: "Représentant", hidden: (v) => !morale(v) },
       { key: "address", label: "Adresse postale complète", full: true },
       { key: "phone", label: "Téléphone", type: "tel" },
+      { key: "phone2", label: "Deuxième téléphone", type: "tel" },
       { key: "email", label: "E-mail", type: "email" },
       { key: "email2", label: "Deuxième e-mail", type: "email" },
       { key: "refInterne", label: "Référence interne" },
@@ -324,6 +348,7 @@ function partieSection(d: Dossier, p: Partie | null, cards: Card[], onSave: (v: 
       representant: p?.representant ?? "",
       address: p?.address ?? "",
       phone: p?.phone ?? "",
+      phone2: p?.phone2 ?? "",
       email: p?.email ?? "",
       email2: p?.email2 ?? "",
       refInterne: p?.refInterne ?? "",
@@ -365,6 +390,7 @@ export function PartiesCard({
       representant: morale ? opt(v.representant) : undefined,
       address: opt(v.address),
       phone: opt(v.phone),
+      phone2: opt(v.phone2),
       email: opt(v.email),
       email2: opt(v.email2),
       refInterne: opt(v.refInterne),

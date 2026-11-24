@@ -152,7 +152,14 @@ function RapportPage({ seed }: { seed: number }) {
   )
 }
 
-function CourrierPage({ seed }: { seed: number }) {
+function CourrierPage({ seed, contenu }: { seed: number; contenu?: string }) {
+  // Document rédigé dans l'outil : on affiche son texte
+  if (contenu)
+    return (
+      <Page className="gap-[1em]">
+        <p className="text-[1.5em] leading-[1.6] whitespace-pre-wrap text-neutral-800">{contenu}</p>
+      </Page>
+    )
   return (
     <Page className="gap-[2em]">
       <div className="flex flex-col gap-[0.6em]">
@@ -302,7 +309,7 @@ function DocPage({ doc }: { doc: DocumentItem }) {
     case "carte":
       return <CarteGrise />
     default:
-      return <CourrierPage seed={seed} />
+      return <CourrierPage seed={seed} contenu={doc.contenu} />
   }
 }
 

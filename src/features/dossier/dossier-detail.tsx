@@ -9,6 +9,7 @@ import {
   BellRing,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronLeft,
   CircleCheck,
   CircleDashed,
@@ -55,6 +56,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ADMIN_DOC_CATEGORIES,
+  ACTOR_LABELS,
   CIVILITES,
   CLOSING_REASONS,
   DOC_CATEGORIES,
@@ -95,7 +97,7 @@ import {
   type User,
 } from "@/lib/data"
 import { dossierRights, visibleDossiers } from "@/lib/access"
-import { useDossierCabinet, type Organisation } from "@/lib/annuaire"
+import { useDossierCabinet } from "@/lib/annuaire"
 import { formatDate, formatDateTime, formatLongDate, relativeDays } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -518,8 +520,17 @@ export function DossierDetail({ id }: { id: string }) {
         </div>
 
         {/* Repères du dossier : une carte, une colonne étiquetée par sujet */}
-        {((!isClient && (d.client.phone || d.client.email)) || rights.pilot || (canSeeNotes && cabinet)) && (
+        {(!isClient || rights.pilot || (canSeeNotes && cabinet)) && (
           <div className="mt-4 flex flex-wrap overflow-hidden rounded-xl border bg-card">
+            {/* Gestionnaire et expert toujours visibles : badge coloré, le nom et les coordonnées au clic */}
+            {!isClient && (
+              <HeaderCell label="Intervenants">
+                <div className="flex flex-wrap items-center gap-2">
+                  <HeaderPerson id={d.intervenants.gestionnaire} role="gestionnaire" />
+                  <HeaderPerson id={d.intervenants.expert} role="expert" />
+                </div>
+              </HeaderCell>
+            )}
             {/* Coordonnées du client à portée de main : un clic copie */}
             {!isClient && (d.client.phone || d.client.email) && (
               <HeaderCell
@@ -530,7 +541,9 @@ export function DossierDetail({ id }: { id: string }) {
                 }
               >
                 {d.client.phone && <CopyLine icon={Phone} value={d.client.phone} />}
+                {d.client.phone2 && <CopyLine icon={Phone} value={d.client.phone2} />}
                 {d.client.email && <CopyLine icon={Mail} value={d.client.email} />}
+                {d.client.email2 && <CopyLine icon={Mail} value={d.client.email2} />}
               </HeaderCell>
             )}
             {rights.pilot && (
@@ -623,7 +636,7 @@ export function DossierDetail({ id }: { id: string }) {
             <DossierSuivi dossier={d} onEditCloture={editable("cloture")} />
           </TabsContent>
           <TabsContent value="general">
-            <General dossier={d} cabinet={cabinet} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
+            <General dossier={d} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
           </TabsContent>
           <TabsContent value="vehicule">
             <VehiculeTab dossier={d} canEdit={!!editable("vehicule")} />
@@ -732,6 +745,38 @@ function HeaderCell({ label, children }: { label: React.ReactNode; children: Rea
   )
 }
 
+/** Badge de rôle cliquable de l'en-tête : le nom au survol, les coordonnées au clic ; grisé tant que personne n'est assigné */
+function HeaderPerson({ id, role }: { id?: string; role: "gestionnaire" | "expert" }) {
+  const u = getUser(id)
+  if (!u)
+    return (
+      <span
+        className="inline-flex h-5 items-center rounded-full border border-dashed px-2 text-[0.7rem] font-medium whitespace-nowrap text-muted-foreground"
+        title="Pas encore assigné"
+      >
+        {ACTOR_LABELS[role]} · non assigné
+      </span>
+    )
+  const name = [u.civilite, fullName(u)].filter(Boolean).join(" ")
+  return (
+    <ContactPopover
+      className="m-0 p-0 hover:bg-transparent"
+      name={name}
+      role={u.role}
+      subtitle={[ACTOR_LABELS[role], u.structure !== fullName(u) ? u.structure : undefined].filter(Boolean).join(" · ")}
+      lines={[
+        { icon: Phone, value: u.phone },
+        { icon: Phone, value: u.phone2, label: "Téléphone 2" },
+        { icon: Mail, value: u.email },
+        ...(u.autresEmails ?? []).map((e) => ({ icon: Mail, value: e.email, label: e.label })),
+        { icon: MapPin, value: u.address },
+      ]}
+    >
+      <RoleBadge role={u.role} label={`${ACTOR_LABELS[role]} · ${fullName(u)}`} className="cursor-pointer" />
+    </ContactPopover>
+  )
+}
+
 function CopyLine({ icon: Icon, value }: { icon: React.ElementType; value: string }) {
   return (
     <button
@@ -771,6 +816,7 @@ function ContactPopover({
     <Popover>
       <PopoverTrigger
         aria-label={`Coordonnées de ${name}`}
+        title={name}
         className={cn("-m-1 flex cursor-pointer items-center gap-3 rounded-lg p-1 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50", className)}
       >
         {children}
@@ -819,12 +865,14 @@ function Progress({ dossier }: { dossier: Dossier }) {
   const last = steps.length - 1
   const at = (i: number) => `${(i / last) * 100}%`
   const ref = React.useRef<HTMLDivElement>(null)
+  // Ouverte par défaut ; le chevron la réduit pour gagner de la place sur les petits écrans
+  const [open, setOpen] = React.useState(true)
 
   // Si la frise déborde (mobile), on la cale sur l'étape précédente pour voir l'étape en cours et les suivantes
   React.useEffect(() => {
     const el = ref.current
     if (el) el.scrollLeft = (Math.max(0, current - 1) / last) * el.scrollWidth
-  }, [current, last])
+  }, [current, last, open])
 
   return (
     <div className="mb-6 overflow-hidden rounded-xl border border-brand/40 bg-brand-soft">
@@ -833,9 +881,19 @@ function Progress({ dossier }: { dossier: Dossier }) {
         <span className="tabular-nums">{done ? "Terminé" : `Étape ${current + 1}/${steps.length}`}</span>
         <span className="font-semibold">{steps[current].label}</span>
         <span className="ml-auto">Mis à jour le {formatDate(dossier.updatedAt)}</span>
+        <button
+          type="button"
+          className="-mr-1.5 grid size-6 cursor-pointer place-items-center rounded-md transition-colors hover:bg-brand/15"
+          aria-expanded={open}
+          aria-label={open ? "Réduire la barre de progression" : "Afficher la barre de progression"}
+          title={open ? "Réduire" : "Afficher"}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
+        </button>
       </div>
       {/* Sur mobile, la frise défile horizontalement plutôt que de tasser les libellés */}
-      <div ref={ref} className="overflow-x-auto px-4 pt-4 pb-3 [scrollbar-width:none]">
+      {open && <div ref={ref} className="overflow-x-auto px-4 pt-4 pb-3 [scrollbar-width:none]">
         <div className="relative mx-3" style={{ minWidth: steps.length * 80 }}>
           <div className="relative h-5">
             <span className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand/20" />
@@ -873,7 +931,7 @@ function Progress({ dossier }: { dossier: Dossier }) {
             ))}
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -926,6 +984,7 @@ function Intervenants({
               subtitle="Client"
               lines={[
                 { icon: Phone, value: dossier.client.phone },
+                { icon: Phone, value: dossier.client.phone2, label: "Téléphone 2" },
                 { icon: Mail, value: dossier.client.email },
                 { icon: Mail, value: dossier.client.email2, label: "E-mail 2" },
                 { icon: MapPin, value: dossier.client.address },
@@ -970,6 +1029,7 @@ function Intervenants({
                       subtitle={[r.label, u.structure !== fullName(u) ? u.structure : undefined].filter(Boolean).join(" · ")}
                       lines={[
                         { icon: Phone, value: u.phone },
+                        { icon: Phone, value: u.phone2, label: "Téléphone 2" },
                         { icon: Mail, value: u.email },
                         ...(u.autresEmails ?? []).map((e) => ({ icon: Mail, value: e.email, label: e.label })),
                         { icon: MapPin, value: u.address },
@@ -1107,7 +1167,9 @@ function personneRows(p: Personne): [string, React.ReactNode][] {
         ] as [string, React.ReactNode][])
       : ([["Nom", personneName(p)]] as [string, React.ReactNode][])),
     ["Téléphone", p.phone],
+    ...(p.phone2 ? ([["Deuxième téléphone", p.phone2]] as [string, React.ReactNode][]) : []),
     ["E-mail", p.email],
+    ...(p.email2 ? ([["Deuxième e-mail", p.email2]] as [string, React.ReactNode][]) : []),
     ["Adresse", p.address],
   ]
 }
@@ -1143,13 +1205,11 @@ const ouiNonNsp = (v?: "oui" | "non" | "nsp") => (v === "oui" ? "Oui" : v === "n
 
 function General({
   dossier: d,
-  cabinet,
   editable,
   showAccount,
   onInviteClient,
 }: {
   dossier: Dossier
-  cabinet?: Organisation
   editable: (id: SectionId) => (() => void) | undefined
   showAccount?: boolean
   onInviteClient?: () => void
@@ -1168,11 +1228,34 @@ function General({
   ) : d.clientAccess ? (
     `Invité le ${formatDate(d.clientAccess.invitedAt)} · pas encore activé`
   ) : null
-  const expert = getUser(d.intervenants.expert)
-  // Honoraires saisis par l'expert dans son formulaire après la pré-étude
-  const honoraires = d.proposition && d.proposition.expert === expert?.id ? d.proposition.honoraires : undefined
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <InfoCard
+        title="Dossier"
+        rows={[
+          ["Type", DOSSIER_TYPES[d.type].label],
+          ["Qualification", d.sinistreType ? SINISTRE_TYPES[d.sinistreType].label : d.litigeType ? LITIGE_ASSUR_TYPES[d.litigeType].label : "—"],
+          ...(d.litigeType === "autre" && d.litigeAutre ? ([["Précision", d.litigeAutre]] as [string, React.ReactNode][]) : []),
+          ...(d.objetMission ? ([["Objet de la mission", d.objetMission]] as [string, React.ReactNode][]) : []),
+          ...(d.typeMission ? ([["Type de mission", d.typeMission]] as [string, React.ReactNode][]) : []),
+          ...(d.objetsPanne?.length
+            ? ([["Objet de la panne ou du litige", d.objetsPanne.map((o) => (o === "Autre" && d.panneAutre ? `Autre : ${d.panneAutre}` : o)).join(", ")]] as [string, React.ReactNode][])
+            : []),
+          ["Créé le", formatDate(d.createdAt)],
+          ["Région", d.region],
+          ["Département d'intervention", dossierDepartement(d)],
+        ]}
+        onEdit={editable("dossier")}
+      />
+      <InfoCard
+        title="Description"
+        rows={[
+          ["Problème", d.description],
+          ["Déclaration de la demande client et commentaire de l'expert", d.declaration],
+          ["Souhait prioritaire du mandant", d.souhait],
+        ]}
+        onEdit={editable("description")}
+      />
       <InfoCard
         title="Client"
         badge="client"
@@ -1211,33 +1294,7 @@ function General({
         canEdit={!!editable("tiers")}
         onEditSection={(id) => editable(id)}
       />
-      <InfoCard
-        title="Dossier"
-        rows={[
-          ["Type", DOSSIER_TYPES[d.type].label],
-          ["Qualification", d.sinistreType ? SINISTRE_TYPES[d.sinistreType].label : d.litigeType ? LITIGE_ASSUR_TYPES[d.litigeType].label : "—"],
-          ...(d.litigeType === "autre" && d.litigeAutre ? ([["Précision", d.litigeAutre]] as [string, React.ReactNode][]) : []),
-          ...(d.objetMission ? ([["Objet de la mission", d.objetMission]] as [string, React.ReactNode][]) : []),
-          ...(d.typeMission ? ([["Type de mission", d.typeMission]] as [string, React.ReactNode][]) : []),
-          ...(d.objetsPanne?.length
-            ? ([["Objet de la panne ou du litige", d.objetsPanne.map((o) => (o === "Autre" && d.panneAutre ? `Autre : ${d.panneAutre}` : o)).join(", ")]] as [string, React.ReactNode][])
-            : []),
-          ["Créé le", formatDate(d.createdAt)],
-          ["Région", d.region],
-          ["Département d'intervention", dossierDepartement(d)],
-        ]}
-        onEdit={editable("dossier")}
-      />
-      <InfoCard
-        title="Description"
-        rows={[
-          ["Problème", d.description],
-          ["Déclaration de la demande client et commentaire de l'expert", d.declaration],
-          ["Souhait prioritaire du mandant", d.souhait],
-        ]}
-        onEdit={editable("description")}
-      />
-      {d.type === "litige_auto" && d.immobilisation && (
+      {d.immobilisation && (
         <InfoCard
           title="Immobilisation"
           rows={[
@@ -1245,6 +1302,9 @@ function General({
             ["Lieu d'immobilisation", d.immobilisation.lieu],
             ["Frais de gardiennage", ouiNonNsp(d.immobilisation.frais)],
             ["Type de frais", d.immobilisation.typeFrais],
+            ["Depuis le", d.immobilisation.depuis ? formatDate(d.immobilisation.depuis) : undefined],
+            ["Jusqu'au", d.immobilisation.jusqua ? formatDate(d.immobilisation.jusqua) : undefined],
+            ["Montant TTC par jour", d.immobilisation.montantJour ? `${d.immobilisation.montantJour.toLocaleString("fr-FR")} €` : undefined],
           ]}
         />
       )}
@@ -1259,22 +1319,6 @@ function General({
           ]}
         />
       )}
-      <InfoCard
-        title="Expert"
-        badge="expert"
-        rows={
-          expert
-            ? [
-                ["Nom", fullName(expert)],
-                ["Téléphone", expert.phone],
-                ["E-mail", expert.email],
-                ["Cabinet", cabinet?.nom ?? expert.structure],
-                ["Adresse du cabinet", cabinet?.address ?? expert.address],
-                ...(honoraires !== undefined ? [["Honoraires", eur(honoraires)] as [string, React.ReactNode]] : []),
-              ]
-            : [["Expert", <span key="e" className="text-muted-foreground">Pas encore assigné</span>]]
-        }
-      />
     </div>
   )
 }
@@ -1700,13 +1744,22 @@ function ExpertiseTab({
               rows={[
                 ["Date", e.date ? <span key="d" className="first-letter:uppercase">{formatLongDate(e.date)}</span> : add("date", onEdit(i))],
                 ["Lieu", e.lieu ?? add("lieu", onEdit(i))],
+                ...(e.lieuPhone || e.lieuPhone2 || e.lieuEmail || e.lieuEmail2
+                  ? ([["Contact du lieu", [e.lieuPhone, e.lieuPhone2, e.lieuEmail, e.lieuEmail2].filter(Boolean).join(" · ")]] as [string, React.ReactNode][])
+                  : []),
                 ...(i === 0 && d.proposition ? [["Motif", d.proposition.motif] as [string, React.ReactNode]] : []),
                 ["Statut", !e.date ? "À programmer" : e.realisee ? "Réalisée" : `Prévue ${relativeDays(e.date)}`],
                 [
                   "Convocation",
                   <span key="c" className="inline-flex items-center gap-1.5">
                     <span className={cn("size-2 rounded-full", sent ? "bg-tone-done" : "bg-muted-foreground/40")} />
-                    {sent ? "Envoyée" : "Pas encore envoyée"}
+                    {(() => {
+                      // Une convocation par personne ; les anciens dossiers n'ont qu'un envoi global
+                      const people = expertisePeople(d, i)
+                      const done = people.filter((id) => e.convoques.includes(id) || e.convocationDocs?.[id]).length
+                      if (sent && done === people.length && !e.convocationDocs) return "Envoyée"
+                      return people.length ? `${done}/${people.length} générée${done > 1 ? "s" : ""}` : "Pas encore envoyée"
+                    })()}
                   </span>,
                 ],
               ]}
@@ -1826,8 +1879,7 @@ export function expertiseSection(d: Dossier, index: number, apply: (title: strin
           ...cur,
           date: fromDateInput(v.date),
           lieu: opt(v.lieu),
-          // Programmer convoque les personnes prévues
-          convoques: cur.convoques.length || !v.date ? cur.convoques : expertisePeople(x, index),
+          // Les convocations se génèrent ensuite, une par personne (bloc « Personnes à convoquer »)
         })),
       ),
   }
@@ -1860,6 +1912,7 @@ function personneFields(hidden: (v: Values) => boolean = () => false): EditField
     { key: "societe", label: "Nom de la société", hidden: (v) => hidden(v) || !morale(v) },
     { key: "siret", label: "N° de SIRET", hidden: (v) => hidden(v) || !morale(v) },
     { key: "phone", label: "Téléphone", type: "tel", hidden },
+    { key: "phone2", label: "Deuxième téléphone", type: "tel", hidden },
     { key: "email", label: "E-mail", type: "email", hidden },
     { key: "email2", label: "Deuxième e-mail", type: "email", hidden },
     { key: "address", label: "Adresse postale", full: true, hidden },
@@ -1875,6 +1928,7 @@ function personneInitial(p?: Personne): Values {
     societe: p?.societe ?? "",
     siret: p?.siret ?? "",
     phone: p?.phone ?? "",
+    phone2: p?.phone2 ?? "",
     email: p?.email ?? "",
     email2: p?.email2 ?? "",
     address: p?.address ?? "",
@@ -1891,6 +1945,7 @@ function personneFromValues(v: Values): Personne {
     societe: morale ? opt(v.societe) : undefined,
     siret: morale ? opt(v.siret) : undefined,
     phone: v.phone,
+    phone2: opt(v.phone2 ?? ""),
     email: v.email,
     email2: opt(v.email2 ?? ""),
     address: opt(v.address),
@@ -1948,21 +2003,25 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
         fields: [
           { key: "nom", label: "Nom", full: true },
           { key: "phone", label: "Téléphone", type: "tel" },
+          { key: "phone2", label: "Deuxième téléphone", type: "tel" },
           { key: "email", label: "E-mail", type: "email" },
+          { key: "email2", label: "Deuxième e-mail", type: "email" },
           { key: "address", label: "Adresse postale", full: true },
           { key: "reference", label: "Référence" },
         ],
         initial: {
           nom: d.compagnie?.nom ?? "",
           phone: d.compagnie?.phone ?? "",
+          phone2: d.compagnie?.phone2 ?? "",
           email: d.compagnie?.email ?? "",
+          email2: d.compagnie?.email2 ?? "",
           address: d.compagnie?.address ?? "",
           reference: d.compagnie?.reference ?? "",
         },
         onSave: save(compagnieLabel(d.type), (x, v) => ({
           ...x,
           compagnie: Object.values(v).some((s) => opt(s))
-            ? { nom: v.nom, phone: opt(v.phone), email: opt(v.email), address: opt(v.address), reference: opt(v.reference) }
+            ? { nom: v.nom, phone: opt(v.phone), phone2: opt(v.phone2), email: opt(v.email), email2: opt(v.email2), address: opt(v.address), reference: opt(v.reference) }
             : undefined,
         })),
       }
@@ -1972,21 +2031,25 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
         fields: [
           { key: "nom", label: "Nom", full: true },
           { key: "phone", label: "Téléphone", type: "tel" },
+          { key: "phone2", label: "Deuxième téléphone", type: "tel" },
           { key: "email", label: "E-mail", type: "email" },
+          { key: "email2", label: "Deuxième e-mail", type: "email" },
           { key: "address", label: "Adresse postale", full: true },
           { key: "reference", label: "Référence" },
         ],
         initial: {
           nom: d.cabinetVise?.nom ?? "",
           phone: d.cabinetVise?.phone ?? "",
+          phone2: d.cabinetVise?.phone2 ?? "",
           email: d.cabinetVise?.email ?? "",
+          email2: d.cabinetVise?.email2 ?? "",
           address: d.cabinetVise?.address ?? "",
           reference: d.cabinetVise?.reference ?? "",
         },
         onSave: save("Cabinet d'expertise visé", (x, v) => ({
           ...x,
           cabinetVise: Object.values(v).some((t) => opt(t))
-            ? { nom: v.nom, phone: opt(v.phone), email: opt(v.email), address: opt(v.address), reference: opt(v.reference) }
+            ? { nom: v.nom, phone: opt(v.phone), phone2: opt(v.phone2), email: opt(v.email), email2: opt(v.email2), address: opt(v.address), reference: opt(v.reference) }
             : undefined,
         })),
       }
@@ -2040,8 +2103,8 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
     case "tiers":
       return {
         title: "Modifier les tiers",
-        fields: [{ key: "tiers", label: "Tiers", type: "textarea", hint: "Un tiers par ligne : Nom · téléphone · e-mail" }],
-        initial: { tiers: (d.tiers ?? []).map((t) => [t.nom, t.phone ?? "", t.email ?? ""].join(" · ").replace(/( · )+$/, "")).join("\n") },
+        fields: [{ key: "tiers", label: "Tiers", type: "textarea", hint: "Un tiers par ligne : Nom · téléphone · e-mail · 2e téléphone · 2e e-mail" }],
+        initial: { tiers: (d.tiers ?? []).map((t) => [t.nom, t.phone ?? "", t.email ?? "", t.phone2 ?? "", t.email2 ?? ""].join(" · ").replace(/( · )+$/, "")).join("\n") },
         onSave: save("Tiers", (x, v) => ({
           ...x,
           tiers: v.tiers
@@ -2049,8 +2112,8 @@ function buildSection(id: SectionId, d: Dossier, apply: (title: string, patch: (
             .map((l) => l.trim())
             .filter(Boolean)
             .map((l) => {
-              const [nom, phone, email] = l.split("·").map((p) => p.trim())
-              return { nom, phone: opt(phone ?? ""), email: opt(email ?? "") }
+              const [nom, phone, email, phone2, email2] = l.split("·").map((p) => p.trim())
+              return { nom, phone: opt(phone ?? ""), email: opt(email ?? ""), phone2: opt(phone2 ?? ""), email2: opt(email2 ?? "") }
             }),
         })),
       }

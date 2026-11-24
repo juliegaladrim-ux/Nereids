@@ -527,33 +527,30 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
   const date = choice === "autre" ? fromDateInput(autreDate) : p.dates[Number(choice)]
   const convoques = d.expertise.aConvoquer ?? []
 
+  // Programmer fixe la date et le lieu ; chaque convocation se génère ensuite pour une personne, depuis l'onglet Expertise
   function convoquer() {
-    const now = new Date().toISOString()
-    const doc = { id: `d${Date.now()}`, name: `Convocation expertise — ${d.vehicule.immat}.pdf`, category: "courrier" as const, addedBy: user.id, addedAt: now, docDate: now, size: "95 Ko" }
-    const reached = STATUS_ORDER.indexOf(d.status) >= STATUS_ORDER.indexOf("attente_expertise")
+    const reached = STATUS_ORDER.indexOf(d.status) >= STATUS_ORDER.indexOf("convocation_a_faire")
     updateDossier(d.id, (x) => ({
       ...x,
-      status: reached ? x.status : "attente_expertise",
-      expertise: { ...x.expertise, date, lieu: lieu.trim(), convoques },
-      documents: [...x.documents, doc],
+      status: reached ? x.status : "convocation_a_faire",
+      expertise: { ...x.expertise, date, lieu: lieu.trim() },
       pilotage: {
         ...x.pilotage,
-        ouEnEst: "Expertise programmée, convocations envoyées à toutes les parties.",
-        attente: "Réalisation de l'expertise sur site",
-        prochaineAction: "Réaliser l'expertise et déposer le PV sous 24 h",
-        quiDoitAgir: "expert",
+        ouEnEst: "Expertise programmée, convocations à générer.",
+        attente: "Convocation de chaque personne",
+        prochaineAction: "Générer la convocation de chaque personne à convoquer (onglet Expertise)",
+        quiDoitAgir: x.intervenants.gestionnaire ? "gestionnaire" : "nereids",
         echeance: date,
       },
     }))
     addEvent(d.id, {
       kind: "expertise",
       author: user.id,
-      title: "Convocations envoyées",
-      body: `Expertise le ${formatDateTime(date)}, ${lieu.trim()} — ${convoques.map((id) => convoqueName(d, id)).join(", ")}`,
+      title: "Expertise programmée",
+      body: `Le ${formatDateTime(date)}, ${lieu.trim()} — à convoquer : ${convoques.map((id) => convoqueName(d, id)).join(", ")}`,
     })
-    addEvent(d.id, { kind: "document", author: "system", title: "Convocation générée", body: doc.name })
-    if (!reached) addEvent(d.id, { kind: "status", author: "system", title: "Statut → En attente expertise" })
-    toast.success("Convocations envoyées", { description: `${convoques.length} personne${convoques.length > 1 ? "s" : ""} convoquée${convoques.length > 1 ? "s" : ""}. Le document est dans le dossier.` })
+    if (!reached) addEvent(d.id, { kind: "status", author: "system", title: "Statut → Convocation à faire" })
+    toast.success("Expertise programmée", { description: "Générez maintenant la convocation de chaque personne, dans l'onglet Expertise." })
     onClose()
   }
 
@@ -562,7 +559,7 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
       <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Programmer l&apos;expertise</DialogTitle>
-          <DialogDescription>Appelez le lieu pour vérifier ses disponibilités, puis générez les convocations.</DialogDescription>
+          <DialogDescription>Appelez le lieu pour vérifier ses disponibilités, puis programmez l&apos;expertise. Les convocations se génèrent ensuite, une par personne.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-5">
           <PropositionRows dossier={d} withDates={false} className="rounded-lg border bg-muted/40 p-3" />
@@ -594,7 +591,7 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
-          <Button onClick={convoquer} disabled={!date || !lieu.trim() || !convoques.length}>Générer les convocations</Button>
+          <Button onClick={convoquer} disabled={!date || !lieu.trim() || !convoques.length}>Programmer l&apos;expertise</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
