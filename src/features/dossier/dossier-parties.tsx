@@ -11,6 +11,7 @@ import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  ACTOR_LABELS,
   CIVILITES,
   QUALITES_INTERVENANT,
   allExpertises,
@@ -239,7 +240,7 @@ function PartyCard({ c, onOpenConvocation }: { c: Card; onOpenConvocation: (doc:
           {c.role && <RoleBadge role={c.role} />}
         </p>
         <div className="flex flex-wrap gap-1.5">
-          {c.qualites.map((q) => (
+          {c.qualites.filter((q) => !c.role || q.toLowerCase() !== ACTOR_LABELS[c.role].toLowerCase()).map((q) => (
             <span key={q} className="inline-flex h-5 items-center rounded-full border border-brand/40 px-2 text-[0.7rem] font-medium text-brand-ink">
               {q}
             </span>

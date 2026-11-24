@@ -206,7 +206,7 @@ export function DossierSuivi({ dossier, onEditCloture }: { dossier: Dossier; onE
                     </span>
                   )}
                   {isMsg && author && <RoleBadge role={author.role} />}
-                  {isMsg && author && <span className="text-xs text-muted-foreground">{author.structure}</span>}
+                  {isMsg && author && author.structure.toLowerCase() !== ACTOR_LABELS[author.role].toLowerCase() && <span className="text-xs text-muted-foreground">{author.structure}</span>}
                   <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(e.at)}</span>
                 </div>
                 {e.body &&
@@ -283,7 +283,7 @@ function Reply({ dossier, event }: { dossier: Dossier; event: TimelineEvent }) {
         <UserAvatar user={author} className="size-7" />
         <div className="min-w-0 flex-1 pt-0.5">
           <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-            <span className="font-medium">{author?.role === "admin" ? `${fullName(author)} (Nereids)` : fullName(author)}</span>
+            <span className="font-medium">{fullName(author)}</span>
             {author && <RoleBadge role={author.role} />}
             <span className="text-xs text-muted-foreground">{toMe ? "vous a répondu" : "a répondu"}</span>
             <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(event.reply.at)}</span>

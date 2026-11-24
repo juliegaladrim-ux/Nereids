@@ -55,6 +55,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  ACTOR_LABELS,
   ADMIN_DOC_CATEGORIES,
   CIVILITES,
   CLOSING_REASONS,
@@ -972,8 +973,7 @@ function Intervenants({
                           {u && <RoleBadge role={u.role} />}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {r.label}
-                          {u && u.structure !== fullName(u) && ` · ${u.structure}`}
+                          {[r.label !== ACTOR_LABELS[u?.role ?? "all"] ? r.label : undefined, u && u.structure !== fullName(u) && u.structure !== ACTOR_LABELS[u.role] ? u.structure : undefined].filter(Boolean).join(" · ") || " "}
                         </p>
                         {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
                       </div>
@@ -984,7 +984,7 @@ function Intervenants({
                       className="min-w-0 flex-1"
                       name={[u.civilite, fullName(u)].filter(Boolean).join(" ")}
                       role={u.role}
-                      subtitle={[r.label, u.structure !== fullName(u) ? u.structure : undefined].filter(Boolean).join(" · ")}
+                      subtitle={[r.label !== ACTOR_LABELS[u.role] ? r.label : undefined, u.structure !== fullName(u) && u.structure !== ACTOR_LABELS[u.role] ? u.structure : undefined].filter(Boolean).join(" · ")}
                       lines={[
                         { icon: Phone, value: u.phone },
                         { icon: Phone, value: u.phone2, label: "Téléphone 2" },
