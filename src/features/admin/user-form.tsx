@@ -28,6 +28,7 @@ export type FormValues = {
   fonction: string
   structure: string
   phone: string
+  phone2: string
   email: string
   autresEmails: EmailSecondaire[]
   address: string
@@ -44,6 +45,7 @@ export const toForm = (u?: Partial<User>): FormValues => ({
   fonction: u?.fonction ?? "",
   structure: u?.structure ?? "",
   phone: u?.phone ?? "",
+  phone2: u?.phone2 ?? "",
   email: u?.email ?? "",
   autresEmails: u?.autresEmails ?? [],
   address: u?.address ?? "",
@@ -59,6 +61,7 @@ export function cleanValues(v: FormValues): Partial<User> {
   const autresEmails = cleanEmails(v.autresEmails)
   return {
     ...text,
+    phone2: v.phone2.trim() || undefined,
     civilite: v.civilite || undefined,
     autresEmails: autresEmails.length ? autresEmails : undefined,
     address: v.address.trim() || undefined,
@@ -137,7 +140,8 @@ export function UserFields({
           description="Utilisé pour la connexion et les notifications. Les autres e-mails sont affichés sur sa fiche."
         />
       </div>
-      <div className="sm:col-span-2">{field("phone", "Téléphone (optionnel)", "tel")}</div>
+      {field("phone", "Téléphone (optionnel)", "tel")}
+      {field("phone2", "Deuxième téléphone (optionnel)", "tel")}
       <div className="sm:col-span-2">{field("address", "Adresse postale (optionnel)")}</div>
       {hasZone(role) && (
         <>

@@ -79,13 +79,16 @@ export type PersonneForm = {
   societe: string
   siret: string
   phone: string
+  /** Deuxième téléphone et deuxième e-mail (facultatifs) */
+  phone2: string
   email: string
+  email2: string
   address: string
   /** Fiche de l'annuaire choisie (ses infos sont copiées dans le dossier) */
   contactId?: string
 }
 
-export const EMPTY_PERSONNE: PersonneForm = { kind: "physique", firstName: "", lastName: "", societe: "", siret: "", phone: "", email: "", address: "" }
+export const EMPTY_PERSONNE: PersonneForm = { kind: "physique", firstName: "", lastName: "", societe: "", siret: "", phone: "", phone2: "", email: "", email2: "", address: "" }
 
 type Form = {
   type?: DossierType
@@ -98,8 +101,8 @@ type Form = {
   clientProprietaire: boolean
   proprietaire: PersonneForm
   vehicule: { marque: string; modele: string; immat: string; vin: string }
-  compagnie: { nom: string; email: string; phone: string; address: string; reference: string }
-  tiers: { nom: string; phone: string; email: string }[]
+  compagnie: { nom: string; email: string; email2: string; phone: string; phone2: string; address: string; reference: string }
+  tiers: { nom: string; phone: string; phone2: string; email: string; email2: string }[]
   probleme: { description: string; date: string }
   docs: Partial<Record<DocCategory, string[]>>
   autres: string[]
@@ -117,16 +120,20 @@ type Form = {
   /** Litige assurantiel : précision quand l'objet du litige est « Autre » */
   litigeAutre: string
   /** Litige assurantiel : cabinet d'expertise visé */
-  cabinet: { nom: string; email: string; phone: string; address: string; reference: string }
+  cabinet: { nom: string; email: string; email2: string; phone: string; phone2: string; address: string; reference: string }
   /** Lieu d'expertise (ou le réparateur) et date si elle est déjà fixée */
-  lieu: { nom: string; adresse: string; estReparateur: boolean }
+  lieu: { nom: string; adresse: string; phone: string; phone2: string; email: string; email2: string; estReparateur: boolean }
   dateExpertise: string
-  /** Litige automobile : immobilisation et frais de gardiennage */
+  /** Immobilisation du véhicule et frais de gardiennage (tous les types de dossier) */
   immobilise: OuiNonNsp | null
   lieuImmoIdem: boolean
   lieuImmo: string
   frais: OuiNonNsp | null
   typeFrais: string
+  /** Frais de gardiennage : depuis le / jusqu'au (facultatif) et montant TTC par jour */
+  fraisDepuis: string
+  fraisJusqua: string
+  fraisMontant: string
   /** Notes libres qui alimentent l'onglet Général */
   declaration: string
   souhait: string
@@ -144,8 +151,8 @@ const EMPTY: Form = {
   clientProprietaire: true,
   proprietaire: EMPTY_PERSONNE,
   vehicule: { marque: "", modele: "", immat: "", vin: "" },
-  compagnie: { nom: "", email: "", phone: "", address: "", reference: "" },
-  tiers: [{ nom: "", phone: "", email: "" }],
+  compagnie: { nom: "", email: "", email2: "", phone: "", phone2: "", address: "", reference: "" },
+  tiers: [{ nom: "", phone: "", phone2: "", email: "", email2: "" }],
   probleme: { description: "", date: "" },
   docs: {},
   autres: [],
@@ -158,14 +165,17 @@ const EMPTY: Form = {
   objetsPanne: [],
   panneAutre: "",
   litigeAutre: "",
-  cabinet: { nom: "", email: "", phone: "", address: "", reference: "" },
-  lieu: { nom: "", adresse: "", estReparateur: false },
+  cabinet: { nom: "", email: "", email2: "", phone: "", phone2: "", address: "", reference: "" },
+  lieu: { nom: "", adresse: "", phone: "", phone2: "", email: "", email2: "", estReparateur: false },
   dateExpertise: "",
   immobilise: null,
   lieuImmoIdem: true,
   lieuImmo: "",
   frais: null,
   typeFrais: TYPES_FRAIS[0],
+  fraisDepuis: "",
+  fraisJusqua: "",
+  fraisMontant: "",
   declaration: "",
   souhait: "",
   prix: "",
@@ -241,7 +251,9 @@ export const toPersonne = (p: PersonneForm): Personne => ({
   societe: p.societe || undefined,
   siret: p.siret || undefined,
   phone: p.phone,
+  phone2: p.phone2.trim() || undefined,
   email: p.email,
+  email2: p.email2.trim() || undefined,
   address: p.address || undefined,
   contactId: p.contactId,
 })
@@ -287,10 +299,12 @@ function withRandomDefaults(f: Form): Form {
       phone: f.compagnie.phone.trim() || `09 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`,
       address: f.compagnie.address.trim() || `${1 + Math.floor(Math.random() * 90)} rue de la Bourse, 75002 Paris`,
       reference: f.compagnie.reference.trim() || `SIN-${digits(8)}`,
+      phone2: f.compagnie.phone2,
+      email2: f.compagnie.email2,
     },
     tiers: f.tiers.some((t) => t.nom.trim())
       ? f.tiers
-      : [{ nom: pick(TIERS), phone: `04 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`, email: "" }],
+      : [{ nom: pick(TIERS), phone: `04 ${digits(2)} ${digits(2)} ${digits(2)} ${digits(2)}`, phone2: "", email: "", email2: "" }],
     probleme: {
       description: f.probleme.description.trim() || pick(DESCRIPTIONS),
       date: f.probleme.date || daysFromNow(-Math.floor(Math.random() * 60) - 1).slice(0, 10),
@@ -378,8 +392,12 @@ export function CreateDossier() {
     const lieuNom = f.lieu.estReparateur && repUser ? repUser.structure : f.lieu.nom.trim()
     const lieuAdresse = f.lieu.estReparateur && repUser ? (repUser.address ?? "") : f.lieu.adresse.trim()
     const lieu = [lieuNom, lieuAdresse].filter(Boolean).join(", ")
+    const lieuCoord =
+      f.lieu.estReparateur && repUser
+        ? { lieuPhone: repUser.phone || undefined, lieuPhone2: repUser.phone2 || undefined, lieuEmail: repUser.email || undefined, lieuEmail2: undefined }
+        : { lieuPhone: f.lieu.phone.trim() || undefined, lieuPhone2: f.lieu.phone2.trim() || undefined, lieuEmail: f.lieu.email.trim() || undefined, lieuEmail2: f.lieu.email2.trim() || undefined }
     const dateExpertise = fromDateInput(f.dateExpertise)
-    const immobilise = f.type === "litige_auto" ? f.immobilise : null
+    const immobilise = f.immobilise
     const lieuImmo = immobilise === "oui" ? (f.lieuImmoIdem ? lieu : f.lieuImmo.trim()) : ""
     const prix = Number(f.prix.replace(/\s/g, "").replace(",", "."))
 
@@ -457,9 +475,12 @@ export function CreateDossier() {
       client: { ...toPersonne(f.client), userId: allUsers().find((u) => u.id === f.client.contactId && u.role === "client")?.id },
       proprietaire: f.clientProprietaire ? undefined : toPersonne(f.proprietaire),
       vehicule: { ...f.vehicule, immat: f.vehicule.immat.toUpperCase(), vin: f.vehicule.vin || undefined },
-      compagnie: hasParties && f.type !== "litige_auto" && f.compagnie.nom ? { ...f.compagnie } : undefined,
-      cabinetVise: f.type === "litige_assurantiel" && f.cabinet.nom.trim() ? { ...f.cabinet } : undefined,
-      tiers: f.type === "litige_auto" ? f.tiers.filter((t) => t.nom).map((t) => ({ nom: t.nom, phone: t.phone || undefined, email: t.email || undefined })) : undefined,
+      compagnie: hasParties && f.type !== "litige_auto" && f.compagnie.nom ? { ...f.compagnie, phone2: f.compagnie.phone2 || undefined, email2: f.compagnie.email2 || undefined } : undefined,
+      cabinetVise: f.type === "litige_assurantiel" && f.cabinet.nom.trim() ? { ...f.cabinet, phone2: f.cabinet.phone2 || undefined, email2: f.cabinet.email2 || undefined } : undefined,
+      tiers:
+        f.type === "litige_auto"
+          ? f.tiers.filter((t) => t.nom).map((t) => ({ nom: t.nom, phone: t.phone || undefined, phone2: t.phone2 || undefined, email: t.email || undefined, email2: t.email2 || undefined }))
+          : undefined,
       refs: { sinistre: f.compagnie.reference || undefined },
       region: departementRegion(f.departement!) ?? "Auvergne-Rhône-Alpes",
       departement: f.departement!,
@@ -485,21 +506,23 @@ export function CreateDossier() {
             echeance: daysFromNow(1),
           },
       // Date saisie à la création : l'expertise est considérée comme programmée (convocations à envoyer depuis la fiche)
-      expertise: { convoques: [], date: dateExpertise, lieu: lieu || undefined },
+      expertise: { convoques: [], date: dateExpertise, lieu: lieu || undefined, ...(lieu ? lieuCoord : {}) },
       documents,
       timeline,
       description: f.probleme.description || undefined,
       declaration: f.declaration.trim() || undefined,
       souhait: f.souhait.trim() || undefined,
-      immobilisation:
-        f.type === "litige_auto" && immobilise
-          ? {
-              immobilise,
-              lieu: lieuImmo || undefined,
-              frais: immobilise === "oui" ? (f.frais ?? undefined) : undefined,
-              typeFrais: immobilise === "oui" && f.frais === "oui" ? f.typeFrais : undefined,
-            }
-          : undefined,
+      immobilisation: immobilise
+        ? {
+            immobilise,
+            lieu: lieuImmo || undefined,
+            frais: immobilise === "oui" ? (f.frais ?? undefined) : undefined,
+            typeFrais: immobilise === "oui" && f.frais === "oui" ? f.typeFrais : undefined,
+            depuis: immobilise === "oui" && f.frais === "oui" ? fromDateInput(f.fraisDepuis) : undefined,
+            jusqua: immobilise === "oui" && f.frais === "oui" ? fromDateInput(f.fraisJusqua) : undefined,
+            montantJour: immobilise === "oui" && f.frais === "oui" && Number(f.fraisMontant.replace(",", ".")) > 0 ? Number(f.fraisMontant.replace(",", ".")) : undefined,
+          }
+        : undefined,
       tarif: {
         prix: Number.isFinite(prix) && f.prix.trim() ? prix : undefined,
         mode: f.prixMode,
@@ -747,7 +770,7 @@ export function CreateDossier() {
                                 value={t.nom}
                                 placeholder="Ex. garage, vendeur…"
                                 onChange={(nom) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom } : x)))}
-                                onPick={(o) => set("tiers", f.tiers.map((x, j) => (j === i ? { nom: o.nom, phone: o.phone ?? "", email: o.email ?? "" } : x)))}
+                                onPick={(o) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, nom: o.nom, phone: o.phone ?? "", email: o.email ?? "" } : x)))}
                               />
                             </Field>
                             <Field>
@@ -765,10 +788,18 @@ export function CreateDossier() {
                                 )}
                               </div>
                             </Field>
+                            <Field>
+                              <FieldLabel>Deuxième téléphone (optionnel)</FieldLabel>
+                              <Input type="tel" value={t.phone2} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, phone2: e.target.value } : x)))} />
+                            </Field>
+                            <Field>
+                              <FieldLabel>Deuxième e-mail (optionnel)</FieldLabel>
+                              <Input type="email" value={t.email2} onChange={(e) => set("tiers", f.tiers.map((x, j) => (j === i ? { ...x, email2: e.target.value } : x)))} />
+                            </Field>
                           </div>
                         ))}
                       {f.type === "litige_auto" && f.tiers.length < 2 && (
-                        <Button variant="outline" size="sm" className="w-fit" onClick={() => set("tiers", [...f.tiers, { nom: "", phone: "", email: "" }])}>
+                        <Button variant="outline" size="sm" className="w-fit" onClick={() => set("tiers", [...f.tiers, { nom: "", phone: "", phone2: "", email: "", email2: "" }])}>
                           <Plus /> Ajouter un 2ᵉ tiers
                         </Button>
                       )}
@@ -796,6 +827,14 @@ export function CreateDossier() {
                           <Field>
                             <FieldLabel htmlFor="co-mail">E-mail</FieldLabel>
                             <Input id="co-mail" type="email" value={f.compagnie.email} onChange={(e) => setIn("compagnie", "email", e.target.value)} />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="co-phone2">Deuxième téléphone (optionnel)</FieldLabel>
+                            <Input id="co-phone2" type="tel" value={f.compagnie.phone2} onChange={(e) => setIn("compagnie", "phone2", e.target.value)} />
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="co-mail2">Deuxième e-mail (optionnel)</FieldLabel>
+                            <Input id="co-mail2" type="email" value={f.compagnie.email2} onChange={(e) => setIn("compagnie", "email2", e.target.value)} />
                           </Field>
                           <Field className="sm:col-span-2">
                             <FieldLabel htmlFor="co-address">Adresse postale</FieldLabel>
@@ -830,6 +869,14 @@ export function CreateDossier() {
                             <Field>
                               <FieldLabel htmlFor="cab-mail">E-mail</FieldLabel>
                               <Input id="cab-mail" type="email" value={f.cabinet.email} onChange={(e) => setIn("cabinet", "email", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="cab-phone2">Deuxième téléphone (optionnel)</FieldLabel>
+                              <Input id="cab-phone2" type="tel" value={f.cabinet.phone2} onChange={(e) => setIn("cabinet", "phone2", e.target.value)} />
+                            </Field>
+                            <Field>
+                              <FieldLabel htmlFor="cab-mail2">Deuxième e-mail (optionnel)</FieldLabel>
+                              <Input id="cab-mail2" type="email" value={f.cabinet.email2} onChange={(e) => setIn("cabinet", "email2", e.target.value)} />
                             </Field>
                             <Field className="sm:col-span-2">
                               <FieldLabel htmlFor="cab-address">Adresse postale</FieldLabel>
@@ -899,6 +946,21 @@ export function CreateDossier() {
                         />
                       </Field>
                     </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {(
+                        [
+                          ["phone", "Téléphone du lieu", "tel"],
+                          ["email", "E-mail du lieu", "email"],
+                          ["phone2", "Deuxième téléphone (optionnel)", "tel"],
+                          ["email2", "Deuxième e-mail (optionnel)", "email"],
+                        ] as const
+                      ).map(([k, label, type]) => (
+                        <Field key={k}>
+                          <FieldLabel htmlFor={"lieu-" + k}>{label}</FieldLabel>
+                          <Input id={"lieu-" + k} type={type} disabled={f.lieu.estReparateur} value={f.lieu.estReparateur ? "" : f.lieu[k]} onChange={(e) => set("lieu", { ...f.lieu, [k]: e.target.value })} />
+                        </Field>
+                      ))}
+                    </div>
                     <Field orientation="horizontal">
                       <Checkbox id="lieu-rep" checked={f.lieu.estReparateur} onCheckedChange={(v) => set("lieu", { ...f.lieu, estReparateur: !!v })} />
                       <div className="flex flex-col gap-0.5">
@@ -915,8 +977,7 @@ export function CreateDossier() {
                       <FieldDescription>Par exemple quand vous représentez une personne convoquée : la date est déjà fixée.</FieldDescription>
                     </Field>
 
-                    {f.type === "litige_auto" && (
-                      <div className="flex flex-col gap-5 border-t pt-5">
+                    <div className="flex flex-col gap-5 border-t pt-5">
                         <OuiNonNspField label="Le véhicule est-il immobilisé ?" value={f.immobilise} onChange={(v) => set("immobilise", v)} />
                         {f.immobilise === "oui" && (
                           <>
@@ -946,10 +1007,25 @@ export function CreateDossier() {
                                 </RadioGroup>
                               </Field>
                             )}
+                            {f.frais === "oui" && (
+                              <div className="grid gap-4 sm:grid-cols-3">
+                                <Field>
+                                  <FieldLabel htmlFor="frais-depuis">Depuis le</FieldLabel>
+                                  <DateInput id="frais-depuis" value={f.fraisDepuis} onChange={(v) => set("fraisDepuis", v)} />
+                                </Field>
+                                <Field>
+                                  <FieldLabel htmlFor="frais-jusqua">Jusqu&apos;au (optionnel)</FieldLabel>
+                                  <DateInput id="frais-jusqua" value={f.fraisJusqua} onChange={(v) => set("fraisJusqua", v)} />
+                                </Field>
+                                <Field>
+                                  <FieldLabel htmlFor="frais-montant">Montant TTC par jour (€)</FieldLabel>
+                                  <Input id="frais-montant" inputMode="decimal" placeholder="Ex. 25" value={f.fraisMontant} onChange={(e) => set("fraisMontant", e.target.value)} />
+                                </Field>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
-                    )}
                   </FieldGroup>
                 </CardContent>}
               </Card>
@@ -1274,7 +1350,7 @@ export function PersonneFields({ id, value: p, onChange }: { id: string; value: 
   function pickPerson(cid: string) {
     const c = people.find((x) => x.id === cid)
     if (!c) return
-    onChange({ ...EMPTY_PERSONNE, civilite: c.civilite ?? "", firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "", contactId: c.id })
+    onChange({ ...EMPTY_PERSONNE, civilite: c.civilite ?? "", firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? "", phone2: c.phone2 ?? "", email: c.email ?? "", address: c.address ?? "", contactId: c.id })
   }
   function pickOrg(oid: string) {
     const o = orgs.find((x) => x.id === oid)
@@ -1347,6 +1423,14 @@ export function PersonneFields({ id, value: p, onChange }: { id: string; value: 
         <Field>
           <FieldLabel htmlFor={`${id}-mail`}>E-mail</FieldLabel>
           <Input id={`${id}-mail`} type="email" value={p.email} onChange={(e) => set("email", e.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-phone2`}>Deuxième téléphone (optionnel)</FieldLabel>
+          <Input id={`${id}-phone2`} type="tel" value={p.phone2} onChange={(e) => set("phone2", e.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-mail2`}>Deuxième e-mail (optionnel)</FieldLabel>
+          <Input id={`${id}-mail2`} type="email" value={p.email2} onChange={(e) => set("email2", e.target.value)} />
         </Field>
         <Field className="sm:col-span-2">
           <FieldLabel htmlFor={`${id}-address`}>Adresse postale</FieldLabel>

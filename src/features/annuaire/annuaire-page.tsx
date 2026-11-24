@@ -568,6 +568,7 @@ type PersonForm = {
   email: string
   autresEmails: EmailSecondaire[]
   phone: string
+  phone2: string
   address: string
 }
 
@@ -600,6 +601,7 @@ function PersonDialog({
     email: entry?.email ?? "",
     autresEmails: entry?.autresEmails ?? [],
     phone: entry?.phone ?? "",
+    phone2: entry?.phone2 ?? "",
     address: entry?.address ?? "",
   })
   const [tried, setTried] = React.useState(false)
@@ -635,6 +637,7 @@ function PersonDialog({
       email: v.email.trim() || undefined,
       autresEmails: autresEmails.length ? autresEmails : undefined,
       phone: v.phone.trim() || undefined,
+      phone2: v.phone2.trim() || undefined,
       address: v.address.trim() || undefined,
     }
     // Nouvelle organisation saisie : on crée sa fiche
@@ -772,6 +775,10 @@ function PersonDialog({
           <Field>
             <FieldLabel htmlFor="p-phone">Téléphone</FieldLabel>
             <Input id="p-phone" type="tel" value={v.phone} onChange={(e) => set("phone", e.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="p-phone2">Deuxième téléphone (optionnel)</FieldLabel>
+            <Input id="p-phone2" type="tel" value={v.phone2} onChange={(e) => set("phone2", e.target.value)} />
           </Field>
           <Field className="sm:col-span-2">
             <FieldLabel htmlFor="p-address">Adresse postale</FieldLabel>

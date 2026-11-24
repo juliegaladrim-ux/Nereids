@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Mic, Square } from "lucide-react"
+import { Mic, Sparkles, Square } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -79,17 +79,30 @@ export function DictationButton({ onText, className }: { onText: (text: string) 
   }
 
   return (
-    <Button
-      type="button"
-      variant="secondary"
-      size="icon-xs"
-      onClick={toggle}
-      aria-pressed={recording}
-      aria-label={recording ? "Arrêter la dictée" : "Dicter"}
-      title={recording ? "Arrêter la dictée" : "Dicter"}
-      className={cn("shrink-0", recording && "bg-destructive/10 text-destructive animate-pulse hover:bg-destructive/15", className)}
-    >
-      {recording ? <Square /> : <Mic />}
-    </Button>
+    <span className="inline-flex shrink-0 items-center gap-1">
+      {/* V2 : reformulation par l'IA du texte saisi ou dicté — prévu sur tous les champs de texte, grisé pour l'instant */}
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon-xs"
+        disabled
+        aria-label="Reformuler avec l'IA (bientôt disponible)"
+        title="Reformuler avec l'IA — bientôt disponible"
+      >
+        <Sparkles />
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon-xs"
+        onClick={toggle}
+        aria-pressed={recording}
+        aria-label={recording ? "Arrêter la dictée" : "Dicter"}
+        title={recording ? "Arrêter la dictée" : "Dicter"}
+        className={cn("shrink-0", recording && "bg-destructive/10 text-destructive animate-pulse hover:bg-destructive/15", className)}
+      >
+        {recording ? <Square /> : <Mic />}
+      </Button>
+    </span>
   )
 }

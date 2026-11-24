@@ -280,6 +280,8 @@ export type User = {
   /** Autres e-mails (secrétariat, comptabilité…), affichés sur la fiche — l'e-mail principal reste le seul utilisé pour l'outil */
   autresEmails?: EmailSecondaire[]
   phone: string
+  /** Deuxième téléphone (fixe, portable…) */
+  phone2?: string
   structure: string
   fonction: string
   /** Adresse postale (affichée sur les fiches des personnes convoquées à l'expertise) */
@@ -316,6 +318,8 @@ export type DocumentItem = {
   libelle?: string
   /** Personnes qui ont déjà vu ce document (sert à repérer les nouveaux) */
   seenBy?: string[]
+  /** Texte du document quand il a été rédigé dans l'outil (ex. convocation à l'expertise) */
+  contenu?: string
 }
 
 /** Intitulé du type de document : la saisie libre pour « Autre » */
@@ -379,10 +383,17 @@ export type InternalNote = { id: string; at: string; author: string; body: strin
 export type Expertise = {
   date?: string // ISO
   lieu?: string
+  /** Coordonnées du lieu d'expertise (téléphone et e-mail, avec un second de chaque) */
+  lieuPhone?: string
+  lieuPhone2?: string
+  lieuEmail?: string
+  lieuEmail2?: string
   /** Personnes à qui la convocation a été envoyée — vide = convocation pas encore faite */
   convoques: string[]
   /** Personnes à convoquer, ajoutées à la main avant l'envoi (à défaut : client, réparateur, expert) */
   aConvoquer?: string[]
+  /** Convocation générée pour chaque personne : id de la personne → id du document (une convocation par personne) */
+  convocationDocs?: Record<string, string>
   pvDocId?: string
   rapportDocId?: string
   realisee?: boolean
@@ -421,10 +432,10 @@ export type Dossier = {
     /** Autres caractéristiques (onglet Véhicule, repères de la carte grise) : clé du champ → valeur ; les dates sont en ISO */
     details?: Record<string, string>
   }
-  compagnie?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
+  compagnie?: { nom: string; email?: string; email2?: string; phone?: string; phone2?: string; address?: string; reference?: string }
   /** Litige assurantiel : cabinet d'expertise visé (mêmes champs que la compagnie visée) */
-  cabinetVise?: { nom: string; email?: string; phone?: string; address?: string; reference?: string }
-  tiers?: { nom: string; phone?: string; email?: string }[]
+  cabinetVise?: { nom: string; email?: string; email2?: string; phone?: string; phone2?: string; address?: string; reference?: string }
+  tiers?: { nom: string; phone?: string; phone2?: string; email?: string; email2?: string }[]
   /** Autres intervenants ajoutés à la main (avocat, assureur adverse, débosseleur…), avec leur qualité */
   parties?: Partie[]
   refs: { sinistre?: string }
@@ -451,8 +462,17 @@ export type Dossier = {
   declaration?: string
   /** « Souhait prioritaire du mandant » : saisi à la création, affiché dans l'onglet Général */
   souhait?: string
-  /** Véhicule immobilisé et frais éventuels (litige automobile) */
-  immobilisation?: { immobilise?: OuiNonNsp; lieu?: string; frais?: OuiNonNsp; typeFrais?: string }
+  /** Véhicule immobilisé et frais éventuels (tous les types de dossier) */
+  immobilisation?: {
+    immobilise?: OuiNonNsp
+    lieu?: string
+    frais?: OuiNonNsp
+    typeFrais?: string
+    /** Frais de gardiennage : depuis le / jusqu'au (ISO, facultatifs) et montant TTC par jour */
+    depuis?: string
+    jusqua?: string
+    montantJour?: number
+  }
   /** Tarif de la 1re expertise, saisi à la création */
   tarif?: { prix?: number; mode: "ttc" | "ht"; afficher: boolean; observations?: string; signatureMandat: boolean }
   cloture?: { motif: string; commentaire?: string; at: string }
@@ -535,6 +555,8 @@ export type Personne = {
   societe?: string
   siret?: string
   phone: string
+  /** Deuxième téléphone */
+  phone2?: string
   email: string
   /** Deuxième adresse e-mail */
   email2?: string
@@ -697,9 +719,9 @@ export function setExpertise(d: Dossier, index: number, patch: (e: Expertise) =>
 /** Personnes convoquées (ou à convoquer) pour une expertise donnée */
 export function expertisePeople(d: Dossier, index: number): string[] {
   const e = allExpertises(d)[index]
-  if (e.convoques.length) return e.convoques
+  // Convoquées (convocation générée) d'abord, puis celles qui restent à convoquer.
   // Pas de liste par défaut : les personnes à convoquer sont ajoutées à la main
-  return e.aConvoquer ?? []
+  return [...e.convoques, ...(e.aConvoquer ?? []).filter((id) => !e.convoques.includes(id))]
 }
 
 /** Proto : une 2e expertise vide (à compléter) dès que la 1re a eu lieu ou est programmée */
@@ -1537,6 +1559,8 @@ export type Partie = {
   siret?: string
   address?: string
   phone?: string
+  /** Deuxième téléphone */
+  phone2?: string
   email?: string
   /** Deuxième adresse e-mail */
   email2?: string
