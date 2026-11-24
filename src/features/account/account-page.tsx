@@ -40,7 +40,7 @@ export function AccountPage() {
             {user.firstName} {user.lastName}
           </p>
           <p className="text-sm text-muted-foreground">
-            {role.label} · {user.structure}
+            {[role.label, !role.label.toLowerCase().includes(user.structure.toLowerCase()) ? user.structure : undefined].filter(Boolean).join(" · ")}
           </p>
         </div>
       </div>

@@ -237,7 +237,8 @@ export function UsersPage() {
                 </TableCell>
                 <TableCell>{profileShort(r.user)}</TableCell>
                 <TableCell>
-                  {r.user.structure || "—"}
+                  {/* Structure interne déjà dans le profil (Admin Nereids, Gestionnaire Help You) : on ne la répète pas */}
+                  {!r.user.structure || profileShort(r.user).toLowerCase().includes(r.user.structure.toLowerCase()) ? (!r.user.fonction && "—") : r.user.structure}
                   {r.user.fonction && <div className="text-xs text-muted-foreground">{r.user.fonction}</div>}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{r.user.phone || "—"}</TableCell>

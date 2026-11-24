@@ -940,7 +940,6 @@ function Intervenants({
             <ContactPopover
               name={[dossier.client.kind !== "morale" && dossier.client.civilite, personneName(dossier.client)].filter(Boolean).join(" ")}
               role="client"
-              subtitle="Client"
               lines={[
                 { icon: Phone, value: dossier.client.phone },
                 { icon: Phone, value: dossier.client.phone2, label: "Téléphone 2" },
@@ -955,7 +954,6 @@ function Intervenants({
                   {personneName(dossier.client)}
                   <RoleBadge role="client" />
                 </p>
-                <p className="text-xs text-muted-foreground">Client</p>
               </div>
             </ContactPopover>
           </li>
