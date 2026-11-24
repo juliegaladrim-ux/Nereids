@@ -9,7 +9,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { EmailsField, SimilarAlert, SuggestInput, cleanEmails, orgSuggestion } from "@/features/annuaire/annuaire-fields"
 import { ORG_TYPES, ROLE_ORG, norm, searchOrgs, similarOrgs, useAnnuaire } from "@/lib/annuaire"
-import { REGION_DEPARTEMENTS, type EmailSecondaire, type User } from "@/lib/data"
+import { CIVILITES, REGION_DEPARTEMENTS, type EmailSecondaire, type User } from "@/lib/data"
 import type { RoleId } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
  */
 
 export type FormValues = {
+  civilite: string
   firstName: string
   lastName: string
   fonction: string
@@ -34,9 +35,10 @@ export type FormValues = {
   departements: string[]
 }
 
-type TextKey = Exclude<keyof FormValues, "region" | "departements" | "autresEmails">
+type TextKey = Exclude<keyof FormValues, "region" | "departements" | "autresEmails" | "civilite">
 
 export const toForm = (u?: Partial<User>): FormValues => ({
+  civilite: u?.civilite ?? "",
   firstName: u?.firstName ?? "",
   lastName: u?.lastName ?? "",
   fonction: u?.fonction ?? "",
@@ -57,6 +59,7 @@ export function cleanValues(v: FormValues): Partial<User> {
   const autresEmails = cleanEmails(v.autresEmails)
   return {
     ...text,
+    civilite: v.civilite || undefined,
     autresEmails: autresEmails.length ? autresEmails : undefined,
     address: v.address.trim() || undefined,
     region: v.region || undefined,
@@ -112,6 +115,16 @@ export function UserFields({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {orgFirst && org}
+      <Field className="sm:col-span-2 sm:max-w-xs">
+        <FieldLabel htmlFor="user-civilite">Civilité (optionnel)</FieldLabel>
+        <SimpleSelect
+          id="user-civilite"
+          placeholder="Choisir"
+          value={v.civilite || null}
+          onChange={(c) => setV((p) => ({ ...p, civilite: c ?? "" }))}
+          options={CIVILITES.map((c) => ({ value: c, label: c }))}
+        />
+      </Field>
       {field("firstName", role === "reparateur" ? "Prénom (optionnel)" : "Prénom")}
       {field("lastName", role === "reparateur" ? "Nom (optionnel)" : "Nom")}
       {!orgFirst && org}

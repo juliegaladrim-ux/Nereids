@@ -75,6 +75,8 @@ export const PERSON_TYPES: Record<PersonType, { label: string; org?: OrgType }> 
 export type Contact = {
   id: string
   type?: PersonType
+  /** Monsieur, Madame, Maître… */
+  civilite?: string
   firstName: string
   lastName: string
   fonction?: string
@@ -94,9 +96,10 @@ export type AnnuaireData = { contacts: Record<string, Contact>; orgs: Record<str
 export type PersonEntry = Contact & { user?: User; org?: Organisation; isClient: boolean }
 
 /** Fiche « Contact » seule (sans le compte ni l'organisation résolus) */
-export const toContact = ({ id, type, firstName, lastName, fonction, orgId, phone, email, autresEmails, address, userId }: PersonEntry): Contact => ({
+export const toContact = ({ id, type, civilite, firstName, lastName, fonction, orgId, phone, email, autresEmails, address, userId }: PersonEntry): Contact => ({
   id,
   type,
+  civilite,
   firstName,
   lastName,
   fonction,
@@ -209,6 +212,7 @@ export function buildPeople(dossiers: Dossier[], users: User[], orgs: Organisati
   const people: PersonEntry[] = users.map((u) => {
     const c: Contact = {
       id: u.id,
+      civilite: u.civilite,
       firstName: u.firstName,
       lastName: u.lastName,
       fonction: u.fonction || undefined,
@@ -230,7 +234,7 @@ export function buildPeople(dossiers: Dossier[], users: User[], orgs: Organisati
       if (!p || p.kind === "morale" || p.userId || (p.email && userEmails.has(norm(p.email)))) continue
       const id = p.contactId ?? `c-${norm(p.email) || norm(personneName(p))}`
       if (derived.has(id)) continue
-      derived.set(id, { id, firstName: p.firstName, lastName: p.lastName, phone: p.phone, email: p.email, address: p.address })
+      derived.set(id, { id, civilite: p.civilite, firstName: p.firstName, lastName: p.lastName, phone: p.phone, email: p.email, address: p.address })
     }
   }
   for (const c of Object.values(stored.contacts)) derived.set(c.id, c)

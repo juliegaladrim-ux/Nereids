@@ -43,6 +43,7 @@ import {
 } from "@/lib/annuaire"
 import {
   USERS,
+  CIVILITES,
   departementFromAddress,
   departementRegion,
   personneName,
@@ -181,10 +182,11 @@ export function AnnuairePage() {
       const rows = pick(people, visiblePeople)
       downloadCsv(
         "annuaire-personnes",
-        ["Prénom", "Nom", "Type", "Organisation", "Fonction", "E-mail principal", "Autres e-mails", "Téléphone", "Adresse", "Département", "Zone d'intervention", "Compte", "Dossiers en cours"],
+        ["Civilité", "Prénom", "Nom", "Type", "Organisation", "Fonction", "E-mail principal", "Autres e-mails", "Téléphone", "Adresse", "Département", "Zone d'intervention", "Compte", "Dossiers en cours"],
         rows.map((p) => {
           const account = accountStatus(p, dossiers, accounts)
           return [
+            p.civilite,
             p.firstName,
             p.lastName,
             personKind(p),
@@ -557,6 +559,7 @@ function EmailLine({ email, others = [] }: { email?: string; others?: EmailSecon
 type PersonForm = {
   /** Personne sans compte uniquement (le rôle d'un utilisateur se gère dans Utilisateurs) */
   type: PersonType | null
+  civilite: string
   firstName: string
   lastName: string
   org: string
@@ -589,6 +592,7 @@ function PersonDialog({
   const user = entry?.user
   const [v, setV] = React.useState<PersonForm>({
     type: entry ? (entry.type ?? (entry.isClient ? "client" : "autre")) : (preset?.type ?? null),
+    civilite: entry?.civilite ?? "",
     firstName: entry?.firstName ?? "",
     lastName: entry?.lastName ?? "",
     org: entry?.org?.nom ?? (user && ROLE_ORG[user.role] ? (user.structure ?? "") : (preset?.org ?? "")),
@@ -625,6 +629,7 @@ function PersonDialog({
     if (missingType || missingOrg || missingName || missingEmail) return
     const autresEmails = cleanEmails(v.autresEmails)
     const base = {
+      civilite: v.civilite || undefined,
       firstName: v.firstName.trim(),
       lastName: v.lastName.trim(),
       email: v.email.trim() || undefined,
@@ -702,6 +707,16 @@ function PersonDialog({
               />
             </Field>
           )}
+          <Field className="sm:col-span-2 sm:max-w-xs">
+            <FieldLabel htmlFor="p-civilite">Civilité (optionnel)</FieldLabel>
+            <SimpleSelect
+              id="p-civilite"
+              placeholder="Choisir"
+              value={v.civilite || null}
+              onChange={(c) => set("civilite", c ?? "")}
+              options={CIVILITES.map((c) => ({ value: c, label: c }))}
+            />
+          </Field>
           <Field data-invalid={(tried && missingName) || undefined}>
             <FieldLabel htmlFor="p-first">Prénom</FieldLabel>
             <Input id="p-first" value={v.firstName} onChange={(e) => set("firstName", e.target.value)} />

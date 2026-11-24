@@ -271,6 +271,8 @@ export function compagnieLabel(type: DossierType): string {
 export type User = {
   id: string
   role: RoleId
+  /** Monsieur, Madame, Maître… */
+  civilite?: string
   firstName: string
   lastName: string
   /** E-mail principal : connexion et notifications */

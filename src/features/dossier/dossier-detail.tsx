@@ -40,6 +40,7 @@ import { DocThumbnail, useDocPreview } from "@/components/doc-preview"
 import { Immat } from "@/components/immat"
 import { AbonnementBadge, ExpertiseBadge, LateBadge, StatusBadge, ValidationPills } from "@/components/status-badge"
 import { RoleBadge } from "@/components/role-badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -521,7 +522,13 @@ export function DossierDetail({ id }: { id: string }) {
           <div className="mt-4 flex flex-wrap overflow-hidden rounded-xl border bg-card">
             {/* Coordonnées du client à portée de main : un clic copie */}
             {!isClient && (d.client.phone || d.client.email) && (
-              <HeaderCell label="Contact client">
+              <HeaderCell
+                label={
+                  <>
+                    Contact <RoleBadge role="client" />
+                  </>
+                }
+              >
                 {d.client.phone && <CopyLine icon={Phone} value={d.client.phone} />}
                 {d.client.email && <CopyLine icon={Mail} value={d.client.email} />}
               </HeaderCell>
@@ -716,10 +723,10 @@ export function DossierDetail({ id }: { id: string }) {
 }
 
 /** Colonne de la carte d'en-tête ; les séparateurs du bord gauche/haut sont rognés par la carte quand les colonnes passent à la ligne */
-function HeaderCell({ label, children }: { label: string; children: React.ReactNode }) {
+function HeaderCell({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="-mt-px -ml-px flex min-w-[14rem] flex-1 flex-col gap-1.5 border-t border-l px-4 py-3">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{label}</div>
       {children}
     </div>
   )
@@ -740,6 +747,56 @@ function CopyLine({ icon: Icon, value }: { icon: React.ElementType; value: strin
       <span className="truncate font-medium">{value}</span>
       <Copy className="size-3.5 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
     </button>
+  )
+}
+
+/** Fiche de contact d'une personne : au clic sur son nom, ses coordonnées (un clic sur une ligne la copie) */
+function ContactPopover({
+  name,
+  role,
+  subtitle,
+  lines,
+  className,
+  children,
+}: {
+  name: string
+  role: React.ComponentProps<typeof RoleBadge>["role"]
+  subtitle?: string
+  lines: { icon: React.ElementType; value?: string; label?: string }[]
+  className?: string
+  children: React.ReactNode
+}) {
+  const shown = lines.filter((l) => l.value)
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={`Coordonnées de ${name}`}
+        className={cn("-m-1 flex cursor-pointer items-center gap-3 rounded-lg p-1 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50", className)}
+      >
+        {children}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 gap-2 p-3">
+        <div className="flex flex-col gap-1">
+          <p className="flex items-center gap-1.5 font-medium">
+            {name}
+            <RoleBadge role={role} />
+          </p>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+        {shown.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucune coordonnée renseignée.</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {shown.map((l, i) => (
+              <div key={i} className="flex flex-col">
+                {l.label && <span className="text-[0.7rem] text-muted-foreground">{l.label}</span>}
+                <CopyLine icon={l.icon} value={l.value!} />
+              </div>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -863,31 +920,67 @@ function Intervenants({
       <CardContent>
         <ul className="flex flex-col gap-3">
           <li className="flex items-center gap-3">
-            <UserAvatar user={dossier.client} role="client" />
-            <div className="min-w-0 text-sm">
-              <p className="flex items-center gap-1.5 truncate font-medium">
-                {personneName(dossier.client)}
-                <RoleBadge role="client" />
-              </p>
-              <p className="text-xs text-muted-foreground">Client</p>
-            </div>
+            <ContactPopover
+              name={[dossier.client.kind !== "morale" && dossier.client.civilite, personneName(dossier.client)].filter(Boolean).join(" ")}
+              role="client"
+              subtitle="Client"
+              lines={[
+                { icon: Phone, value: dossier.client.phone },
+                { icon: Mail, value: dossier.client.email },
+                { icon: Mail, value: dossier.client.email2, label: "E-mail 2" },
+                { icon: MapPin, value: dossier.client.address },
+              ]}
+            >
+              <UserAvatar user={dossier.client} role="client" />
+              <div className="min-w-0 text-sm">
+                <p className="flex items-center gap-1.5 truncate font-medium">
+                  {personneName(dossier.client)}
+                  <RoleBadge role="client" />
+                </p>
+                <p className="text-xs text-muted-foreground">Client</p>
+              </div>
+            </ContactPopover>
           </li>
           {rows.map((r, i) => {
             const u = getUser(r.id)
             return (
               <li key={i} className="flex items-center gap-3">
-                {u ? <UserAvatar user={u} /> : <span className="grid size-7 place-items-center rounded-full border border-dashed"><CircleDashed className="size-3.5 text-muted-foreground" /></span>}
-                <div className="min-w-0 flex-1 text-sm">
-                  <p className={cn("flex items-center gap-1.5 truncate", u ? "font-medium" : "text-muted-foreground italic")}>
-                    {u ? fullName(u) : "Non assigné"}
-                    {u && <RoleBadge role={u.role} />}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {r.label}
-                    {u && u.structure !== fullName(u) && ` · ${u.structure}`}
-                  </p>
-                  {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
-                </div>
+                {(() => {
+                  const body = (
+                    <>
+                      {u ? <UserAvatar user={u} /> : <span className="grid size-7 place-items-center rounded-full border border-dashed"><CircleDashed className="size-3.5 text-muted-foreground" /></span>}
+                      <div className="min-w-0 flex-1 text-sm">
+                        <p className={cn("flex items-center gap-1.5 truncate", u ? "font-medium" : "text-muted-foreground italic")}>
+                          {u ? fullName(u) : "Non assigné"}
+                          {u && <RoleBadge role={u.role} />}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {r.label}
+                          {u && u.structure !== fullName(u) && ` · ${u.structure}`}
+                        </p>
+                        {r.ref && <p className="truncate text-xs text-muted-foreground">Réf. {r.ref}</p>}
+                      </div>
+                    </>
+                  )
+                  return u ? (
+                    <ContactPopover
+                      className="min-w-0 flex-1"
+                      name={[u.civilite, fullName(u)].filter(Boolean).join(" ")}
+                      role={u.role}
+                      subtitle={[r.label, u.structure !== fullName(u) ? u.structure : undefined].filter(Boolean).join(" · ")}
+                      lines={[
+                        { icon: Phone, value: u.phone },
+                        { icon: Mail, value: u.email },
+                        ...(u.autresEmails ?? []).map((e) => ({ icon: Mail, value: e.email, label: e.label })),
+                        { icon: MapPin, value: u.address },
+                      ]}
+                    >
+                      {body}
+                    </ContactPopover>
+                  ) : (
+                    <div className="flex min-w-0 flex-1 items-center gap-3">{body}</div>
+                  )
+                })()}
                 {!u && r.slot && onEditIntervenant && (
                   <Button variant="ghost" size="icon-xs" className="shrink-0" aria-label={`Ajouter : ${r.label.toLowerCase()}`} title="Ajouter" onClick={() => onEditIntervenant(r.slot!)}>
                     <Plus />
@@ -986,11 +1079,11 @@ function EditButton({ onClick, label, className }: { onClick: () => void; label:
   )
 }
 
-function InfoCard({ title, rows, onEdit, inline }: { title: string; rows: [string, React.ReactNode][]; onEdit?: () => void; inline?: boolean }) {
+function InfoCard({ title, rows, onEdit, inline, badge }: { title: string; rows: [React.ReactNode, React.ReactNode][]; onEdit?: () => void; inline?: boolean; badge?: React.ComponentProps<typeof RoleBadge>["role"] }) {
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>{badge ? <RoleBadge role={badge} label={title} className="h-6 px-2.5 text-xs" /> : title}</CardTitle>
         {onEdit && (
           <CardAction>
             <EditAction onClick={onEdit} label={`Modifier — ${title}`} />
@@ -1082,6 +1175,7 @@ function General({
     <div className="grid gap-4 md:grid-cols-2">
       <InfoCard
         title="Client"
+        badge="client"
         rows={[
           ...personneRows(d.client),
           ...(showAccount && account ? [["Compte client", account] as [string, React.ReactNode]] : []),
@@ -1167,6 +1261,7 @@ function General({
       )}
       <InfoCard
         title="Expert"
+        badge="expert"
         rows={
           expert
             ? [
@@ -1676,7 +1771,7 @@ function TierceTab({ dossier: d, onAdd, allowed }: { dossier: Dossier; onAdd?: (
         title="Tierce expertise"
         rows={[
           ["Type", d.litigeType === "valeur" ? "Contre-expertise" : d.litigeType === "imputable" ? "Expertise contradictoire" : "À définir par l'expert"],
-          ["Expert", fullName(getUser(d.intervenants.expert))],
+          [<RoleBadge key="expert" role="expert" />, fullName(getUser(d.intervenants.expert))],
           ["Date prévue", d.expertise.date ? formatDate(d.expertise.date) : "—"],
           ["Statut", d.status === "nouveau" || d.status === "en_etude" ? "En attente de validation de l'expert" : "En cours"],
           ["Résultat", "—"],
