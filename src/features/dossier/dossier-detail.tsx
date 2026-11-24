@@ -56,7 +56,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ADMIN_DOC_CATEGORIES,
-  ACTOR_LABELS,
   CIVILITES,
   CLOSING_REASONS,
   DOC_CATEGORIES,
@@ -522,15 +521,6 @@ export function DossierDetail({ id }: { id: string }) {
         {/* Repères du dossier : une carte, une colonne étiquetée par sujet */}
         {(!isClient || rights.pilot || (canSeeNotes && cabinet)) && (
           <div className="mt-4 flex flex-wrap overflow-hidden rounded-xl border bg-card">
-            {/* Gestionnaire et expert toujours visibles : badge coloré, le nom et les coordonnées au clic */}
-            {!isClient && (
-              <HeaderCell label="Intervenants">
-                <div className="flex flex-wrap items-center gap-2">
-                  <HeaderPerson id={d.intervenants.gestionnaire} role="gestionnaire" />
-                  <HeaderPerson id={d.intervenants.expert} role="expert" />
-                </div>
-              </HeaderCell>
-            )}
             {/* Coordonnées du client à portée de main : un clic copie */}
             {!isClient && (d.client.phone || d.client.email) && (
               <HeaderCell
@@ -742,38 +732,6 @@ function HeaderCell({ label, children }: { label: React.ReactNode; children: Rea
       <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{label}</div>
       {children}
     </div>
-  )
-}
-
-/** Badge de rôle cliquable de l'en-tête : le nom au survol, les coordonnées au clic ; grisé tant que personne n'est assigné */
-function HeaderPerson({ id, role }: { id?: string; role: "gestionnaire" | "expert" }) {
-  const u = getUser(id)
-  if (!u)
-    return (
-      <span
-        className="inline-flex h-5 items-center rounded-full border border-dashed px-2 text-[0.7rem] font-medium whitespace-nowrap text-muted-foreground"
-        title="Pas encore assigné"
-      >
-        {ACTOR_LABELS[role]} · non assigné
-      </span>
-    )
-  const name = [u.civilite, fullName(u)].filter(Boolean).join(" ")
-  return (
-    <ContactPopover
-      className="m-0 p-0 hover:bg-transparent"
-      name={name}
-      role={u.role}
-      subtitle={[ACTOR_LABELS[role], u.structure !== fullName(u) ? u.structure : undefined].filter(Boolean).join(" · ")}
-      lines={[
-        { icon: Phone, value: u.phone },
-        { icon: Phone, value: u.phone2, label: "Téléphone 2" },
-        { icon: Mail, value: u.email },
-        ...(u.autresEmails ?? []).map((e) => ({ icon: Mail, value: e.email, label: e.label })),
-        { icon: MapPin, value: u.address },
-      ]}
-    >
-      <RoleBadge role={u.role} label={`${ACTOR_LABELS[role]} · ${fullName(u)}`} className="cursor-pointer" />
-    </ContactPopover>
   )
 }
 
