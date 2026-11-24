@@ -8,6 +8,7 @@ import {
   BookUser,
   Car,
   Check,
+  ChevronDown,
   CircleDashed,
   Gavel,
   Paperclip,
@@ -34,6 +35,7 @@ import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   DOC_CATEGORIES,
+  CIVILITES,
   DOSSIER_TYPES,
   LITIGE_ASSUR_TYPES,
   OBJETS_MISSION,
@@ -71,6 +73,7 @@ import { cn } from "@/lib/utils"
 /** Client ou propriétaire en cours de saisie */
 export type PersonneForm = {
   kind: "physique" | "morale"
+  civilite?: string
   firstName: string
   lastName: string
   societe: string
@@ -232,6 +235,7 @@ export function personneDefaults(p: PersonneForm): PersonneForm {
 
 export const toPersonne = (p: PersonneForm): Personne => ({
   kind: p.kind === "morale" ? "morale" : undefined,
+  civilite: p.kind === "morale" ? undefined : p.civilite || undefined,
   firstName: p.firstName,
   lastName: p.lastName,
   societe: p.societe || undefined,
@@ -306,6 +310,10 @@ export function CreateDossier() {
   const f = form
   /** Experts / réparateurs saisis à la main (hors liste) */
   const [added, setAdded] = React.useState<User[]>([])
+  /** Bloc Expertise replié par défaut */
+  const [expertiseOpen, setExpertiseOpen] = React.useState(false)
+  const [piecesOpen, setPiecesOpen] = React.useState(false)
+  const [intervOpen, setIntervOpen] = React.useState(false)
   const [creating, setCreating] = React.useState<NewRole | null>(null)
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
@@ -583,32 +591,57 @@ export function CreateDossier() {
                       ))}
                     </div>
                   </div>
-                  <Field className="sm:max-w-sm">
-                    <FieldLabel htmlFor="objet-mission">Objet de la mission</FieldLabel>
-                    <SimpleSelect
-                      id="objet-mission"
-                      placeholder="Choisir un objet"
-                      options={OBJETS_MISSION.map((o) => ({ value: o, label: o }))}
-                      value={f.objetMission}
-                      onChange={(v) => set("objetMission", v)}
-                    />
-                  </Field>
+                </div>
+              )}
+
+              {f.type && (
+                <div className="grid items-start gap-4 sm:grid-cols-2">
+                  {f.type === "sinistre" && (
+                    <Field>
+                      <FieldLabel htmlFor="objet-mission">Objet de la mission</FieldLabel>
+                      <SimpleSelect
+                        id="objet-mission"
+                        placeholder="Choisir un objet"
+                        options={OBJETS_MISSION.map((o) => ({ value: o, label: o }))}
+                        value={f.objetMission}
+                        onChange={(v) => set("objetMission", v)}
+                      />
+                    </Field>
+                  )}
+                  {f.type === "litige_auto" && (
+                    <Field>
+                      <FieldLabel htmlFor="type-mission">Type de mission</FieldLabel>
+                      <SimpleSelect
+                        id="type-mission"
+                        placeholder="Choisir un type de mission"
+                        options={TYPES_MISSION.map((o) => ({ value: o, label: o }))}
+                        value={f.typeMission}
+                        onChange={(v) => set("typeMission", v)}
+                      />
+                      <FieldDescription>Le type de mission déterminera le type et le titre du rapport d&apos;expertise.</FieldDescription>
+                    </Field>
+                  )}
+                  {f.type === "litige_assurantiel" && (
+                    <Field>
+                      <FieldLabel htmlFor="objet-litige">Objet du litige</FieldLabel>
+                      <SimpleSelect
+                        id="objet-litige"
+                        placeholder="Choisir un objet"
+                        options={(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[]).map((l) => ({ value: l, label: LITIGE_ASSUR_TYPES[l].label }))}
+                        value={f.litigeType ?? null}
+                        onChange={(v) => set("litigeType", (v as LitigeAssurantielType | null) ?? undefined)}
+                      />
+                    </Field>
+                  )}
+                  <Field>
+                  <FieldLabel htmlFor="dep">Département d&apos;intervention</FieldLabel>
+                  <SimpleSelect id="dep" placeholder="Choisir un département" options={DEPARTEMENTS} value={f.departement} onChange={(v) => set("departement", v)} />
+                </Field>
                 </div>
               )}
 
               {f.type === "litige_auto" && (
                 <div className="flex flex-col gap-5">
-                  <Field>
-                    <FieldLabel htmlFor="type-mission">Type de mission</FieldLabel>
-                    <SimpleSelect
-                      id="type-mission"
-                      placeholder="Choisir un type de mission"
-                      options={TYPES_MISSION.map((o) => ({ value: o, label: o }))}
-                      value={f.typeMission}
-                      onChange={(v) => set("typeMission", v)}
-                    />
-                    <FieldDescription>Le type de mission déterminera le type et le titre du rapport d&apos;expertise.</FieldDescription>
-                  </Field>
                   <Field>
                     <FieldLabel htmlFor="objets-panne">Objet de la panne ou du litige</FieldLabel>
                     <FieldDescription>Sert à définir le champ d&apos;intervention et à donner des précisions pour la convocation. Choix multiples possibles.</FieldDescription>
@@ -632,16 +665,6 @@ export function CreateDossier() {
 
               {f.type === "litige_assurantiel" && (
                 <div className="flex flex-col gap-5">
-                  <Field className="sm:max-w-sm">
-                    <FieldLabel htmlFor="objet-litige">Objet du litige</FieldLabel>
-                    <SimpleSelect
-                      id="objet-litige"
-                      placeholder="Choisir un objet"
-                      options={(Object.keys(LITIGE_ASSUR_TYPES) as LitigeAssurantielType[]).map((l) => ({ value: l, label: LITIGE_ASSUR_TYPES[l].label }))}
-                      value={f.litigeType ?? null}
-                      onChange={(v) => set("litigeType", (v as LitigeAssurantielType | null) ?? undefined)}
-                    />
-                  </Field>
                   {f.litigeType === "autre" && (
                     <Field className="sm:max-w-sm">
                       <FieldLabel htmlFor="litige-autre">Précisez l&apos;objet du litige</FieldLabel>
@@ -649,13 +672,6 @@ export function CreateDossier() {
                     </Field>
                   )}
                 </div>
-              )}
-
-              {typeComplete && (
-                <Field className="sm:max-w-sm">
-                  <FieldLabel htmlFor="dep">Département d&apos;intervention</FieldLabel>
-                  <SimpleSelect id="dep" placeholder="Choisir un département" options={DEPARTEMENTS} value={f.departement} onChange={(v) => set("departement", v)} />
-                </Field>
               )}
             </CardContent>
           </Card>
@@ -846,10 +862,20 @@ export function CreateDossier() {
               {/* Expertise : lieu, date si déjà fixée, immobilisation */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">{sectionNum(nExpertise)} Expertise</CardTitle>
+                  <CardTitle>
+                    <button
+                      type="button"
+                      className="flex w-full cursor-pointer items-center gap-2 text-left"
+                      aria-expanded={expertiseOpen}
+                      onClick={() => setExpertiseOpen((o) => !o)}
+                    >
+                      {sectionNum(nExpertise)} Expertise
+                      <ChevronDown className={cn("ml-auto size-4 text-muted-foreground transition-transform", !expertiseOpen && "-rotate-90")} />
+                    </button>
+                  </CardTitle>
                   <CardDescription>Lieu et date de l&apos;expertise, si vous les connaissez déjà.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                {expertiseOpen && <CardContent>
                   <FieldGroup>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field>
@@ -925,16 +951,26 @@ export function CreateDossier() {
                       </div>
                     )}
                   </FieldGroup>
-                </CardContent>
+                </CardContent>}
               </Card>
 
               {/* 4. Pièces */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">{sectionNum(nPieces)} Pièces du dossier</CardTitle>
+                  <CardTitle>
+                    <button
+                      type="button"
+                      className="flex w-full cursor-pointer items-center gap-2 text-left"
+                      aria-expanded={piecesOpen}
+                      onClick={() => setPiecesOpen((o) => !o)}
+                    >
+                      {sectionNum(nPieces)} Pièces du dossier
+                      <ChevronDown className={cn("ml-auto size-4 text-muted-foreground transition-transform", !piecesOpen && "-rotate-90")} />
+                    </button>
+                  </CardTitle>
                   <CardDescription>Les pièces manquantes peuvent être ajoutées plus tard, par vous ou par le client.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-2">
+                {piecesOpen && <CardContent className="flex flex-col gap-2">
                   {docsExpected.map((c) => {
                     const files = f.docs[c] ?? []
                     const ok = c === "photos" ? files.length >= minPhotos : files.length > 0
@@ -979,23 +1015,35 @@ export function CreateDossier() {
                       </span>
                     ))}
                   </div>
-                </CardContent>
+                </CardContent>}
               </Card>
 
               {/* 5. Intervenants (Nereids ou gestionnaire Help You, point client 22/10) */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">{sectionNum(nInterv)} Intervenants</CardTitle>
+                  <CardTitle>
+                    <button
+                      type="button"
+                      className="flex w-full cursor-pointer items-center gap-2 text-left"
+                      aria-expanded={intervOpen}
+                      onClick={() => setIntervOpen((o) => !o)}
+                    >
+                      {sectionNum(nInterv)} Intervenants
+                      <ChevronDown className={cn("ml-auto size-4 text-muted-foreground transition-transform", !intervOpen && "-rotate-90")} />
+                    </button>
+                  </CardTitle>
                   <CardDescription>Optionnel : vous pourrez assigner les intervenants depuis la fiche dossier.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <AssignFields
-                    value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur }}
-                    onChange={(k, v) => set(k, v)}
-                    added={added}
-                    onCreate={setCreating}
-                  />
-                </CardContent>
+                {intervOpen && (
+                  <CardContent>
+                    <AssignFields
+                      value={{ gestionnaire: f.gestionnaire, expert: f.expert, reparateur: f.reparateur }}
+                      onChange={(k, v) => set(k, v)}
+                      added={added}
+                      onCreate={setCreating}
+                    />
+                  </CardContent>
+                )}
               </Card>
 
               {/* Demande : notes libres qui alimentent l'onglet Général du dossier */}
@@ -1226,7 +1274,7 @@ export function PersonneFields({ id, value: p, onChange }: { id: string; value: 
   function pickPerson(cid: string) {
     const c = people.find((x) => x.id === cid)
     if (!c) return
-    onChange({ ...EMPTY_PERSONNE, firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "", contactId: c.id })
+    onChange({ ...EMPTY_PERSONNE, civilite: c.civilite ?? "", firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "", contactId: c.id })
   }
   function pickOrg(oid: string) {
     const o = orgs.find((x) => x.id === oid)
@@ -1272,6 +1320,16 @@ export function PersonneFields({ id, value: p, onChange }: { id: string; value: 
           </>
         ) : (
           <>
+            <Field className="sm:col-span-2 sm:max-w-xs">
+              <FieldLabel htmlFor={`${id}-civilite`}>Civilité</FieldLabel>
+              <SimpleSelect
+                id={`${id}-civilite`}
+                placeholder="Choisir"
+                value={p.civilite || null}
+                onChange={(c) => onChange({ ...p, civilite: c ?? "" })}
+                options={CIVILITES.map((c) => ({ value: c, label: c }))}
+              />
+            </Field>
             <Field>
               <FieldLabel htmlFor={`${id}-first`}>Prénom</FieldLabel>
               {nameInput("firstName")}
