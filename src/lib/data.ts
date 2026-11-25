@@ -759,20 +759,20 @@ export const USERS: User[] = [
   { id: "u-admin", role: "admin", firstName: "Sophie", lastName: "Marchand", email: "sophie.marchand@nereids.fr", phone: "06 12 34 56 78", structure: "Nereids", fonction: "Responsable des opérations" },
   { id: "u-admin2", role: "admin", firstName: "Antoine", lastName: "Roux", email: "antoine.roux@nereids.fr", phone: "06 22 34 56 78", structure: "Nereids", fonction: "Chargé de pilotage" },
 
-  { id: "u-gest", role: "gestionnaire", firstName: "Julie", lastName: "Perrin", email: "julie.perrin@helpyou.fr", phone: "06 45 67 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 14 },
+  { id: "u-gest", role: "gestionnaire", firstName: "Julie", lastName: "Perrin", civilite: "Madame", email: "julie.perrin@helpyou.fr", autresEmails: [{ label: "Direct", email: "j.perrin@helpyou.fr" }], phone: "06 45 67 89 12", phone2: "04 78 00 11 22", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 14 },
   { id: "u-gest2", role: "gestionnaire", firstName: "Nicolas", lastName: "Fabre", email: "nicolas.fabre@helpyou.fr", phone: "06 45 67 00 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "18 rue de la République, 69002 Lyon", region: "Auvergne-Rhône-Alpes", load: 9 },
   // Gestionnaire Nereids : mêmes droits que les gestionnaires Help You (point client 22/10)
   { id: "u-gest-n", role: "gestionnaire", firstName: "Claire", lastName: "Dumas", email: "claire.dumas@nereids.fr", phone: "06 32 14 58 76", structure: "Nereids", fonction: "Gestionnaire de dossiers", region: "Auvergne-Rhône-Alpes", load: 8 },
   { id: "u-gest3", role: "gestionnaire", firstName: "Inès", lastName: "Haddad", email: "ines.haddad@helpyou.fr", phone: "06 45 11 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "42 boulevard Longchamp, 13001 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 17 },
 
-  { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", email: "m.delorme@cabinet-delorme.fr", phone: "06 78 90 12 34", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", address: "7 place du Breuil, 43000 Le Puy-en-Velay", region: "Auvergne-Rhône-Alpes", load: 11 },
+  { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", civilite: "Monsieur", email: "m.delorme@cabinet-delorme.fr", autresEmails: [{ label: "Secrétariat", email: "secretariat@cabinet-delorme.fr" }], phone: "06 78 90 12 34", phone2: "04 71 05 11 22", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", address: "7 place du Breuil, 43000 Le Puy-en-Velay", region: "Auvergne-Rhône-Alpes", load: 11 },
   { id: "u-expert2", role: "expert", firstName: "Hélène", lastName: "Garnier", email: "h.garnier@cabinet-delorme.fr", phone: "06 78 11 12 34", structure: "Cabinet Delorme Expertise", fonction: "Experte automobile", address: "25 rue Michelet, 42000 Saint-Étienne", region: "Auvergne-Rhône-Alpes", load: 6 },
   { id: "u-expert3", role: "expert", firstName: "Yanis", lastName: "Meunier", email: "y.meunier@sudexpert.fr", phone: "06 78 22 12 34", structure: "Sud Expert", fonction: "Expert automobile", address: "110 avenue du Prado, 13008 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 15 },
 
-  { id: "u-rep", role: "reparateur", firstName: "Luc", lastName: "Benali", email: "contact@garage-benali.fr", phone: "04 71 22 33 44", structure: "Garage Benali Carrosserie", fonction: "Gérant", address: "12 rue des Forges, 43200 Yssingeaux", region: "Auvergne-Rhône-Alpes", load: 7 },
+  { id: "u-rep", role: "reparateur", firstName: "Luc", lastName: "Benali", civilite: "Monsieur", email: "contact@garage-benali.fr", autresEmails: [{ label: "Atelier", email: "atelier@garage-benali.fr" }], phone: "04 71 22 33 44", phone2: "06 80 12 34 56", structure: "Garage Benali Carrosserie", fonction: "Gérant", address: "12 rue des Forges, 43200 Yssingeaux", region: "Auvergne-Rhône-Alpes", load: 7 },
   { id: "u-rep2", role: "reparateur", firstName: "Laura", lastName: "Chevalier", email: "atelier@carrosserie-chevalier.fr", phone: "04 77 22 33 44", structure: "Carrosserie Chevalier", fonction: "Cheffe d'atelier", address: "233 rue de la Rive, 42320 La Grand-Croix", region: "Auvergne-Rhône-Alpes", load: 4 },
 
-  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", email: "e.vasseur@protecjuris.fr", phone: "01 44 55 66 77", structure: "Protec Juris (protection juridique)", fonction: "Juriste", address: "9 rue de Châteaudun, 75009 Paris", region: "Île-de-France" },
+  { id: "u-suiveur", role: "suiveur", firstName: "Élodie", lastName: "Vasseur", civilite: "Madame", email: "e.vasseur@protecjuris.fr", autresEmails: [{ label: "Pôle recours", email: "recours@protecjuris.fr" }], phone: "01 44 55 66 77", phone2: "06 11 22 33 44", structure: "Protec Juris (protection juridique)", fonction: "Juriste", address: "9 rue de Châteaudun, 75009 Paris", region: "Île-de-France" },
   { id: "u-suiveur2", role: "suiveur", firstName: "Paul", lastName: "Lambert", email: "p.lambert@avocat-lambert.fr", phone: "04 72 55 66 77", structure: "Cabinet Lambert", fonction: "Avocat", address: "4 quai Jules Courmont, 69002 Lyon", region: "Auvergne-Rhône-Alpes" },
 
   // Autres clients des dossiers de démo (sans compte actif dans le proto)
@@ -919,9 +919,9 @@ export function seedDossiers(): Dossier[] {
       status: "attente_expertise",
       createdAt: daysFromNow(-12),
       updatedAt: daysFromNow(-1),
-      client: { firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", email: "thomas.lefevre@mail.fr", address: "38 rue Gambetta, 43200 Yssingeaux" },
+      client: { userId: "u-c-lefevre", civilite: "Monsieur", firstName: "Thomas", lastName: "Lefèvre", phone: "06 98 76 54 32", phone2: "04 71 59 20 31", email: "thomas.lefevre@mail.fr", email2: "t.lefevre@lefevre-menuiserie.fr", address: "38 rue Gambetta, 43200 Yssingeaux" },
       vehicule: { marque: "Peugeot", modele: "308 SW", immat: "GH-482-KL", vin: "VF3LBYHZPKS123456" },
-      compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", reference: "AT-77812-S" },
+      compagnie: { nom: "Assurances Atlantique", email: "sinistres@atlantique-assur.fr", email2: "recours@atlantique-assur.fr", phone2: "05 56 00 11 22", reference: "AT-77812-S" },
       refs: { sinistre: "SIN-2026-55481" },
       region: "Auvergne-Rhône-Alpes",
       intervenants: { gestionnaire: "u-gest", expert: "u-expert", reparateur: "u-rep", suiveurs: ["u-suiveur"] },
@@ -933,7 +933,15 @@ export function seedDossiers(): Dossier[] {
         quiDoitAgir: "expert",
         echeance: daysFromNow(2),
       },
-      expertise: { date: daysFromNow(2, 9), lieu: "Garage Benali Carrosserie, 12 rue des Forges, 43200 Yssingeaux", convoques: ["u-c-lefevre", "u-rep", "u-expert"] },
+      expertise: {
+        date: daysFromNow(2, 9),
+        lieu: "Garage Benali Carrosserie, 12 rue des Forges, 43200 Yssingeaux",
+        lieuPhone: "04 71 22 33 44",
+        lieuPhone2: "06 80 12 34 56",
+        lieuEmail: "contact@garage-benali.fr",
+        lieuEmail2: "atelier@garage-benali.fr",
+        convoques: ["u-c-lefevre", "u-rep", "u-expert"],
+      },
       documents: [
         doc("Constat amiable.pdf", "constat", "u-c-lefevre", daysFromNow(-12), "820 Ko"),
         doc("Carte grise recto-verso.pdf", "carte_grise", "u-c-lefevre", daysFromNow(-12), "1,1 Mo"),
