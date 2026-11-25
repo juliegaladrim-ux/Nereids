@@ -1187,6 +1187,15 @@ function General({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <InfoCard
+        title="Client"
+        badge="client"
+        rows={[
+          ...personneRows(d.client),
+          ...(showAccount && account ? [["Compte client", account] as [string, React.ReactNode]] : []),
+        ]}
+        onEdit={editable("client")}
+      />
+      <InfoCard
         title="Dossier"
         rows={[
           ["Type", DOSSIER_TYPES[d.type].label],
@@ -1202,24 +1211,6 @@ function General({
           ["Département d'intervention", dossierDepartement(d)],
         ]}
         onEdit={editable("dossier")}
-      />
-      <InfoCard
-        title="Description"
-        rows={[
-          ["Problème", d.description],
-          ["Déclaration de la demande client et commentaire de l'expert", d.declaration],
-          ["Souhait prioritaire du mandant", d.souhait],
-        ]}
-        onEdit={editable("description")}
-      />
-      <InfoCard
-        title="Client"
-        badge="client"
-        rows={[
-          ...personneRows(d.client),
-          ...(showAccount && account ? [["Compte client", account] as [string, React.ReactNode]] : []),
-        ]}
-        onEdit={editable("client")}
       />
       <InfoCard
         title="Véhicule"
@@ -1244,6 +1235,15 @@ function General({
           ],
         ]}
         onEdit={editable("vehicule")}
+      />
+      <InfoCard
+        title="Description"
+        rows={[
+          ["Problème", d.description],
+          ["Déclaration de la demande client et commentaire de l'expert", d.declaration],
+          ["Souhait prioritaire du mandant", d.souhait],
+        ]}
+        onEdit={editable("description")}
       />
       <PartiesCard
         dossier={d}
