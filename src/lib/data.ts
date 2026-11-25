@@ -508,6 +508,11 @@ export type PropositionExpert = {
   /** Lieu confirmé (celui proposé par le client) ou autre lieu proposé par l'expert */
   lieu: string
   lieuConfirme: boolean
+  /** Coordonnées du lieu quand l'expert en propose un autre */
+  lieuPhone?: string
+  lieuPhone2?: string
+  lieuEmail?: string
+  lieuEmail2?: string
   /** 3 dates (ISO) par ordre de priorité */
   dates: string[]
   /** L'expert a joint le client et le lieu d'expertise par téléphone : ils sont d'accord sur la date */

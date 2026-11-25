@@ -89,6 +89,7 @@ import {
   setExpertise,
   type DocCategory,
   type Dossier,
+  type Expertise,
   type DossierType,
   type LitigeAssurantielType,
   type Personne,
@@ -540,7 +541,7 @@ export function DossierDetail({ id }: { id: string }) {
             {rights.pilot && (
               <>
                 <HeaderCell label="Expertise">
-                  <ExpertiseBadge dossier={d} />
+                  <ExpertiseBadge dossier={d} wrapLieu={(l) => <LieuPopover expertise={d.expertise}>{l}</LieuPopover>} />
                 </HeaderCell>
                 <HeaderCell label="Mission · Devis · Règlement">
                   {manager ? <EditableValidationPills dossier={d} /> : <ValidationPills validation={clientValidation(d)} />}
@@ -736,6 +737,25 @@ function HeaderCell({ label, children }: { label: React.ReactNode; children: Rea
   )
 }
 
+/** Lieu d'une expertise : un clic affiche son adresse et ses coordonnées (téléphones, e-mails) */
+function LieuPopover({ expertise: e, children }: { expertise: Expertise; children: React.ReactNode }) {
+  if (!e.lieu) return <>{children}</>
+  return (
+    <ContactPopover
+      name={e.lieu}
+      className="m-0 inline p-0 text-left underline-offset-2 hover:bg-transparent hover:underline"
+      lines={[
+        { icon: Phone, value: e.lieuPhone },
+        { icon: Phone, value: e.lieuPhone2, label: "Téléphone 2" },
+        { icon: Mail, value: e.lieuEmail },
+        { icon: Mail, value: e.lieuEmail2, label: "E-mail 2" },
+      ]}
+    >
+      {children}
+    </ContactPopover>
+  )
+}
+
 function CopyLine({ icon: Icon, value }: { icon: React.ElementType; value: string }) {
   return (
     <button
@@ -764,7 +784,7 @@ function ContactPopover({
   children,
 }: {
   name: string
-  role: React.ComponentProps<typeof RoleBadge>["role"]
+  role?: React.ComponentProps<typeof RoleBadge>["role"]
   subtitle?: string
   lines: { icon: React.ElementType; value?: string; label?: string }[]
   className?: string
@@ -784,7 +804,7 @@ function ContactPopover({
         <div className="flex flex-col gap-1">
           <p className="flex items-center gap-1.5 font-medium">
             {name}
-            <RoleBadge role={role} />
+            {role && <RoleBadge role={role} />}
           </p>
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
@@ -1699,10 +1719,7 @@ function ExpertiseTab({
               title="Rendez-vous"
               rows={[
                 ["Date", e.date ? <span key="d" className="first-letter:uppercase">{formatLongDate(e.date)}</span> : add("date", onEdit(i))],
-                ["Lieu", e.lieu ?? add("lieu", onEdit(i))],
-                ...(e.lieuPhone || e.lieuPhone2 || e.lieuEmail || e.lieuEmail2
-                  ? ([["Contact du lieu", [e.lieuPhone, e.lieuPhone2, e.lieuEmail, e.lieuEmail2].filter(Boolean).join(" · ")]] as [string, React.ReactNode][])
-                  : []),
+                ["Lieu", e.lieu ? <LieuPopover key="l" expertise={e}>{e.lieu}</LieuPopover> : add("lieu", onEdit(i))],
                 ...(i === 0 && d.proposition ? [["Motif", d.proposition.motif] as [string, React.ReactNode]] : []),
                 ["Statut", !e.date ? "À programmer" : e.realisee ? "Réalisée" : `Prévue ${relativeDays(e.date)}`],
                 [

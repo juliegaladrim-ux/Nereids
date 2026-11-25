@@ -282,7 +282,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
     people.filter((p) => p.id === clientConvoqueId(d) || p.id === d.intervenants.expert || p.id === d.intervenants.reparateur).map((p) => p.id),
   )
   const [lieuMode, setLieuMode] = React.useState<"client" | "autre">(d.lieuClient ? "client" : "autre")
-  const [autre, setAutre] = React.useState({ nom: "", adresse: "", cp: "", ville: "" })
+  const [autre, setAutre] = React.useState({ nom: "", adresse: "", cp: "", ville: "", phone: "", phone2: "", email: "", email2: "" })
   const [dates, setDates] = React.useState(["", "", ""])
   const [confirme, setConfirme] = React.useState(false)
   const [observations, setObservations] = React.useState("")
@@ -336,6 +336,12 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
           motif: motif.trim(),
           lieu,
           lieuConfirme: lieuMode === "client",
+          ...(lieuMode === "autre" && {
+            lieuPhone: autre.phone.trim() || undefined,
+            lieuPhone2: autre.phone2.trim() || undefined,
+            lieuEmail: autre.email.trim() || undefined,
+            lieuEmail2: autre.email2.trim() || undefined,
+          }),
           dates: isoDates,
           confirmeTelephone: confirme || undefined,
           observations: observations.trim() || undefined,
@@ -481,6 +487,24 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
                 <FieldLabel htmlFor="p-l-ville">Ville</FieldLabel>
                 <Input id="p-l-ville" value={autre.ville} onChange={(e) => setAutre((a) => ({ ...a, ville: e.target.value }))} />
               </Field>
+              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="p-l-tel">Téléphone du lieu</FieldLabel>
+                  <Input id="p-l-tel" type="tel" value={autre.phone} onChange={(e) => setAutre((a) => ({ ...a, phone: e.target.value }))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="p-l-tel2">Deuxième téléphone</FieldLabel>
+                  <Input id="p-l-tel2" type="tel" value={autre.phone2} onChange={(e) => setAutre((a) => ({ ...a, phone2: e.target.value }))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="p-l-mail">E-mail du lieu</FieldLabel>
+                  <Input id="p-l-mail" type="email" value={autre.email} onChange={(e) => setAutre((a) => ({ ...a, email: e.target.value }))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="p-l-mail2">Deuxième e-mail</FieldLabel>
+                  <Input id="p-l-mail2" type="email" value={autre.email2} onChange={(e) => setAutre((a) => ({ ...a, email2: e.target.value }))} />
+                </Field>
+              </div>
             </div>
           )}
         </FormSection>
@@ -525,10 +549,10 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
   const [autreDate, setAutreDate] = React.useState("")
   const [lieu, setLieu] = React.useState(p.lieu)
   const [lieuCoord, setLieuCoord] = React.useState({
-    phone: d.expertise.lieuPhone ?? "",
-    phone2: d.expertise.lieuPhone2 ?? "",
-    email: d.expertise.lieuEmail ?? "",
-    email2: d.expertise.lieuEmail2 ?? "",
+    phone: d.expertise.lieuPhone ?? p.lieuPhone ?? "",
+    phone2: d.expertise.lieuPhone2 ?? p.lieuPhone2 ?? "",
+    email: d.expertise.lieuEmail ?? p.lieuEmail ?? "",
+    email2: d.expertise.lieuEmail2 ?? p.lieuEmail2 ?? "",
   })
   const date = choice === "autre" ? fromDateInput(autreDate) : p.dates[Number(choice)]
   const convoques = d.expertise.aConvoquer ?? []

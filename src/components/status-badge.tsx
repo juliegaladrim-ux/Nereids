@@ -166,7 +166,7 @@ export function AbonnementBadge({ abonnement, showLabel, className }: { abonneme
 }
 
 /** Rendez-vous d'expertise dans l'en-tête : date, lieu et état de la convocation, en clair */
-export function ExpertiseBadge({ dossier: d, className }: { dossier: Dossier; className?: string }) {
+export function ExpertiseBadge({ dossier: d, className, wrapLieu }: { dossier: Dossier; className?: string; /** Rend le lieu cliquable (coordonnées) */ wrapLieu?: (lieu: React.ReactNode) => React.ReactNode }) {
   const { date, lieu } = d.expertise
   const sent = convocationSent(d)
   const day = date ? new Date(date).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : null
@@ -185,7 +185,7 @@ export function ExpertiseBadge({ dossier: d, className }: { dossier: Dossier; cl
           {day} à {time}
         </span>
       </span>
-      {lieu && <span className="pl-5.5 text-muted-foreground">{lieu}</span>}
+      {lieu && <span className="pl-5.5 text-muted-foreground">{wrapLieu ? wrapLieu(lieu) : lieu}</span>}
       <span className="inline-flex items-center gap-2 pl-0.5 text-sm text-muted-foreground">
         <span className={cn("mx-[3px] size-2 shrink-0 rounded-full", sent ? "bg-tone-done" : "bg-muted-foreground/40")} />
         {sent ? "Convocation envoyée" : "Convocation pas encore envoyée"}
