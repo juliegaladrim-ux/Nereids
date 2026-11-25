@@ -524,6 +524,12 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
   const [choice, setChoice] = React.useState("0")
   const [autreDate, setAutreDate] = React.useState("")
   const [lieu, setLieu] = React.useState(p.lieu)
+  const [lieuCoord, setLieuCoord] = React.useState({
+    phone: d.expertise.lieuPhone ?? "",
+    phone2: d.expertise.lieuPhone2 ?? "",
+    email: d.expertise.lieuEmail ?? "",
+    email2: d.expertise.lieuEmail2 ?? "",
+  })
   const date = choice === "autre" ? fromDateInput(autreDate) : p.dates[Number(choice)]
   const convoques = d.expertise.aConvoquer ?? []
 
@@ -533,7 +539,15 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
     updateDossier(d.id, (x) => ({
       ...x,
       status: reached ? x.status : "convocation_a_faire",
-      expertise: { ...x.expertise, date, lieu: lieu.trim() },
+      expertise: {
+        ...x.expertise,
+        date,
+        lieu: lieu.trim(),
+        lieuPhone: lieuCoord.phone.trim() || undefined,
+        lieuPhone2: lieuCoord.phone2.trim() || undefined,
+        lieuEmail: lieuCoord.email.trim() || undefined,
+        lieuEmail2: lieuCoord.email2.trim() || undefined,
+      },
       pilotage: {
         ...x.pilotage,
         ouEnEst: "Expertise programmée, convocations à générer.",
@@ -588,6 +602,24 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
             <FieldLabel htmlFor="g-lieu">Lieu *</FieldLabel>
             <Input id="g-lieu" value={lieu} onChange={(e) => setLieu(e.target.value)} />
           </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="g-lieu-tel">Téléphone du lieu</FieldLabel>
+              <Input id="g-lieu-tel" type="tel" value={lieuCoord.phone} onChange={(e) => setLieuCoord((c) => ({ ...c, phone: e.target.value }))} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="g-lieu-tel2">Deuxième téléphone du lieu</FieldLabel>
+              <Input id="g-lieu-tel2" type="tel" value={lieuCoord.phone2} onChange={(e) => setLieuCoord((c) => ({ ...c, phone2: e.target.value }))} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="g-lieu-mail">E-mail du lieu</FieldLabel>
+              <Input id="g-lieu-mail" type="email" value={lieuCoord.email} onChange={(e) => setLieuCoord((c) => ({ ...c, email: e.target.value }))} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="g-lieu-mail2">Deuxième e-mail du lieu</FieldLabel>
+              <Input id="g-lieu-mail2" type="email" value={lieuCoord.email2} onChange={(e) => setLieuCoord((c) => ({ ...c, email2: e.target.value }))} />
+            </Field>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>

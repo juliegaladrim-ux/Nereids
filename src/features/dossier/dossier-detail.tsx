@@ -1807,8 +1807,16 @@ export function expertiseSection(d: Dossier, index: number, apply: (title: strin
     fields: [
       { key: "date", label: "Date et heure", type: "datetime", full: true },
       { key: "lieu", label: "Lieu", full: true },
+      { key: "lieuPhone", label: "Téléphone du lieu", type: "tel" },
+      { key: "lieuPhone2", label: "Deuxième téléphone du lieu", type: "tel" },
+      { key: "lieuEmail", label: "E-mail du lieu", type: "email" },
+      { key: "lieuEmail2", label: "Deuxième e-mail du lieu", type: "email" },
     ],
     initial: {
+      lieuPhone: e.lieuPhone ?? "",
+      lieuPhone2: e.lieuPhone2 ?? "",
+      lieuEmail: e.lieuEmail ?? "",
+      lieuEmail2: e.lieuEmail2 ?? "",
       date: toDateTimeInput(e.date),
       lieu: e.lieu ?? (index === 0 ? (d.proposition?.lieu ?? lieuClient) : ""),
     },
@@ -1835,6 +1843,10 @@ export function expertiseSection(d: Dossier, index: number, apply: (title: strin
           ...cur,
           date: fromDateInput(v.date),
           lieu: opt(v.lieu),
+          lieuPhone: opt(v.lieuPhone ?? ""),
+          lieuPhone2: opt(v.lieuPhone2 ?? ""),
+          lieuEmail: opt(v.lieuEmail ?? ""),
+          lieuEmail2: opt(v.lieuEmail2 ?? ""),
           // Les convocations se génèrent ensuite, une par personne (bloc « Personnes à convoquer »)
         })),
       ),
