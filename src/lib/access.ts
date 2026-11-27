@@ -7,6 +7,11 @@ export function visibleDossiers(all: Dossier[], role: RoleId, userId: string): D
   switch (role) {
     case "admin":
       return all
+    case "admin_cabinet": {
+      // Les dossiers dont l'expert appartient à son cabinet
+      const cabinet = getUser(userId)?.structure
+      return all.filter((d) => !!cabinet && getUser(d.intervenants.expert)?.structure === cabinet)
+    }
     case "gestionnaire":
       return all.filter((d) => d.intervenants.gestionnaire === userId)
     case "expert":
@@ -185,7 +190,7 @@ export function dossierRights(role: RoleId, userId: string, abonnement?: Abonnem
       telephonieSeule: true,
     }
   }
-  if (role === "gestionnaire") {
+  if (role === "gestionnaire" || role === "admin_cabinet") {
     return {
       pilot: true,
       canEdit: () => true,

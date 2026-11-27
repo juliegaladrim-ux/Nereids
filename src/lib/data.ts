@@ -391,8 +391,10 @@ export type Expertise = {
   lieuEmail2?: string
   /** Personnes à qui la convocation a été envoyée — vide = convocation pas encore faite */
   convoques: string[]
-  /** Personnes à convoquer, ajoutées à la main avant l'envoi (à défaut : client, réparateur, expert) */
+  /** Personnes à convoquer, ajoutées à la main avant l'envoi (à défaut : client, réparateur) */
   aConvoquer?: string[]
+  /** Motif de la convocation de chaque personne (id de la personne → motif) */
+  motifs?: Record<string, string>
   /** Convocation générée pour chaque personne : id de la personne → id du document (une convocation par personne) */
   convocationDocs?: Record<string, string>
   pvDocId?: string
@@ -507,7 +509,8 @@ export type PropositionExpert = {
   expert: string
   /** Montant des honoraires, en euros */
   honoraires: number
-  motif: string
+  /** Ancien motif global de la convocation (remplacé par un motif par personne) */
+  motif?: string
   /** Lieu confirmé (celui proposé par le client) ou autre lieu proposé par l'expert */
   lieu: string
   lieuConfirme: boolean
@@ -516,8 +519,14 @@ export type PropositionExpert = {
   lieuPhone2?: string
   lieuEmail?: string
   lieuEmail2?: string
-  /** 3 dates (ISO) par ordre de priorité */
+  /** Lieu convenu avec le client */
+  lieuConvenu?: boolean
+  /** 1 à 3 dates (ISO) par ordre de priorité */
   dates: string[]
+  /** Une seule date proposée : elle a été convenue avec le client */
+  dateConvenue?: boolean
+  /** Honoraires en cas de deuxième expertise : ligne ajoutée au devis (à titre d'information ou actée) */
+  secondeExpertise?: { montant: number; acte: boolean }
   /** L'expert a joint le client et le lieu d'expertise par téléphone : ils sont d'accord sur la date */
   confirmeTelephone?: boolean
   /** Observations libres de l'expert */
@@ -769,6 +778,7 @@ export const USERS: User[] = [
   { id: "u-gest3", role: "gestionnaire", firstName: "Inès", lastName: "Haddad", email: "ines.haddad@helpyou.fr", phone: "06 45 11 89 12", structure: "Help You", fonction: "Gestionnaire de dossiers", address: "42 boulevard Longchamp, 13001 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 17 },
 
   { id: "u-expert", role: "expert", firstName: "Marc", lastName: "Delorme", civilite: "Monsieur", email: "m.delorme@cabinet-delorme.fr", autresEmails: [{ label: "Secrétariat", email: "secretariat@cabinet-delorme.fr" }], phone: "06 78 90 12 34", phone2: "04 71 05 11 22", structure: "Cabinet Delorme Expertise", fonction: "Expert automobile", address: "7 place du Breuil, 43000 Le Puy-en-Velay", region: "Auvergne-Rhône-Alpes", load: 11 },
+  { id: "u-admincab", role: "admin_cabinet", civilite: "Madame", firstName: "Sylvie", lastName: "Delorme", email: "s.delorme@cabinet-delorme.fr", phone: "04 71 05 22 10", structure: "Cabinet Delorme Expertise", fonction: "Dirigeante du cabinet", address: "7 place du Breuil, 43000 Le Puy-en-Velay", region: "Auvergne-Rhône-Alpes" },
   { id: "u-expert2", role: "expert", firstName: "Hélène", lastName: "Garnier", email: "h.garnier@cabinet-delorme.fr", phone: "06 78 11 12 34", structure: "Cabinet Delorme Expertise", fonction: "Experte automobile", address: "25 rue Michelet, 42000 Saint-Étienne", region: "Auvergne-Rhône-Alpes", load: 6 },
   { id: "u-expert3", role: "expert", firstName: "Yanis", lastName: "Meunier", email: "y.meunier@sudexpert.fr", phone: "06 78 22 12 34", structure: "Sud Expert", fonction: "Expert automobile", address: "110 avenue du Prado, 13008 Marseille", region: "Provence-Alpes-Côte d'Azur", load: 15 },
 
@@ -1487,6 +1497,7 @@ export const WORKFLOW_STEPS: Record<DossierType, { label: string; statuses: Stat
 export const ACTOR_LABELS: Record<RoleId | "nereids" | "all", string> = {
   admin: "Nereids",
   nereids: "Nereids",
+  admin_cabinet: "Admin cabinet",
   gestionnaire: "Gestionnaire",
   expert: "Expert",
   reparateur: "Réparateur",
@@ -1549,6 +1560,7 @@ export const QUALITES_INTERVENANT = [
   "Assureur adverse",
   "Avocat",
   "Cabinet d'expertise",
+  "Client",
   "Commissaire de justice",
   "Conseiller technique",
   "Constructeur",
@@ -1575,6 +1587,7 @@ export const QUALITES_INTERVENANT = [
   "Témoin",
   "Utilisateur du véhicule",
   "Vendeur de pièces détachées",
+  "Vendeur du véhicule",
   "Autre",
 ] as const
 

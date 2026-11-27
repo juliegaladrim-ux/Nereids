@@ -6,6 +6,7 @@ import { userProfile, type RoleId } from "@/lib/roles"
 /** Couleur d'identification par rôle (tokens --role-* de globals.css) : même code partout dans le dossier */
 export const ROLE_COLORS: Record<RoleId, string> = {
   admin: "bg-role-admin-bg text-role-admin",
+  admin_cabinet: "bg-role-expert-bg text-role-expert",
   gestionnaire: "bg-role-gestionnaire-bg text-role-gestionnaire",
   expert: "bg-role-expert-bg text-role-expert",
   reparateur: "bg-role-reparateur-bg text-role-reparateur",

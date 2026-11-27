@@ -55,6 +55,7 @@ function corps(d: Dossier, index: number, c: Convoque, modele: Modele, expertNam
   const vehicule = `${d.vehicule.marque} ${d.vehicule.modele}, immatriculé ${d.vehicule.immat}`.replace("  ", " ")
   const quand = e.date ? formatLongDate(e.date) : "[date à préciser]"
   const desordres =
+    e.motifs?.[c.id] ||
     d.proposition?.motif ||
     (d.objetsPanne?.length ? d.objetsPanne.map((o) => (o === "Autre" && d.panneAutre ? d.panneAutre : o)).join(", ") : "") ||
     d.description ||

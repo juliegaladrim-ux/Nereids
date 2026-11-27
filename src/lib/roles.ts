@@ -1,6 +1,7 @@
 import {
   Archive,
   BookUser,
+  Building2,
   CalendarDays,
   FolderOpen,
   Users,
@@ -9,6 +10,7 @@ import {
 
 export type RoleId =
   | "admin"
+  | "admin_cabinet"
   | "gestionnaire"
   | "expert"
   | "reparateur"
@@ -56,6 +58,20 @@ export const ROLES: Role[] = [
       { label: "Archives", path: "archives", icon: Archive },
       { label: "Utilisateurs", path: "utilisateurs", icon: Users },
       { label: "Annuaire", path: "annuaire", icon: BookUser },
+    ],
+  },
+  {
+    id: "admin_cabinet",
+    label: "Administrateur cabinet",
+    short: "Admin cabinet",
+    description: "Renseigne la fiche de son cabinet (RIB, logo, informations) et gère ses gestionnaires et ses experts.",
+    userId: "u-admincab",
+    ready: true,
+    canCreateDossier: false,
+    home: "dossiers",
+    nav: [
+      { label: "Dossiers du cabinet", path: "dossiers", icon: FolderOpen },
+      { label: "Mon cabinet", path: "cabinet", icon: Building2 },
     ],
   },
   {

@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DossierFacturation } from "./dossier-facturation"
+import { DevisSignatureBanner, RibCard } from "./devis-signature"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ACTOR_LABELS,
@@ -132,7 +133,7 @@ export function DossierDetail({ id }: { id: string }) {
   const cabinet = useDossierCabinet(found)
   const rights = dossierRights(role.id, user.id, cabinet?.abonnement)
   // Notes internes partagées entre Nereids et les gestionnaires Help You
-  const canSeeNotes = role.id === "admin" || role.id === "gestionnaire"
+  const canSeeNotes = role.id === "admin" || role.id === "gestionnaire" || role.id === "admin_cabinet"
   const isClient = role.id === "client"
   const listLabel = role.nav.find((n) => n.path === "dossiers")?.label ?? "Dossiers"
   // Un rôle restreint n'ouvre que les dossiers qui le concernent
@@ -217,9 +218,9 @@ export function DossierDetail({ id }: { id: string }) {
   }
   const editable = (id: SectionId) => (rights.canEdit(id) ? () => openEdit(id) : undefined)
   // Expertises multiples et convoqués : admin, expert et gestionnaire (CDC v2 : expertise à planifier, convocations)
-  const canManageExpertise = role.id === "admin" || role.id === "expert" || (role.id === "gestionnaire" && !rights.telephonieSeule)
+  const canManageExpertise = role.id === "admin" || role.id === "admin_cabinet" || role.id === "expert" || (role.id === "gestionnaire" && !rights.telephonieSeule)
   // Parcours d'expertise : mission, voyants M/D/R, programmation — Nereids et gestionnaire (hors Téléphonie seule)
-  const manager = role.id === "admin" || (role.id === "gestionnaire" && !rights.telephonieSeule)
+  const manager = role.id === "admin" || role.id === "admin_cabinet" || (role.id === "gestionnaire" && !rights.telephonieSeule)
 
   /** Le client indique le lieu de l'expertise (son garage) — à l'activation, ou ici s'il ne l'avait pas encore */
   function lieuSection(): EditSection {
@@ -595,6 +596,9 @@ export function DossierDetail({ id }: { id: string }) {
       {/* Prochaine étape du parcours d'expertise (mission, pré-étude, programmation) */}
       <ExpertiseParcoursBanner dossier={d} manager={manager} onAssign={() => setDialog("assign")} onRefused={() => router.push(href("dossiers"))} />
 
+      {/* Client : devis généré par l'expert, à signer (CGV acceptées en même temps) */}
+      {isClient && <DevisSignatureBanner dossier={d} />}
+
       {/* Admin : demandes d'ouverture de compte intervenant faites par le client */}
       {rights.assign &&
         pendingRequests.map((r) => (
@@ -689,6 +693,7 @@ export function DossierDetail({ id }: { id: string }) {
             pending={pendingRequests}
             onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
           />
+          {(isClient || canSeeNotes) && <RibCard cabinet={cabinet} />}
           <Card size="sm">
             <CardHeader>
               <CardTitle>Références</CardTitle>
@@ -1362,7 +1367,7 @@ function Documents({
   const [selected, setSelected] = React.useState<string[]>([])
   const preview = useDocPreview()
   // Nereids, gestionnaire et expert décident de la confidentialité
-  const canSetConfidential = role.id === "admin" || role.id === "gestionnaire" || role.id === "expert"
+  const canSetConfidential = role.id === "admin" || role.id === "admin_cabinet" || role.id === "gestionnaire" || role.id === "expert"
   const newIds = visible.filter((doc) => isNewDoc(doc, user.id)).map((doc) => doc.id)
   const countOf = (adm: boolean) => visible.filter((doc) => ADMIN_DOC_CATEGORIES.includes(doc.category) === adm).length
   const newIn = (adm: boolean) => visible.filter((doc) => ADMIN_DOC_CATEGORIES.includes(doc.category) === adm && isNewDoc(doc, user.id)).length
@@ -1505,7 +1510,7 @@ function Documents({
             ))}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {picked.length > 0 ? (
             <Button variant="outline" size="sm" onClick={() => toast.info(`Téléchargement de ${picked.length} document(s) (ZIP) — simulation`)}>
               <Download /> Télécharger la sélection ({picked.length})
@@ -1561,10 +1566,17 @@ function Documents({
                     <span className={cn("truncate text-sm", isNewDoc(doc, user.id) ? "font-semibold" : "font-medium")}>{doc.name}</span>
                     {badges(doc)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {docLabel(doc)} · <span className="text-foreground">Document du {formatDate(docDate(doc))}</span> · ajouté par{" "}
-                    {fullName(author)}
-                    {author && <RoleBadge role={author.role} className="mx-1 h-4 align-middle" />}le {formatDateTime(doc.addedAt)} · {doc.size}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {docLabel(doc)} · {doc.size}
+                  </p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>
+                      Date du document : <span className="font-medium text-foreground">{formatDate(docDate(doc))}</span>
+                    </span>
+                    <span className="flex items-center">
+                      Ajouté le {formatDateTime(doc.addedAt)} par&nbsp;{fullName(author)}
+                      {author && <RoleBadge role={author.role} className="ml-1 h-4 align-middle" />}
+                    </span>
                   </p>
                 </div>
                 {actions(doc)}
@@ -1595,7 +1607,10 @@ function Documents({
                     {doc.name}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">{docLabel(doc)}</p>
-                  <p className="text-xs">Document du {formatDate(docDate(doc))}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Document du <span className="font-medium text-foreground">{formatDate(docDate(doc))}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Ajouté le {formatDate(doc.addedAt)}</p>
                   <div className="mt-1 flex flex-wrap gap-1">{badges(doc)}</div>
                 </div>
               </li>
@@ -1735,7 +1750,7 @@ function ExpertiseTab({
             <p className="max-w-sm text-sm text-muted-foreground">
               {role.id === "expert"
                 ? "Le gestionnaire programmera l'expertise à partir de votre proposition."
-                : role.id === "admin" || role.id === "gestionnaire"
+                : role.id === "admin" || role.id === "gestionnaire" || role.id === "admin_cabinet"
                   ? "Programmez l'expertise dès que la date et le lieu sont arrêtés. Les participants seront convoqués automatiquement."
                   : "Vous recevrez une convocation dès que la date et le lieu seront fixés."}
             </p>
@@ -1752,9 +1767,8 @@ function ExpertiseTab({
             <InfoCard
               title="Rendez-vous"
               rows={[
-                ["Date", e.date ? <span key="d" className="first-letter:uppercase">{formatLongDate(e.date)}</span> : add("date", onEdit(i))],
-                ["Lieu", e.lieu ? <LieuPopover key="l" expertise={e}>{e.lieu}</LieuPopover> : add("lieu", onEdit(i))],
-                ...(i === 0 && d.proposition ? [["Motif", d.proposition.motif] as [string, React.ReactNode]] : []),
+                ["Date", e.date ? <span key="d"><span className="first-letter:uppercase">{formatLongDate(e.date)}</span>{i === 0 && d.proposition?.dateConvenue && <span className="block text-xs font-normal text-muted-foreground">Convenue avec le client</span>}</span> : add("date", onEdit(i))],
+                ["Lieu", e.lieu ? <span key="l"><LieuPopover expertise={e}>{e.lieu}</LieuPopover>{i === 0 && d.proposition?.lieuConvenu && <span className="block text-xs font-normal text-muted-foreground">Convenu avec le client</span>}</span> : add("lieu", onEdit(i))],
                 ["Statut", !e.date ? "À programmer" : e.realisee ? "Réalisée" : `Prévue ${relativeDays(e.date)}`],
                 [
                   "Convocation",

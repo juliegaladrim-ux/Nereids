@@ -3,6 +3,8 @@
  * Prototype : tout est fictif, rien n'est réellement envoyé à Pennylane.
  */
 
+import type { Dossier } from "./data"
+
 export type PieceKind = "devis" | "facture" | "avoir"
 export type LigneType = "service" | "frais" | "remise"
 /** Devis : brouillon → émis → accepté / refusé. Facture et avoir : brouillon → émis. */
@@ -19,6 +21,8 @@ export type Ligne = {
   unitHt: number
   /** TVA en % */
   tva: number
+  /** Ligne affichée à titre d'information : elle ne compte pas dans les totaux (ex. deuxième expertise éventuelle) */
+  info?: boolean
 }
 
 export type Piece = {
@@ -34,6 +38,10 @@ export type Piece = {
   client: { type: ClientType; firstName: string; lastName: string; email: string; address?: string }
   /** Pièce importée depuis un fichier (les lignes se résument alors à un montant) */
   fichier?: string
+  /** Signature du client (simulation YouSign) avec acceptation des CGV */
+  signature?: { at: string; by: string; cgv: boolean }
+  /** Pièce générée automatiquement quand l'expert renseigne ses honoraires */
+  auto?: boolean
   /** Synchronisation Pennylane (simulée) */
   pennylane?: { at: string }
   createdAt: string
@@ -92,7 +100,8 @@ export function ligneHt(l: Ligne): number {
 }
 export const ligneTtc = (l: Ligne): number => round2(ligneHt(l) * (1 + l.tva / 100))
 
-export function totaux(lignes: Ligne[]) {
+export function totaux(all: Ligne[]) {
+  const lignes = all.filter((l) => !l.info)
   const ht = round2(lignes.reduce((s, l) => s + ligneHt(l), 0))
   const ttc = round2(lignes.reduce((s, l) => s + ligneTtc(l), 0))
   return { ht, tva: round2(ttc - ht), ttc }
@@ -108,7 +117,7 @@ export function compteurs(f: Facturation | undefined) {
   const base =
     pieces.filter((p) => p.kind === "facture" && p.statut === "emis").sort(recent)[0] ??
     pieces.filter((p) => p.kind === "devis" && p.statut !== "refuse" && p.statut !== "brouillon").sort(recent)[0]
-  const fraisTtc = base ? round2(base.lignes.filter((l) => l.type === "frais").reduce((s, l) => s + ligneTtc(l), 0)) : 0
+  const fraisTtc = base ? round2(base.lignes.filter((l) => l.type === "frais" && !l.info).reduce((s, l) => s + ligneTtc(l), 0)) : 0
   const total = base ? totaux(base.lignes).ttc : 0
   const avoirs = round2(pieces.filter((p) => p.kind === "avoir" && p.statut === "emis").reduce((s, p) => s + totaux(p.lignes).ttc, 0))
   const paye = round2((f?.paiements ?? []).reduce((s, p) => s + p.amount, 0))
@@ -127,4 +136,34 @@ export function compteurs(f: Facturation | undefined) {
 export function nextNumber(kind: PieceKind, all: (Facturation | undefined)[]): number {
   const max = all.flatMap((f) => f?.pieces ?? []).filter((p) => p.kind === kind).reduce((m, p) => Math.max(m, p.number), PIECE_LABELS[kind].start - 1)
   return max + 1
+}
+
+/**
+ * Devis généré quand l'expert renseigne ses honoraires (HT, TVA 20 %) : une ligne d'expertise, et si l'expert l'a prévu
+ * une ligne « si deuxième expertise », à titre d'information (hors total) ou actée (dans le total).
+ */
+export function buildDevis(
+  d: Pick<Dossier, "vehicule" | "client">,
+  o: { honoraires: number; seconde?: { montant: number; acte: boolean }; lieu?: string; number: number; now?: string },
+): Piece {
+  const now = o.now ?? new Date().toISOString()
+  const id = `l${Date.now().toString(36)}`
+  return {
+    id: `p${Date.now().toString(36)}`,
+    kind: "devis",
+    prefix: `DE-${new Date(now).getFullYear()}`,
+    number: o.number,
+    date: now,
+    statut: "emis",
+    auto: true,
+    observations: "Devis généré à partir des honoraires de l'expert. Il est à signer par le client, avec acceptation des conditions générales de vente.",
+    lignes: [
+      { id: `${id}a`, type: "service", label: `Expertise — ${d.vehicule.marque} ${d.vehicule.modele} (${d.vehicule.immat})${o.lieu ? `\n${o.lieu}` : ""}`, qty: 1, unitHt: o.honoraires, tva: 20 },
+      ...(o.seconde
+        ? [{ id: `${id}b`, type: "service" as const, label: "Si deuxième expertise", qty: 1, unitHt: o.seconde.montant, tva: 20, info: !o.seconde.acte }]
+        : []),
+    ],
+    client: { type: "mandant", firstName: d.client.firstName, lastName: d.client.lastName, email: d.client.email, address: d.client.address },
+    createdAt: now,
+  }
 }

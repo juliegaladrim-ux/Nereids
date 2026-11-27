@@ -18,6 +18,7 @@ import { SimpleSelect } from "@/components/simple-select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { useDossierCabinet } from "@/lib/annuaire"
 import type { Dossier } from "@/lib/data"
 import {
   CLIENT_TYPES,
@@ -525,6 +527,7 @@ function PieceList({
                   <TableCell>{`${p.client.firstName} ${p.client.lastName}`.trim() || "—"}</TableCell>
                   <TableCell>
                     <Badge className={cn("border-transparent", STATUT_TONE[p.statut])}>{STATUT_LABELS[p.statut]}</Badge>
+                    {p.signature && <span className="mt-1 block text-xs text-muted-foreground">Signé le {formatDate(p.signature.at)} · CGV acceptées</span>}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {p.pennylane ? `Synchronisé le ${formatDate(p.pennylane.at)}` : p.statut === "brouillon" ? "—" : "À synchroniser"}
@@ -574,9 +577,9 @@ function PieceList({
 
 // ─── Création / modification d'un devis, d'une facture ou d'un avoir ─────────
 
-type FLigne = { id: string; type: LigneType; label: string; qty: string; unitHt: string; tva: string }
-const toFLigne = (l: Ligne): FLigne => ({ id: l.id, type: l.type, label: l.label, qty: String(l.qty), unitHt: String(l.unitHt), tva: String(l.tva) })
-const fromFLigne = (l: FLigne): Ligne => ({ id: l.id, type: l.type, label: l.label, qty: num(l.qty), unitHt: num(l.unitHt), tva: num(l.tva) })
+type FLigne = { id: string; type: LigneType; label: string; qty: string; unitHt: string; tva: string; info?: boolean }
+const toFLigne = (l: Ligne): FLigne => ({ id: l.id, type: l.type, label: l.label, qty: String(l.qty), unitHt: String(l.unitHt), tva: String(l.tva), info: l.info })
+const fromFLigne = (l: FLigne): Ligne => ({ id: l.id, type: l.type, label: l.label, qty: num(l.qty), unitHt: num(l.unitHt), tva: num(l.tva), ...(l.info && { info: true }) })
 
 /** « Expertise du 8 décembre 2026 à 14h » + lieu, d'après l'expertise du dossier */
 function expertiseLabel(d: Dossier): string {
@@ -611,7 +614,11 @@ function PieceEditor({
   const [prefix, setPrefix] = React.useState(piece?.prefix ?? `${L.prefix}-${new Date().getFullYear()}`)
   const [numero, setNumero] = React.useState(String(number))
   const [date, setDate] = React.useState((piece?.date ?? new Date().toISOString()).slice(0, 10))
-  const [observations, setObservations] = React.useState(src?.observations ?? "")
+  const cabinet = useDossierCabinet(dossier)
+  // Facture neuve : le RIB du cabinet est ajouté en observation pour faciliter le règlement
+  const [observations, setObservations] = React.useState(
+    src?.observations ?? (kind === "facture" && cabinet?.rib ? `Règlement par virement — ${cabinet.rib.titulaire ?? cabinet.nom}\nIBAN ${cabinet.rib.iban}${cabinet.rib.bic ? `\nBIC ${cabinet.rib.bic}` : ""}` : ""),
+  )
   const [lignes, setLignes] = React.useState<FLigne[]>(() => {
     if (src) return src.lignes.map((l) => ({ ...toFLigne(l), id: piece ? l.id : uid("l") }))
     if (kind === "avoir") return []
@@ -645,6 +652,8 @@ function PieceEditor({
       lignes: parsed,
       client: { type: clientType, firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), address: address.trim() || undefined },
       fichier: piece?.fichier,
+      signature: piece?.signature,
+      auto: piece?.auto,
       pennylane: piece?.pennylane,
       createdAt: piece?.createdAt ?? new Date().toISOString(),
     })
@@ -718,7 +727,13 @@ function PieceEditor({
                             placeholder={l.type === "service" ? "Description du service" : undefined}
                             onChange={(e) => setLigne(l.id, { label: e.target.value })}
                           />
-                          {l.type !== "service" && <span className="text-xs text-muted-foreground">{l.type === "frais" ? "Frais" : "Remise (déduite du total)"}</span>}
+                          {l.type !== "service" && <span className="block text-xs text-muted-foreground">{l.type === "frais" ? "Frais" : "Remise (déduite du total)"}</span>}
+                          {kind === "devis" && (
+                            <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                              <Checkbox checked={!!l.info} onCheckedChange={(v) => setLigne(l.id, { info: v === true })} />
+                              À titre d&apos;information (hors total)
+                            </label>
+                          )}
                         </td>
                         <td className="pr-2 pb-2">
                           <Input aria-label="Prix unitaire HT" inputMode="decimal" value={l.unitHt} onChange={(e) => setLigne(l.id, { unitHt: e.target.value })} />

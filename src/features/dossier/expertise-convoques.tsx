@@ -56,7 +56,8 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
   const preview = useDocPreview()
   const [generating, setGenerating] = React.useState<Convoque | null>(null)
   const e = allExpertises(d)[index]
-  const ids = expertisePeople(d, index)
+  // L'expert qui mène l'expertise n'est jamais convoqué
+  const ids = expertisePeople(d, index).filter((id) => id !== d.intervenants.expert)
   const clientId = clientConvoqueId(d)
   const clientUser = getUser(d.client.userId)
   const clientName = personneName(d.client)
@@ -126,7 +127,7 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
   // Personnes du dossier pas encore dans la liste
   const candidates: Person[] = [
     ...(inList.has(clientId) ? [] : [clientPerson]),
-    ...[d.intervenants.gestionnaire, d.intervenants.expert, d.intervenants.reparateur, ...d.intervenants.suiveurs]
+    ...[d.intervenants.gestionnaire, d.intervenants.reparateur, ...d.intervenants.suiveurs]
       .map((id) => getUser(id))
       .filter((u): u is User => !!u && !inList.has(u.id))
       .map(userPerson),

@@ -54,6 +54,9 @@ export type Organisation = {
   email?: string
   autresEmails?: EmailSecondaire[]
   address?: string
+  /** Cabinet d'expertise : RIB (affiché au client et sur les factures), logo (image en base64) */
+  rib?: { titulaire?: string; iban: string; bic?: string }
+  logo?: string
 }
 
 /**
@@ -144,7 +147,7 @@ export const allEmails = (c: { email?: string; autresEmails?: EmailSecondaire[] 
 // ─── Organisations de démo (données fictives) ────────────────────────────────
 
 const SEED_ORGS: Organisation[] = [
-  { id: orgIdFor("Cabinet Delorme Expertise"), type: "cabinet", nom: "Cabinet Delorme Expertise", abonnement: "gestion_telephonie", siret: "512 845 963 00027", phone: "04 71 05 22 10", email: "contact@cabinet-delorme.fr", autresEmails: [{ email: "secretariat@cabinet-delorme.fr", label: "Secrétariat" }], address: "7 place du Breuil, 43000 Le Puy-en-Velay" },
+  { id: orgIdFor("Cabinet Delorme Expertise"), type: "cabinet", nom: "Cabinet Delorme Expertise", abonnement: "gestion_telephonie", siret: "512 845 963 00027", phone: "04 71 05 22 10", email: "contact@cabinet-delorme.fr", autresEmails: [{ email: "secretariat@cabinet-delorme.fr", label: "Secrétariat" }], address: "7 place du Breuil, 43000 Le Puy-en-Velay", rib: { titulaire: "Cabinet Delorme Expertise", iban: "FR76 1234 5678 9012 3456 7890 123", bic: "AGRIFRPP" } },
   { id: orgIdFor("Sud Expert"), type: "cabinet", nom: "Sud Expert", abonnement: "telephonie", siret: "803 114 520 00019", phone: "04 91 22 45 60", email: "contact@sudexpert.fr", address: "110 avenue du Prado, 13008 Marseille" },
   { id: orgIdFor("Garage Benali Carrosserie"), type: "garage", nom: "Garage Benali Carrosserie", siret: "441 220 876 00034", phone: "04 71 22 33 44", email: "contact@garage-benali.fr", autresEmails: [{ email: "compta@garage-benali.fr", label: "Comptabilité" }], address: "12 rue des Forges, 43200 Yssingeaux" },
   { id: orgIdFor("Carrosserie Chevalier"), type: "garage", nom: "Carrosserie Chevalier", phone: "04 77 22 33 44", email: "atelier@carrosserie-chevalier.fr", address: "233 rue de la Rive, 42320 La Grand-Croix" },

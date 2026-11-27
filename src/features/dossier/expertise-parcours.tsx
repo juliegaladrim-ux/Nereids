@@ -31,6 +31,8 @@ import {
   type Dossier,
   type ValidationState,
 } from "@/lib/data"
+import { useDossierCabinet } from "@/lib/annuaire"
+import { buildDevis, nextNumber, pieceNumero } from "@/lib/facturation"
 import { formatDateTime, formatLongDate } from "@/lib/format"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -47,9 +49,9 @@ const ROLE_ORDER: string[] = ["expert", "reparateur", "suiveur"]
 
 export const eur = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })
 
-/** Personnes du dossier qu'on peut convoquer : client, expert, réparateur, suiveurs */
+/** Personnes du dossier qu'on peut convoquer : client, réparateur, suiveurs (jamais l'expert qui mène l'expertise) */
 function convocables(d: Dossier): { id: string; label: string; detail: string }[] {
-  const people = [d.intervenants.expert, d.intervenants.reparateur, ...d.intervenants.suiveurs]
+  const people = [d.intervenants.reparateur, ...d.intervenants.suiveurs]
     .map((id) => getUser(id))
     .filter((u) => !!u)
     .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
@@ -274,68 +276,89 @@ function FormSection({ n, title, hint, children }: { n: number; title: string; h
 
 function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: () => void }) {
   const { user } = useRole()
-  const { updateDossier, addEvent } = useStore()
+  const { dossiers, updateDossier, addEvent } = useStore()
+  const cabinet = useDossierCabinet(d)
+  // L'expert qui mène l'expertise n'est pas convoqué : la liste de départ reprend le client et le réparateur
   const people = convocables(d)
   const [honoraires, setHonoraires] = React.useState("")
-  const [motif, setMotif] = React.useState("")
-  const [convoques, setConvoques] = React.useState<string[]>(
-    people.filter((p) => p.id === clientConvoqueId(d) || p.id === d.intervenants.expert || p.id === d.intervenants.reparateur).map((p) => p.id),
-  )
+  const [secondeOn, setSecondeOn] = React.useState(false)
+  const [seconde, setSeconde] = React.useState({ montant: "", acte: "info" as "info" | "acte" })
+  const [convoques, setConvoques] = React.useState<string[]>(people.filter((p) => p.id === clientConvoqueId(d) || p.id === d.intervenants.reparateur).map((p) => p.id))
+  const [motifs, setMotifs] = React.useState<Record<string, string>>({})
   const [lieuMode, setLieuMode] = React.useState<"client" | "autre">(d.lieuClient ? "client" : "autre")
+  const [lieuConvenu, setLieuConvenu] = React.useState(false)
   const [autre, setAutre] = React.useState({ nom: "", adresse: "", cp: "", ville: "", phone: "", phone2: "", email: "", email2: "" })
   const [dates, setDates] = React.useState(["", "", ""])
+  const [dateConvenue, setDateConvenue] = React.useState(false)
   const [confirme, setConfirme] = React.useState(false)
   const [observations, setObservations] = React.useState("")
   // Personnes ajoutées par l'expert : elles deviennent des intervenants du dossier à l'envoi
-  const [extras, setExtras] = React.useState<{ tmp: string; qualite: string; nom: string; societe: string; phone: string; email: string }[]>([])
+  const [extras, setExtras] = React.useState<NewPerson[]>([])
   const [addOpen, setAddOpen] = React.useState(false)
-  const [nv, setNv] = React.useState({ qualite: "", nom: "", societe: "", phone: "", email: "" })
+  const [nv, setNv] = React.useState<Omit<NewPerson, "tmp">>(EMPTY_PERSON)
   const lieuClient = d.lieuClient ? [d.lieuClient.nom, d.lieuClient.adresse].filter(Boolean).join(", ") : ""
   const autreComplet = !!(autre.nom.trim() && autre.adresse.trim() && /^\d{5}$/.test(autre.cp) && autre.ville.trim())
-  const lieu =
-    lieuMode === "client" ? lieuClient : autreComplet ? `${autre.nom.trim()}, ${autre.adresse.trim()}, ${autre.cp} ${autre.ville.trim()}` : ""
+  const lieu = lieuMode === "client" ? lieuClient : autreComplet ? `${autre.nom.trim()}, ${autre.adresse.trim()}, ${autre.cp} ${autre.ville.trim()}` : ""
   const amount = Number(honoraires.replace(",", "."))
-  const valid = amount > 0 && motif.trim() && convoques.length > 0 && lieu && dates.every(Boolean)
-  const allPeople = [...people, ...extras.map((e) => ({ id: e.tmp, label: e.nom || e.societe, detail: e.qualite }))]
+  const secondeMontant = secondeOn ? Number(seconde.montant.replace(",", ".")) || 0 : 0
+  const totalHt = (amount > 0 ? amount : 0) + (secondeMontant > 0 && seconde.acte === "acte" ? secondeMontant : 0)
+  const singleDate = dates.filter(Boolean).length === 1
+  const allPeople = [...people, ...extras.map((e) => ({ id: e.tmp, label: newPersonName(e), detail: qualiteLabel(e) }))]
+  const motifsOk = convoques.every((id) => motifs[id]?.trim())
+  const valid = amount > 0 && convoques.length > 0 && motifsOk && !!lieu && !!dates[0] && (!secondeOn || secondeMontant > 0)
+  const nvOk = !!nv.qualite && (nv.qualite !== "Autre" || !!nv.qualiteAutre.trim()) && (nv.kind === "morale" ? !!nv.societe.trim() : !!(nv.prenom.trim() || nv.nom.trim()))
 
   function addExtra() {
-    if (!nv.qualite || !(nv.nom.trim() || nv.societe.trim())) return
+    if (!nvOk) return
     const tmp = `new-${extras.length + 1}`
     setExtras((all) => [...all, { tmp, ...nv }])
     setConvoques((all) => [...all, tmp])
-    setNv({ qualite: "", nom: "", societe: "", phone: "", email: "" })
+    setNv(EMPTY_PERSON)
     setAddOpen(false)
   }
 
   function send() {
-    const isoDates = dates.map((v) => fromDateInput(v)!)
+    // Les dates restent par ordre de priorité, sans trou
+    const isoDates = dates.filter(Boolean).map((v) => fromDateInput(v)!)
+    const devisNumber = nextNumber("devis", dossiers.map((x) => x.facturation))
     updateDossier(d.id, (x) => {
       // Les personnes ajoutées rejoignent les intervenants du dossier (ids définitifs)
       const base = Math.max(0, ...(x.parties ?? []).map((p) => Number(p.id.slice(1)) || 0))
       const ids = Object.fromEntries(extras.map((e, i) => [e.tmp, `p${base + i + 1}`]))
-      const newParties = extras.map((e) => {
-        const [firstName, ...rest] = e.nom.trim().split(" ")
-        return {
-          id: ids[e.tmp],
-          qualite: e.qualite,
-          kind: e.nom.trim() ? undefined : ("morale" as const),
-          firstName: e.nom.trim() ? firstName : undefined,
-          lastName: e.nom.trim() ? rest.join(" ") || undefined : undefined,
-          societe: e.societe.trim() || undefined,
-          phone: e.phone.trim() || undefined,
-          email: e.email.trim() || undefined,
-        }
+      const newParties = extras.map((e) => ({
+        id: ids[e.tmp],
+        qualite: e.qualite,
+        qualiteAutre: e.qualite === "Autre" ? e.qualiteAutre.trim() || undefined : undefined,
+        kind: e.kind === "morale" ? ("morale" as const) : undefined,
+        firstName: e.kind === "physique" ? e.prenom.trim() || undefined : undefined,
+        lastName: e.kind === "physique" ? e.nom.trim() || undefined : undefined,
+        societe: e.kind === "morale" ? e.societe.trim() : undefined,
+        address: e.kind === "morale" ? e.adresse.trim() || undefined : undefined,
+        email: e.email.trim() || undefined,
+      }))
+      const finalMotifs = Object.fromEntries(convoques.map((id) => [ids[id] ?? id, motifs[id].trim()]))
+      // Le devis se génère dès que l'expert renseigne ses honoraires
+      const devis = buildDevis(x, {
+        honoraires: amount,
+        seconde: secondeMontant > 0 ? { montant: secondeMontant, acte: seconde.acte === "acte" } : undefined,
+        lieu,
+        number: devisNumber,
       })
+      const devisDoc = { id: `d${Date.now()}`, name: `Devis ${pieceNumero(devis)} — ${x.vehicule.immat}.pdf`, category: "devis" as const, addedBy: user.id, addedAt: devis.createdAt, docDate: devis.createdAt, size: "95 Ko" }
+      const f = x.facturation ?? { pieces: [], paiements: [], liens: [] }
       return {
         ...x,
         parties: [...(x.parties ?? []), ...newParties],
+        documents: [...x.documents, devisDoc],
+        facturation: { ...f, pieces: [devis, ...f.pieces] },
+        validation: { ...clientValidation(x), devis: "en_attente" as const },
         proposition: {
           at: new Date().toISOString(),
           expert: user.id,
           honoraires: amount,
-          motif: motif.trim(),
           lieu,
           lieuConfirme: lieuMode === "client",
+          lieuConvenu: lieuConvenu || undefined,
           ...(lieuMode === "autre" && {
             lieuPhone: autre.phone.trim() || undefined,
             lieuPhone2: autre.phone2.trim() || undefined,
@@ -343,21 +366,23 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
             lieuEmail2: autre.email2.trim() || undefined,
           }),
           dates: isoDates,
+          dateConvenue: (isoDates.length === 1 && (dateConvenue || confirme)) || undefined,
+          secondeExpertise: secondeMontant > 0 ? { montant: secondeMontant, acte: seconde.acte === "acte" } : undefined,
           confirmeTelephone: confirme || undefined,
           observations: observations.trim() || undefined,
         },
-        expertise: { ...x.expertise, aConvoquer: convoques.map((id) => ids[id] ?? id) },
+        expertise: { ...x.expertise, aConvoquer: convoques.map((id) => ids[id] ?? id), motifs: finalMotifs },
         pilotage: {
           ...x.pilotage,
-          ouEnEst: "Mission acceptée par l'expert.",
-          attente: "Programmation de l'expertise",
+          ouEnEst: "Mission acceptée par l'expert. Devis généré.",
+          attente: "Programmation de l'expertise et signature du devis par le client",
           prochaineAction: "Appeler le lieu d'expertise et générer les convocations",
           quiDoitAgir: x.intervenants.gestionnaire ? "gestionnaire" : "nereids",
         },
       }
     })
-    addEvent(d.id, { kind: "expertise", author: user.id, title: "Mission acceptée par l'expert", body: "Dates et lieu d'expertise proposés au gestionnaire." })
-    toast.success("Proposition envoyée au gestionnaire", { description: "Il organise l'expertise et vous enverra la convocation." })
+    addEvent(d.id, { kind: "expertise", author: user.id, title: "Mission acceptée par l'expert", body: "Honoraires renseignés : devis généré. Dates et lieu d'expertise proposés au gestionnaire." })
+    toast.success("Proposition envoyée au gestionnaire", { description: `Le devis${cabinet ? ` de ${cabinet.nom}` : ""} a été généré et envoyé au client pour signature.` })
     onClose()
   }
 
@@ -367,38 +392,114 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
         <DialogHeader>
           <DialogTitle>Accepter la mission</DialogTitle>
           <DialogDescription>
-            Proposez vos conditions d&apos;expertise. Le gestionnaire vérifie les disponibilités du lieu, retient l&apos;une de vos dates et vous
-            envoie la convocation.
+            Proposez vos conditions d&apos;expertise. Vos honoraires génèrent le devis, envoyé au client pour signature. Le gestionnaire vérifie les disponibilités du lieu, retient l&apos;une de vos dates et envoie les convocations.
           </DialogDescription>
         </DialogHeader>
 
-        <FormSection n={1} title="Mission">
-          <div className="grid gap-4">
-            <Field className="sm:max-w-40">
-              <FieldLabel htmlFor="p-honoraires">Honoraires *</FieldLabel>
-              <div className="relative">
-                <Input id="p-honoraires" inputMode="decimal" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} className="pr-8" />
-                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+        <FormSection n={1} title="Honoraires" hint="Ils génèrent le devis du client">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="flex flex-col gap-4">
+              <Field>
+                <FieldLabel htmlFor="p-honoraires">Honoraires d&apos;expertise HT *</FieldLabel>
+                <div className="relative">
+                  <Input id="p-honoraires" inputMode="decimal" placeholder="0,00" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} className="h-10 pr-14 text-base tabular-nums" />
+                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€ HT</span>
+                </div>
+                {amount > 0 && <FieldDescription>Soit {eur(amount * 1.2)} TTC (TVA 20 %)</FieldDescription>}
+              </Field>
+
+              <div className="rounded-lg border bg-card">
+                <label className="flex cursor-pointer items-start gap-3 p-3">
+                  <Checkbox className="mt-0.5" checked={secondeOn} onCheckedChange={(c) => setSecondeOn(!!c)} />
+                  <span className="text-sm">
+                    <span className="block font-medium">Prévoir une deuxième expertise</span>
+                    <span className="block text-xs text-muted-foreground">Une ligne « Si deuxième expertise » sera ajoutée au devis.</span>
+                  </span>
+                </label>
+                {secondeOn && (
+                  <div className="flex flex-col gap-3 border-t bg-muted/30 p-3">
+                    <Field>
+                      <FieldLabel htmlFor="p-seconde">Montant de la deuxième expertise *</FieldLabel>
+                      <div className="relative">
+                        <Input id="p-seconde" inputMode="decimal" placeholder="0,00" value={seconde.montant} onChange={(e) => setSeconde((s) => ({ ...s, montant: e.target.value }))} className="pr-14 tabular-nums" />
+                        <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€ HT</span>
+                      </div>
+                    </Field>
+                    <RadioGroup value={seconde.acte} onValueChange={(v) => setSeconde((s) => ({ ...s, acte: v as "info" | "acte" }))} className="grid gap-2">
+                      {(
+                        [
+                          ["info", "À titre d'information", "Affiché sur le devis, non compté dans le total"],
+                          ["acte", "Acté", "Compté dans le total du devis"],
+                        ] as const
+                      ).map(([v, label, hint]) => (
+                        <label key={v} className={cn("flex cursor-pointer items-start gap-2 rounded-lg border bg-card p-2.5 text-sm transition-colors", seconde.acte === v && "border-brand bg-brand-soft/60")}>
+                          <RadioGroupItem value={v} className="mt-0.5" />
+                          <span>
+                            <span className="block font-medium">{label}</span>
+                            <span className="block text-xs text-muted-foreground">{hint}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </RadioGroup>
+                  </div>
+                )}
               </div>
-            </Field>
-            <DictableTextarea id="p-motif" label="Motif de la convocation *" rows={2} value={motif} onValueChange={setMotif} />
+            </div>
+
+            {/* Aperçu en direct de ce que verra le client sur son devis */}
+            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Aperçu du devis</p>
+              <div className="flex items-start justify-between gap-3">
+                <span>Expertise — {d.vehicule.marque} {d.vehicule.modele}</span>
+                <span className="shrink-0 font-medium tabular-nums">{amount > 0 ? eur(amount) : "—"}</span>
+              </div>
+              {secondeOn && secondeMontant > 0 && (
+                <div className={cn("flex items-start justify-between gap-3", seconde.acte === "info" && "text-muted-foreground")}>
+                  <span>
+                    Si deuxième expertise
+                    {seconde.acte === "info" && <span className="block text-xs">À titre d&apos;information</span>}
+                  </span>
+                  <span className="shrink-0 tabular-nums">{eur(secondeMontant)}</span>
+                </div>
+              )}
+              <div className="mt-auto flex flex-col gap-0.5 border-t pt-2 text-xs text-muted-foreground">
+                <div className="flex justify-between"><span>Total HT</span><span className="tabular-nums">{eur(totalHt)}</span></div>
+                <div className="flex justify-between"><span>TVA 20 %</span><span className="tabular-nums">{eur(totalHt * 0.2)}</span></div>
+                <div className="flex justify-between text-sm font-semibold text-foreground"><span>Total TTC</span><span className="tabular-nums">{eur(totalHt * 1.2)}</span></div>
+              </div>
+            </div>
           </div>
         </FormSection>
 
-        <FormSection n={2} title="Personnes à convoquer *">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {allPeople.map((p) => (
-              <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-brand/50 has-data-checked:border-brand has-data-checked:bg-brand-soft">
-                <Checkbox
-                  checked={convoques.includes(p.id)}
-                  onCheckedChange={(c) => setConvoques((all) => (c ? [...all, p.id] : all.filter((id) => id !== p.id)))}
-                />
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{p.label}</span>
-                  <span className="block text-xs text-muted-foreground">{p.detail}</span>
-                </span>
-              </label>
-            ))}
+        <FormSection n={2} title="Personnes à convoquer *" hint="Un motif par personne">
+          <div className="flex flex-col gap-2">
+            {allPeople.map((p) => {
+              const on = convoques.includes(p.id)
+              return (
+                <div key={p.id} className={cn("flex flex-col gap-2 rounded-lg border bg-card p-3 transition-colors", on && "border-brand bg-brand-soft/60")}>
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <Checkbox checked={on} onCheckedChange={(c) => setConvoques((all) => (c ? [...all, p.id] : all.filter((id) => id !== p.id)))} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{p.label}</span>
+                      <span className="block text-xs text-muted-foreground">{p.detail}</span>
+                    </span>
+                  </label>
+                  <Field className="pl-7">
+                    <FieldLabel htmlFor={`p-motif-${p.id}`} className="text-xs text-muted-foreground">Motif de la convocation{on ? " *" : ""}</FieldLabel>
+                    <Input
+                      id={`p-motif-${p.id}`}
+                      value={motifs[p.id] ?? ""}
+                      placeholder="Ex. constater les dommages et chiffrer la réparation"
+                      // Saisir un motif coche la personne : elle sera convoquée
+                      onChange={(e) => {
+                        setMotifs((m) => ({ ...m, [p.id]: e.target.value }))
+                        if (e.target.value.trim() && !on) setConvoques((all) => [...all, p.id])
+                      }}
+                    />
+                  </Field>
+                </div>
+              )
+            })}
           </div>
           {!addOpen ? (
             <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setAddOpen(true)}>
@@ -407,27 +508,56 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
           ) : (
             <div className="grid gap-3 rounded-lg bg-muted/50 p-3 sm:grid-cols-2">
               <Field className="sm:col-span-2">
+                <FieldLabel>Type de personne</FieldLabel>
+                <RadioGroup value={nv.kind} onValueChange={(v) => setNv((a) => ({ ...a, kind: v as "physique" | "morale" }))} className="flex gap-4">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem value="physique" /> Personne physique
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem value="morale" /> Personne morale
+                  </label>
+                </RadioGroup>
+              </Field>
+              <Field className={nv.qualite === "Autre" ? undefined : "sm:col-span-2"}>
                 <FieldLabel>Qualité *</FieldLabel>
-                <SimpleSelect placeholder="Sélectionner" value={nv.qualite || null} onChange={(v) => setNv((a) => ({ ...a, qualite: v ?? "" }))} options={QUALITES_INTERVENANT.map((q) => ({ value: q, label: q }))} />
+                <SimpleSelect placeholder="Client, vendeur du véhicule, réparateur…" value={nv.qualite || null} onChange={(v) => setNv((a) => ({ ...a, qualite: v ?? "" }))} options={QUALITES_INTERVENANT.map((q) => ({ value: q, label: q }))} />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="p-n-nom">Nom et prénom</FieldLabel>
-                <Input id="p-n-nom" value={nv.nom} onChange={(e) => setNv((a) => ({ ...a, nom: e.target.value }))} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="p-n-soc">Société</FieldLabel>
-                <Input id="p-n-soc" value={nv.societe} onChange={(e) => setNv((a) => ({ ...a, societe: e.target.value }))} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="p-n-tel">Téléphone</FieldLabel>
-                <Input id="p-n-tel" type="tel" value={nv.phone} onChange={(e) => setNv((a) => ({ ...a, phone: e.target.value }))} />
-              </Field>
-              <Field>
+              {nv.qualite === "Autre" && (
+                <Field>
+                  <FieldLabel htmlFor="p-n-autre">Précisez la qualité *</FieldLabel>
+                  <Input id="p-n-autre" value={nv.qualiteAutre} onChange={(e) => setNv((a) => ({ ...a, qualiteAutre: e.target.value }))} />
+                </Field>
+              )}
+              {nv.kind === "physique" ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="p-n-prenom">Prénom</FieldLabel>
+                    <Input id="p-n-prenom" value={nv.prenom} onChange={(e) => setNv((a) => ({ ...a, prenom: e.target.value }))} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="p-n-nom">Nom *</FieldLabel>
+                    <Input id="p-n-nom" value={nv.nom} onChange={(e) => setNv((a) => ({ ...a, nom: e.target.value }))} />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="p-n-soc">Nom de la société *</FieldLabel>
+                    <Input id="p-n-soc" value={nv.societe} onChange={(e) => setNv((a) => ({ ...a, societe: e.target.value }))} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="p-n-adresse">Adresse postale</FieldLabel>
+                    <Input id="p-n-adresse" value={nv.adresse} onChange={(e) => setNv((a) => ({ ...a, adresse: e.target.value }))} />
+                  </Field>
+                </>
+              )}
+              <Field className="sm:col-span-2">
                 <FieldLabel htmlFor="p-n-mail">E-mail</FieldLabel>
                 <Input id="p-n-mail" type="email" value={nv.email} onChange={(e) => setNv((a) => ({ ...a, email: e.target.value }))} />
+                <FieldDescription>Facultatif : n&apos;empêche pas l&apos;envoi de la proposition.</FieldDescription>
               </Field>
               <div className="flex gap-2 sm:col-span-2">
-                <Button type="button" size="sm" onClick={addExtra} disabled={!nv.qualite || !(nv.nom.trim() || nv.societe.trim())}>
+                <Button type="button" size="sm" onClick={addExtra} disabled={!nvOk}>
                   Ajouter
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => setAddOpen(false)}>
@@ -436,15 +566,11 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
               </div>
             </div>
           )}
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-sm">
-            <Checkbox className="mt-0.5" checked={confirme} onCheckedChange={(c) => setConfirme(!!c)} />
-            <span>J&apos;ai joint par téléphone le client et le lieu d&apos;expertise : ils confirment leur accord sur la date d&apos;expertise.</span>
-          </label>
         </FormSection>
 
         <FormSection n={3} title="Lieu de l'expertise *">
           {d.lieuClient ? (
-            <RadioGroup value={lieuMode} onValueChange={(v) => setLieuMode(v as "client" | "autre")} className="grid gap-2 sm:grid-cols-2">
+            <RadioGroup value={lieuMode} onValueChange={(v) => setLieuMode(v as "client" | "autre")} className="grid gap-2">
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-brand/50 has-data-checked:border-brand has-data-checked:bg-brand-soft">
                 <RadioGroupItem value="client" className="mt-0.5" />
                 <span className="min-w-0">
@@ -475,13 +601,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
               </Field>
               <Field>
                 <FieldLabel htmlFor="p-l-cp">Code postal</FieldLabel>
-                <Input
-                  id="p-l-cp"
-                  inputMode="numeric"
-                  maxLength={5}
-                  value={autre.cp}
-                  onChange={(e) => setAutre((a) => ({ ...a, cp: e.target.value.replace(/\D/g, "") }))}
-                />
+                <Input id="p-l-cp" inputMode="numeric" maxLength={5} value={autre.cp} onChange={(e) => setAutre((a) => ({ ...a, cp: e.target.value.replace(/\D/g, "") }))} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="p-l-ville">Ville</FieldLabel>
@@ -507,11 +627,16 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
               </div>
             </div>
           )}
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-sm">
+            <Checkbox checked={lieuConvenu} onCheckedChange={(c) => setLieuConvenu(!!c)} />
+            <span>Lieu convenu avec le client</span>
+          </label>
         </FormSection>
 
-        <FormSection n={4} title="Dates proposées *" hint="Par ordre de priorité">
+        <FormSection n={4} title="Dates proposées *" hint="Une seule date suffit">
           <div className="flex flex-col gap-2">
-            {dates.map((v, i) => (
+            {/* Accord confirmé par téléphone : une seule date, déjà convenue avec le client */}
+            {dates.map((v, i) => (confirme && i > 0 ? null : (
               <div key={i} className="flex items-center gap-3">
                 <span className="w-16 shrink-0 text-sm font-medium">{i === 0 ? "1er choix" : `${i + 1}e choix`}</span>
                 <DateInput
@@ -522,8 +647,26 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
                   onChange={(val) => setDates((all) => all.map((x, j) => (j === i ? val : x)))}
                 />
               </div>
-            ))}
+            )))}
           </div>
+          {singleDate && !confirme && (
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-sm">
+              <Checkbox checked={dateConvenue} onCheckedChange={(c) => setDateConvenue(!!c)} />
+              <span>Date convenue avec le client</span>
+            </label>
+          )}
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-sm">
+            <Checkbox
+              className="mt-0.5"
+              checked={confirme}
+              onCheckedChange={(c) => {
+                setConfirme(!!c)
+                // Une seule date : les autres choix sont retirés
+                if (c) setDates((all) => [all[0], "", ""])
+              }}
+            />
+            <span>J&apos;ai joint par téléphone le client et le lieu d&apos;expertise : ils confirment leur accord sur la date d&apos;expertise (date unique, convenue avec le client).</span>
+          </label>
         </FormSection>
 
         <FormSection n={5} title="Observations">
@@ -538,6 +681,12 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
     </Dialog>
   )
 }
+
+/** Personne ajoutée à la main par l'expert */
+type NewPerson = { tmp: string; kind: "physique" | "morale"; qualite: string; qualiteAutre: string; prenom: string; nom: string; societe: string; adresse: string; email: string }
+const EMPTY_PERSON: Omit<NewPerson, "tmp"> = { kind: "physique", qualite: "", qualiteAutre: "", prenom: "", nom: "", societe: "", adresse: "", email: "" }
+const newPersonName = (e: Omit<NewPerson, "tmp">) => (e.kind === "morale" ? e.societe.trim() : [e.prenom.trim(), e.nom.trim()].filter(Boolean).join(" "))
+const qualiteLabel = (e: Omit<NewPerson, "tmp">) => (e.qualite === "Autre" ? e.qualiteAutre.trim() || "Autre" : e.qualite)
 
 // ─── Gestionnaire : programmer l'expertise et convoquer ──────────────────────
 
@@ -658,10 +807,26 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
 function PropositionRows({ dossier: d, withDates = true, className }: { dossier: Dossier; withDates?: boolean; className?: string }) {
   const p = d.proposition!
   const rows = [
-    ["Honoraires", eur(p.honoraires)] as [string, React.ReactNode],
-    ["Motif", p.motif],
-    ["Lieu", <span key="l">{p.lieu}<span className="block text-xs text-muted-foreground">{p.lieuConfirme ? "Lieu proposé par le client, confirmé" : "Autre lieu proposé par l'expert"}</span></span>],
-    ["À convoquer", (d.expertise.aConvoquer ?? []).map((id) => convoqueName(d, id)).join(", ")],
+    ["Honoraires", eur(p.honoraires) + " HT"] as [string, React.ReactNode],
+    p.secondeExpertise && [
+      "Si 2e expertise",
+      <span key="s2">
+        {eur(p.secondeExpertise.montant)} HT
+        <span className="block text-xs text-muted-foreground">{p.secondeExpertise.acte ? "Acté : compté dans le devis" : "À titre d'information : hors total du devis"}</span>
+      </span>,
+    ],
+    ["Lieu", <span key="l">{p.lieu}<span className="block text-xs text-muted-foreground">{[p.lieuConfirme ? "Lieu proposé par le client, confirmé" : "Autre lieu proposé par l'expert", p.lieuConvenu && "convenu avec le client"].filter(Boolean).join(" · ")}</span></span>],
+    [
+      "À convoquer",
+      <ul key="c" className="flex flex-col gap-0.5">
+        {(d.expertise.aConvoquer ?? []).map((id) => (
+          <li key={id}>
+            {convoqueName(d, id)}
+            {d.expertise.motifs?.[id] && <span className="block text-xs text-muted-foreground">{d.expertise.motifs[id]}</span>}
+          </li>
+        ))}
+      </ul>,
+    ],
     p.confirmeTelephone && ["Accord par téléphone", "Client et lieu d'expertise joints : d'accord sur la date"],
     p.observations && ["Observations", p.observations],
     withDates && [
@@ -672,6 +837,7 @@ function PropositionRows({ dossier: d, withDates = true, className }: { dossier:
             <span className="text-muted-foreground">{i + 1}.</span> <span className="first-letter:uppercase">{formatLongDate(iso)}</span>
           </li>
         ))}
+        {p.dateConvenue && <li className="text-xs text-muted-foreground">Date convenue avec le client</li>}
       </ol>,
     ],
   ].filter((r): r is [string, React.ReactNode] => !!r)

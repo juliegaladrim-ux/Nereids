@@ -12,7 +12,7 @@ export default function DossiersPage() {
   const { role } = useRole()
   if (role.id === "client") return <ClientDossiers />
   if (role.id === "suiveur" || role.id === "reparateur" || role.id === "expert") return <IntervenantDossiers />
-  if (role.id !== "admin" && role.id !== "gestionnaire") return <RoleEmptyState page="dossiers" />
+  if (role.id !== "admin" && role.id !== "gestionnaire" && role.id !== "admin_cabinet") return <RoleEmptyState page="dossiers" />
   return (
     <Suspense>
       <DossiersList />

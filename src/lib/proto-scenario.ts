@@ -104,12 +104,11 @@ export function applyExpertisePhase(d: Dossier, phase: Exclude<ExpertisePhase, "
         at: daysFromNow(-1, 10),
         expert,
         honoraires: 450,
-        motif: "Constater les dommages et chiffrer la réparation.",
         lieu: [x.lieuClient.nom, x.lieuClient.adresse].join(", "),
         lieuConfirme: true,
         dates: [daysFromNow(22, 9), daysFromNow(23, 14), daysFromNow(25, 9)],
       },
-      expertise: { ...x.expertise, aConvoquer: [clientConvoqueId(x), expert, x.intervenants.reparateur].filter((id): id is string => !!id) },
+      expertise: { ...x.expertise, aConvoquer: [clientConvoqueId(x), x.intervenants.reparateur].filter((id): id is string => !!id), motifs: Object.fromEntries([clientConvoqueId(x), x.intervenants.reparateur].filter((id): id is string => !!id).map((id) => [id, "Constater les dommages et chiffrer la réparation."])) },
       pilotage: {
         ...x.pilotage,
         ouEnEst: "Mission acceptée par l'expert.",

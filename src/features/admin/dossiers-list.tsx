@@ -61,7 +61,7 @@ export function DossiersList({ mode = "actifs" }: { mode?: "actifs" | "archives"
   const { orgs } = useAnnuaire()
   // Gestionnaire Help You : uniquement ses dossiers (CDC §12.2), sans colonne ni filtre gestionnaire
   const dossiers = visibleDossiers(all, role.id, user.id)
-  const isGest = role.id === "gestionnaire"
+  const isGest = role.id === "gestionnaire" || role.id === "admin_cabinet"
   const views = VIEWS
   const router = useRouter()
   const pathname = usePathname()

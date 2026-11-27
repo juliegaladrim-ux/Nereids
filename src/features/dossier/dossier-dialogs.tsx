@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { Sparkles } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
 import { DateInput } from "@/components/date-input"
@@ -41,6 +42,8 @@ import {
   withRef,
 } from "@/lib/data"
 import { useStore } from "@/lib/store"
+import { formatDate } from "@/lib/format"
+import { suggestName } from "./doc-ai-rename"
 import { fromDateInput, toDateInput } from "./dossier-edit"
 
 type DialogProps = { dossier: Dossier; open: boolean; onOpenChange: (o: boolean) => void }
@@ -354,6 +357,15 @@ export function AddDocDialog({
     setDate(toDateInput(new Date().toISOString()))
   }, [open, defaultCategory])
 
+  // Renommage par l'IA (simulation) : nom normalisé proposé dès que fichier et catégorie sont connus
+  const [aiRename, setAiRename] = React.useState(true)
+  const [aiName, setAiName] = React.useState<string | null>(null)
+  const suggested =
+    file && cat && (cat !== "autre" || libelle.trim())
+      ? suggestName({ name: file, category: cat as DocCategory, libelle: cat === "autre" ? libelle.trim() : undefined, docDate: fromDateInput(date), addedAt: new Date().toISOString() }, dossier)
+      : null
+  const finalName = file ? (aiRename ? (aiName ?? suggested ?? file) : file) : ""
+
   function save() {
     if (!cat || !file || (cat === "autre" && !libelle.trim())) return
     const now = new Date().toISOString()
@@ -362,12 +374,13 @@ export function AddDocDialog({
       ...d,
       documents: [
         ...d.documents,
-        { id: `d${Date.now()}`, name: file, category: cat as DocCategory, libelle: cat === "autre" ? label : undefined, addedBy: user.id, addedAt: now, docDate: fromDateInput(date) ?? now, size: "1,4 Mo" },
+        { id: `d${Date.now()}`, name: finalName, category: cat as DocCategory, libelle: cat === "autre" ? label : undefined, addedBy: user.id, addedAt: now, docDate: fromDateInput(date) ?? now, size: "1,4 Mo" },
       ],
     }))
-    addEvent(dossier.id, { kind: "document", author: user.id, title: `Document ajouté — ${label}`, body: file })
+    addEvent(dossier.id, { kind: "document", author: user.id, title: `Document ajouté — ${label}`, body: finalName })
     toast.success("Document ajouté", { description: notify ? "Les intervenants concernés ont été notifiés." : undefined })
     setFile(null)
+    setAiName(null)
     setLibelle("")
     onOpenChange(false)
   }
@@ -412,8 +425,28 @@ export function AddDocDialog({
           )}
           <Field>
             <FieldLabel htmlFor="doc-date">Date du document</FieldLabel>
+            <p className="-mt-1 text-xs text-muted-foreground">La date inscrite sur le document. La date d&apos;ajout dans le dossier ({formatDate(new Date().toISOString())}) est enregistrée automatiquement.</p>
             <DateInput id="doc-date" value={date} onChange={setDate} />
           </Field>
+          {file && (
+            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <Checkbox className="mt-0.5" checked={aiRename} onCheckedChange={(c) => setAiRename(!!c)} />
+                <span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <Sparkles className="size-3.5 text-brand-ink" /> Renommer le document avec l&apos;IA
+                  </span>
+                  <span className="text-xs text-muted-foreground">Date, type, immatriculation et client : le fichier se retrouve facilement.</span>
+                </span>
+              </label>
+              {aiRename &&
+                (suggested ? (
+                  <Input aria-label="Nom proposé par l'IA" value={aiName ?? suggested} onChange={(e) => setAiName(e.target.value)} className="h-8 bg-background text-sm" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Choisissez une catégorie pour obtenir le nom proposé.</p>
+                ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Checkbox id="notify" checked={notify} onCheckedChange={(c) => setNotify(!!c)} />
             <Label htmlFor="notify" className="font-normal">
