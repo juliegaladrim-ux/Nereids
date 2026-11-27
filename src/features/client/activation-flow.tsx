@@ -35,11 +35,13 @@ import {
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { CLIENT_DOC_COPY, clientTypeLabel } from "./client-docs"
+import { OnboardingShell } from "./onboarding-shell"
 
 export type ActivationStep = "password" | "infos" | "pieces" | "lieu" | "recap"
 
 /** Étapes numérotées vues par le client */
 const NUMBERED: ActivationStep[] = ["password", "infos", "pieces", "lieu", "recap"]
+const STEP_LABELS = ["Mot de passe", "Vos informations", "Vos documents", "Lieu de l'expertise", "Récapitulatif"]
 
 type Infos = {
   client: { firstName: string; lastName: string; phone: string; email: string }
@@ -141,6 +143,14 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
 
   const index = NUMBERED.indexOf(step)
 
+  // 1er écran : mise en page en 2 blocs
+  if (step === "password")
+    return (
+      <OnboardingShell d={d} steps={STEP_LABELS} index={0}>
+        <PasswordStep client={d.client} onDone={activate} />
+      </OnboardingShell>
+    )
+
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <header className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur">
@@ -168,7 +178,6 @@ function Flow({ d, initialStep }: { d: Dossier; initialStep?: ActivationStep }) 
       </header>
 
       <main className="mx-auto flex w-full max-w-xl flex-1 flex-col px-4 pt-6 pb-44 sm:pb-24">
-        {step === "password" && <PasswordStep client={d.client} onDone={activate} />}
         {step === "infos" && <InfosStep infos={infos} setInfos={setInfos} onNext={() => go("pieces")} />}
         {step === "pieces" && (
           <PiecesStep d={d} expected={expected} uploads={uploads} setUploads={setUploads} missing={missing} onNext={() => go("lieu")} />
@@ -306,8 +315,8 @@ function InfosStep({ infos, setInfos, onNext }: { infos: Infos; setInfos: React.
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField id="i-marque" label="Marque" value={infos.vehicule.marque} onChange={(v) => setIn("vehicule", "marque", v)} />
             <TextField id="i-modele" label="Modèle" value={infos.vehicule.modele} onChange={(v) => setIn("vehicule", "modele", v)} />
-            <TextField id="i-immat" label="Immatriculation" className="font-mono uppercase" value={infos.vehicule.immat} onChange={(v) => setIn("vehicule", "immat", v)} />
-            <TextField id="i-vin" label="VIN (si disponible)" hint="Case E de la carte grise" className="font-mono uppercase" value={infos.vehicule.vin} onChange={(v) => setIn("vehicule", "vin", v)} />
+            <TextField id="i-immat" label="Immatriculation" className="uppercase" value={infos.vehicule.immat} onChange={(v) => setIn("vehicule", "immat", v)} />
+            <TextField id="i-vin" label="VIN (si disponible)" hint="Case E de la carte grise" className="uppercase" value={infos.vehicule.vin} onChange={(v) => setIn("vehicule", "vin", v)} />
           </div>
         </InfoBlock>
       </div>

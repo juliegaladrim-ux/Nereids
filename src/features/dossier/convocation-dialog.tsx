@@ -174,7 +174,7 @@ export function ConvocationDialog({ dossier: d, index, person, onClose }: { doss
           </Field>
           <Field>
             <FieldLabel htmlFor="conv-texte">Texte de la convocation</FieldLabel>
-            <Textarea id="conv-texte" rows={16} value={texte} onChange={(e) => setTexte(e.target.value)} className="font-mono text-xs" />
+            <Textarea id="conv-texte" rows={16} value={texte} onChange={(e) => setTexte(e.target.value)} className="text-xs" />
             <FieldDescription>Précisez par exemple les désordres constatés ou les frais de mise à disposition du lieu à régler le jour de l&apos;expertise.</FieldDescription>
           </Field>
         </div>

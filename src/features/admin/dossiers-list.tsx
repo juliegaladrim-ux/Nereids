@@ -364,7 +364,7 @@ export function FilterPill({
       >
         {label}
         {value.length > 0 && (
-          <span className="inline-flex size-5 items-center justify-center rounded-full bg-foreground text-[11px] font-semibold text-background tabular-nums">
+          <span className="inline-flex size-5 items-center justify-center rounded-full bg-foreground text-[0.7rem] font-semibold text-background tabular-nums">
             {value.length}
           </span>
         )}

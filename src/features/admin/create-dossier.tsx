@@ -713,11 +713,11 @@ export function CreateDossier() {
                     <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
                       <Field>
                         <FieldLabel htmlFor="v-immat">Immatriculation</FieldLabel>
-                        <Input id="v-immat" className="font-mono uppercase" placeholder="AB-123-CD" value={f.vehicule.immat} onChange={(e) => setIn("vehicule", "immat", e.target.value)} />
+                        <Input id="v-immat" className="uppercase" placeholder="AB-123-CD" value={f.vehicule.immat} onChange={(e) => setIn("vehicule", "immat", e.target.value)} />
                       </Field>
                       <Field>
                         <FieldLabel htmlFor="v-vin">VIN</FieldLabel>
-                        <Input id="v-vin" className="font-mono uppercase" placeholder="Si disponible" value={f.vehicule.vin} onChange={(e) => setIn("vehicule", "vin", e.target.value)} />
+                        <Input id="v-vin" className="uppercase" placeholder="Si disponible" value={f.vehicule.vin} onChange={(e) => setIn("vehicule", "vin", e.target.value)} />
                       </Field>
                       <Field>
                         <FieldLabel htmlFor="v-marque">Marque</FieldLabel>
@@ -1533,8 +1533,8 @@ export function RecapItem({ ok, label, detail, optional }: { ok: boolean; label:
         <CircleDashed className={cn("mt-0.5 size-5 shrink-0", optional ? "text-muted-foreground/60" : "text-muted-foreground")} />
       )}
       <div className="min-w-0">
-        {ok && <span className="block text-[11px] leading-tight font-semibold tracking-wide text-tone-done uppercase">Terminé</span>}
-        {!ok && optional && <span className="block text-[11px] leading-tight font-semibold tracking-wide text-muted-foreground uppercase">Optionnel</span>}
+        {ok && <span className="block text-[0.7rem] leading-tight font-semibold tracking-wide text-tone-done uppercase">Terminé</span>}
+        {!ok && optional && <span className="block text-[0.7rem] leading-tight font-semibold tracking-wide text-muted-foreground uppercase">Optionnel</span>}
         <span className={cn("block font-medium", optional && !ok && "text-muted-foreground")}>{label}</span>
         {detail && <span className="block truncate text-xs text-muted-foreground">{detail}</span>}
       </div>

@@ -170,11 +170,11 @@ export function CreateDemande() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field>
                       <FieldLabel htmlFor="r-immat">Immatriculation</FieldLabel>
-                      <Input id="r-immat" className="font-mono uppercase" placeholder="AB-123-CD" value={f.vehicule.immat} onChange={(e) => setVehicule("immat", e.target.value)} />
+                      <Input id="r-immat" className="uppercase" placeholder="AB-123-CD" value={f.vehicule.immat} onChange={(e) => setVehicule("immat", e.target.value)} />
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="r-vin">VIN</FieldLabel>
-                      <Input id="r-vin" className="font-mono uppercase" placeholder="Si disponible" value={f.vehicule.vin} onChange={(e) => setVehicule("vin", e.target.value)} />
+                      <Input id="r-vin" className="uppercase" placeholder="Si disponible" value={f.vehicule.vin} onChange={(e) => setVehicule("vin", e.target.value)} />
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="r-marque">Marque</FieldLabel>

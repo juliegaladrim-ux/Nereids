@@ -114,7 +114,7 @@ export function SuggestInput({
                     <span className="block truncate text-sm font-medium">{s.title}</span>
                     {s.subtitle && <span className="block truncate text-xs text-muted-foreground">{s.subtitle}</span>}
                   </span>
-                  {s.badge && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{s.badge}</span>}
+                  {s.badge && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground">{s.badge}</span>}
                 </button>
               </li>
             ))}

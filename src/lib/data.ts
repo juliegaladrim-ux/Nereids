@@ -4,6 +4,7 @@
  */
 
 import type { RoleId } from "./roles"
+import type { Facturation } from "./facturation"
 
 // ─── Référentiels ────────────────────────────────────────────────────────────
 
@@ -489,6 +490,8 @@ export type Dossier = {
   suiveurRefs?: Record<string, string>
   /** Notes internes (onglet « Notes internes », admin Nereids + gestionnaires Help You) */
   notes?: InternalNote[]
+  /** Onglet « Paiement et facture » : devis, factures, avoirs, paiements (admin Nereids + gestionnaires Help You) */
+  facturation?: Facturation
   /** Validation client (mission / devis / règlement) — passée à la main par le gestionnaire ; absente = déduite du statut */
   validation?: ClientValidation
   /** Lieu de l'expertise souhaité par le client (le garage où est le véhicule) — à l'activation ou plus tard */
@@ -964,6 +967,26 @@ export function seedDossiers(): Dossier[] {
         ev(daysFromNow(-3, 15), "status", "system", "Statut → En attente expertise"),
         ev(daysFromNow(-1, 9), "message", "u-suiveur", "Message", "Merci de nous transmettre le PV dès réception.", ["gestionnaire", "expert"]),
       ],
+      description: "Le 14 novembre, sur la D103 près de Yssingeaux, le véhicule du client a été percuté à l'arrière à l'arrêt par une Renault Clio. Dégâts sur le pare-chocs arrière, le hayon et le capteur de stationnement ; le coffre ne ferme plus correctement. Le véhicule reste roulant mais est immobilisé chez le réparateur depuis le 17.",
+      declaration: "Le client confirme être à l'arrêt au feu rouge au moment du choc. Constat amiable signé par les deux conducteurs, tiers entièrement responsable.\n\nExpert : dommages cohérents avec le choc décrit. Vérifier l'absence de déformation de la structure arrière (longerons) lors de l'expertise.",
+      souhait: "Obtenir une prise en charge complète de la réparation par l'assureur du tiers et disposer d'un véhicule de remplacement pendant l'immobilisation.",
+      facturation: {
+        pieces: [
+          {
+            id: "p-0142-1",
+            kind: "devis",
+            prefix: "DE-2026",
+            number: 139,
+            date: daysFromNow(-9),
+            statut: "accepte",
+            lignes: [{ id: "l-0142-1", type: "service", label: "Expertise après sinistre — Peugeot 308 SW (GH-482-KL)", qty: 1, unitHt: 450, tva: 20 }],
+            client: { type: "mandant", firstName: "Thomas", lastName: "Lefèvre", email: "thomas.lefevre@mail.fr", address: "38 rue Gambetta, 43200 Yssingeaux" },
+            createdAt: daysFromNow(-9),
+          },
+        ],
+        paiements: [],
+        liens: [],
+      },
       notes: [
         { id: "n-0142-1", at: daysFromNow(-11, 14), author: "u-admin", body: "Client très réactif. Le tiers est assuré chez Atlantique aussi : voir si on peut accélérer le recours en direct avec leur service sinistres." },
         { id: "n-0142-2", at: daysFromNow(-2, 17), author: "u-admin2", body: "Appelé Marc Delorme : l'expertise est confirmée pour jeudi 9 h. Penser à relancer le garage pour le devis définitif après l'expertise." },

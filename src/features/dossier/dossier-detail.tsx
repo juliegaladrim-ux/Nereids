@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DossierFacturation } from "./dossier-facturation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ACTOR_LABELS,
@@ -616,6 +617,7 @@ export function DossierDetail({ id }: { id: string }) {
               </TabsTrigger>
               <TabsTrigger value="expertise">Expertise</TabsTrigger>
               {d.type === "litige_assurantiel" && <TabsTrigger value="tierce">Tierce expertise</TabsTrigger>}
+              {canSeeNotes && <TabsTrigger value="facturation">Paiement et facture</TabsTrigger>}
               {canSeeNotes && (
                 <TabsTrigger value="notes">
                   Notes internes {!!d.notes?.length && <Count n={d.notes.length} />}
@@ -665,6 +667,11 @@ export function DossierDetail({ id }: { id: string }) {
           <TabsContent value="tierce">
             <TierceTab dossier={d} onAdd={(closed && !rights.pilot) || !rights.docCategories.length ? undefined : openDoc} allowed={rights.docCategories} />
           </TabsContent>
+          {canSeeNotes && (
+            <TabsContent value="facturation">
+              <DossierFacturation dossier={d} />
+            </TabsContent>
+          )}
           {canSeeNotes && (
             <TabsContent value="notes">
               <DossierNotes dossier={d} />
@@ -1133,6 +1140,34 @@ function InfoCard({ title, rows, onEdit, inline, badge }: { title: string; rows:
   )
 }
 
+/** Textes libres du dossier : chaque rubrique a son libellé au-dessus, le texte à la ligne et un état vide discret */
+function DescriptionCard({ sections, onEdit }: { sections: { label: string; text?: string; highlight?: boolean }[]; onEdit?: () => void }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Description</CardTitle>
+        {onEdit && (
+          <CardAction>
+            <EditAction onClick={onEdit} label="Modifier — Description" />
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {sections.map((s) => (
+          <section key={s.label} className={cn("flex flex-col gap-1", s.highlight && s.text && "rounded-lg border-l-2 border-brand bg-brand/5 py-2 pr-3 pl-3")}>
+            <h4 className="text-sm text-muted-foreground">{s.label}</h4>
+            {s.text?.trim() ? (
+              <p className="text-sm leading-relaxed whitespace-pre-line break-words">{s.text}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground/70 italic">Non renseigné</p>
+            )}
+          </section>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
 /** Lignes d'identité d'un client : société + SIRET (personne morale) ou nom (personne physique), puis coordonnées */
 function personneRows(p: Personne): [string, React.ReactNode][] {
   return [
@@ -1237,7 +1272,7 @@ function General({
         rows={[
           ["Marque / modèle", `${d.vehicule.marque} ${d.vehicule.modele}`],
           ["Immatriculation", <Immat key="i" value={d.vehicule.immat} />],
-          ["VIN", d.vehicule.vin && <span key="v" className="font-mono text-xs">{d.vehicule.vin}</span>],
+          ["VIN", d.vehicule.vin && <span key="v" className="text-xs">{d.vehicule.vin}</span>],
           [
             "Propriétaire",
             d.proprietaire ? (
@@ -1256,12 +1291,11 @@ function General({
         ]}
         onEdit={editable("vehicule")}
       />
-      <InfoCard
-        title="Description"
-        rows={[
-          ["Problème", d.description],
-          ["Déclaration de la demande client et commentaire de l'expert", d.declaration],
-          ["Souhait prioritaire du mandant", d.souhait],
+      <DescriptionCard
+        sections={[
+          { label: "Problème", text: d.description },
+          { label: "Déclaration de la demande client et commentaire de l'expert", text: d.declaration },
+          { label: "Souhait prioritaire du mandant", text: d.souhait, highlight: true },
         ]}
         onEdit={editable("description")}
       />

@@ -195,7 +195,7 @@ function Notifications() {
       <PopoverTrigger render={<Button variant="ghost" size="icon" className="relative" aria-label="Notifications" />}>
         <Bell />
         {unread > 0 && (
-          <span className="pointer-events-none absolute -top-0.5 -right-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[0.65rem] leading-none font-semibold text-white tabular-nums ring-2 ring-background">
+          <span className="pointer-events-none absolute -top-0.5 -right-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[0.7rem] leading-none font-semibold text-white tabular-nums ring-2 ring-background">
             {unread}
           </span>
         )}

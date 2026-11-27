@@ -82,6 +82,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           withConsultations({
             ...d,
             notes: d.notes ?? seed.find((x) => x.id === d.id)?.notes,
+            facturation: d.facturation ?? seed.find((x) => x.id === d.id)?.facturation,
+            // Textes de la description d'exemple, tant que le dossier n'en a aucun
+            description: d.description ?? (d.declaration || d.souhait ? undefined : seed.find((x) => x.id === d.id)?.description),
+            declaration: d.declaration ?? (d.description || d.souhait ? undefined : seed.find((x) => x.id === d.id)?.declaration),
+            souhait: d.souhait ?? (d.description || d.declaration ? undefined : seed.find((x) => x.id === d.id)?.souhait),
             autresExpertises: d.autresExpertises ?? withDemoExpertise(d).autresExpertises,
             // Date du document : estimée pour les pièces déjà enregistrées
             documents: d.documents.map((doc) => (doc.docDate ? doc : { ...doc, docDate: demoDocDate(doc.category, doc.addedAt) })),
