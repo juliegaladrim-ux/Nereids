@@ -636,7 +636,7 @@ export function DossierDetail({ id }: { id: string }) {
             <DossierSuivi dossier={d} onEditCloture={editable("cloture")} />
           </TabsContent>
           <TabsContent value="general">
-            <General dossier={d} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} />
+            <General dossier={d} editable={editable} showAccount={rights.pilot} onInviteClient={rights.pilot && d.status !== "archive" ? inviteClient : undefined} rib={isClient || canSeeNotes || role.id === "expert" ? <RibCard cabinet={cabinet} /> : undefined} />
           </TabsContent>
           <TabsContent value="vehicule">
             <VehiculeTab dossier={d} canEdit={!!editable("vehicule")} />
@@ -695,7 +695,6 @@ export function DossierDetail({ id }: { id: string }) {
             pending={pendingRequests}
             onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
           />
-          {(isClient || canSeeNotes || role.id === "expert") && <RibCard cabinet={cabinet} />}
           <Card size="sm">
             <CardHeader>
               <CardTitle>Références</CardTitle>
@@ -814,7 +813,7 @@ function ContactPopover({
       >
         {children}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 gap-2 p-3">
+      <PopoverContent align="start" className="w-80 gap-4 p-4">
         <div className="flex flex-col gap-1">
           <p className="flex items-center gap-1.5 font-medium">
             {name}
@@ -825,9 +824,29 @@ function ContactPopover({
         {shown.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune coordonnée renseignée.</p>
         ) : (
-          <div className="flex flex-col gap-1">
-            {shown.map((l, i) => (
-              <div key={i} className="flex flex-col">
+          <div className="flex flex-col gap-4">
+            {/* Un bloc par type : téléphones, e-mails, adresse */}
+            {([
+              [Phone, "Téléphone"],
+              [Mail, "E-mail"],
+              [MapPin, "Adresse"],
+            ] as const).map(([icon, title]) => {
+              const group = shown.filter((l) => l.icon === icon)
+              if (!group.length) return null
+              return (
+                <div key={title} className="flex flex-col gap-1.5">
+                  <span className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">{title}</span>
+                  {group.map((l, i) => (
+                    <div key={i} className="flex flex-col">
+                      {l.label && icon !== Phone && <span className="text-[0.7rem] text-muted-foreground">{l.label}</span>}
+                      <CopyLine icon={l.icon} value={l.value!} />
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+            {shown.filter((l) => l.icon !== Phone && l.icon !== Mail && l.icon !== MapPin).map((l, i) => (
+              <div key={`o${i}`} className="flex flex-col">
                 {l.label && <span className="text-[0.7rem] text-muted-foreground">{l.label}</span>}
                 <CopyLine icon={l.icon} value={l.value!} />
               </div>
@@ -1226,11 +1245,13 @@ function General({
   editable,
   showAccount,
   onInviteClient,
+  rib,
 }: {
   dossier: Dossier
   editable: (id: SectionId) => (() => void) | undefined
   showAccount?: boolean
   onInviteClient?: () => void
+  rib?: React.ReactNode
 }) {
   const account: React.ReactNode = d.noClientAccount ? (
     <span className="flex flex-wrap items-center gap-x-2">
@@ -1306,6 +1327,7 @@ function General({
         ]}
         onEdit={editable("description")}
       />
+      {rib}
       <PartiesCard
         dossier={d}
         canEdit={!!editable("tiers")}
@@ -1457,7 +1479,7 @@ function Documents({
   return (
     <div className="flex flex-col gap-4">
       {/* Documents du dossier / documents de gestion du dossier (devis, mandats, factures) */}
-      <div className="flex rounded-lg border p-0.5 self-start" role="group" aria-label="Type de documents">
+      <div className="flex rounded-lg border bg-card p-0.5 self-start" role="group" aria-label="Type de documents">
         {(
           [
             ["dossier", "Documents du dossier", false],

@@ -306,7 +306,6 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
   const [autre, setAutre] = React.useState({ nom: "", adresse: "", cp: "", ville: "", phone: "", phone2: "", email: "", email2: "" })
   const [dates, setDates] = React.useState(["", "", ""])
   const [dateConvenue, setDateConvenue] = React.useState(false)
-  const [confirme, setConfirme] = React.useState(false)
   const [observations, setObservations] = React.useState("")
   // Personnes ajoutées par l'expert : elles deviennent des intervenants du dossier à l'envoi
   const [extras, setExtras] = React.useState<NewPerson[]>([])
@@ -317,7 +316,6 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
   const lieu = lieuMode === "client" ? lieuClient : autreComplet ? `${autre.nom.trim()}, ${autre.adresse.trim()}, ${autre.cp} ${autre.ville.trim()}` : ""
   const amount = Number(honoraires.replace(",", "."))
   const secondeMontant = secondeOn ? Number(seconde.montant.replace(",", ".")) || 0 : 0
-  const totalHt = (amount > 0 ? amount : 0) + (secondeMontant > 0 && seconde.acte === "acte" ? secondeMontant : 0)
   const singleDate = dates.filter(Boolean).length === 1
   const allPeople = [...people, ...extras.map((e) => ({ id: e.tmp, label: newPersonName(e), detail: qualiteLabel(e) }))]
   const motifsOk = convoques.every((id) => motifs[id]?.trim())
@@ -364,7 +362,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
           honoraires: amount,
           lieu,
           lieuConfirme: lieuMode === "client",
-          lieuConvenu: lieuConvenu || undefined,
+          lieuConvenu: (lieuMode === "autre" && lieuConvenu) || undefined,
           ...(lieuMode === "autre" && {
             lieuPhone: autre.phone.trim() || undefined,
             lieuPhone2: autre.phone2.trim() || undefined,
@@ -372,9 +370,8 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
             lieuEmail2: autre.email2.trim() || undefined,
           }),
           dates: isoDates,
-          dateConvenue: (isoDates.length === 1 && (dateConvenue || confirme)) || undefined,
+          dateConvenue: (isoDates.length === 1 && dateConvenue) || undefined,
           secondeExpertise: secondeMontant > 0 ? { montant: secondeMontant, acte: seconde.acte === "acte" } : undefined,
-          confirmeTelephone: confirme || undefined,
           observations: observations.trim() || undefined,
         },
         expertise: { ...x.expertise, aConvoquer: convoques.map((id) => ids[id] ?? id), motifs: finalMotifs },
@@ -403,31 +400,28 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
         </DialogHeader>
 
         <FormSection n={1} title="Honoraires" hint="Ils génèrent le devis du client">
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="flex flex-col gap-4">
-              <Field>
-                <FieldLabel htmlFor="p-honoraires">Honoraires d&apos;expertise HT *</FieldLabel>
-                <div className="relative">
-                  <Input id="p-honoraires" inputMode="decimal" placeholder="0,00" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} className="h-10 pr-14 text-base tabular-nums" />
-                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€ HT</span>
-                </div>
-                {amount > 0 && <FieldDescription>Soit {eur(amount * 1.2)} TTC (TVA 20 %)</FieldDescription>}
-              </Field>
-
-              <div className="rounded-lg border bg-card">
-                <label className="flex cursor-pointer items-start gap-3 p-3">
-                  <Checkbox className="mt-0.5" checked={secondeOn} onCheckedChange={(c) => setSecondeOn(!!c)} />
+          {/* Grille à lignes partagées : le champ prix et l'encadré à cocher démarrent sur la même ligne */}
+          <div className="grid items-start gap-x-4 gap-y-2 sm:grid-cols-2">
+              <FieldLabel htmlFor="p-honoraires" className="sm:col-start-1 sm:row-start-1">Honoraires d&apos;expertise HT *</FieldLabel>
+              <div className="relative sm:col-start-1 sm:row-start-2">
+                <Input id="p-honoraires" inputMode="decimal" placeholder="0,00" value={honoraires} onChange={(e) => setHonoraires(e.target.value)} className="h-10 pr-14 text-base tabular-nums" />
+                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€ HT</span>
+              </div>
+              {amount > 0 && <FieldDescription className="sm:col-start-1 sm:row-start-3">Soit {eur(amount * 1.2)} TTC (TVA 20 %)</FieldDescription>}
+              <div className={cn("overflow-hidden rounded-lg border bg-card transition-colors sm:col-start-2 sm:row-span-2 sm:row-start-2", secondeOn ? "border-brand" : "h-10")}>
+                <label className={cn("flex cursor-pointer gap-3 px-3", secondeOn ? "items-start py-3" : "h-full items-center")}>
+                  <Checkbox className={secondeOn ? "mt-0.5" : undefined} checked={secondeOn} onCheckedChange={(c) => setSecondeOn(!!c)} />
                   <span className="text-sm">
                     <span className="block font-medium">Prévoir une deuxième expertise</span>
-                    <span className="block text-xs text-muted-foreground">Une ligne « Si deuxième expertise » sera ajoutée au devis.</span>
+                    {secondeOn && <span className="block text-xs text-muted-foreground">Une ligne « Si deuxième expertise » sera ajoutée au devis.</span>}
                   </span>
                 </label>
                 {secondeOn && (
-                  <div className="flex flex-col gap-3 border-t bg-muted/30 p-3">
+                  <div className="flex flex-col gap-4 border-t bg-muted/30 p-4">
                     <Field>
                       <FieldLabel htmlFor="p-seconde">Montant de la deuxième expertise *</FieldLabel>
                       <div className="relative">
-                        <Input id="p-seconde" inputMode="decimal" placeholder="0,00" value={seconde.montant} onChange={(e) => setSeconde((s) => ({ ...s, montant: e.target.value }))} className="pr-14 tabular-nums" />
+                        <Input id="p-seconde" inputMode="decimal" placeholder="0,00" value={seconde.montant} onChange={(e) => setSeconde((s) => ({ ...s, montant: e.target.value }))} className="h-10 pr-14 text-base tabular-nums" />
                         <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">€ HT</span>
                       </div>
                     </Field>
@@ -450,30 +444,6 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Aperçu en direct de ce que verra le client sur son devis */}
-            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Aperçu du devis</p>
-              <div className="flex items-start justify-between gap-3">
-                <span>Expertise — {d.vehicule.marque} {d.vehicule.modele}</span>
-                <span className="shrink-0 font-medium tabular-nums">{amount > 0 ? eur(amount) : "—"}</span>
-              </div>
-              {secondeOn && secondeMontant > 0 && (
-                <div className={cn("flex items-start justify-between gap-3", seconde.acte === "info" && "text-muted-foreground")}>
-                  <span>
-                    Si deuxième expertise
-                    {seconde.acte === "info" && <span className="block text-xs">À titre d&apos;information</span>}
-                  </span>
-                  <span className="shrink-0 tabular-nums">{eur(secondeMontant)}</span>
-                </div>
-              )}
-              <div className="mt-auto flex flex-col gap-0.5 border-t pt-2 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Total HT</span><span className="tabular-nums">{eur(totalHt)}</span></div>
-                <div className="flex justify-between"><span>TVA 20 %</span><span className="tabular-nums">{eur(totalHt * 0.2)}</span></div>
-                <div className="flex justify-between text-sm font-semibold text-foreground"><span>Total TTC</span><span className="tabular-nums">{eur(totalHt * 1.2)}</span></div>
-              </div>
-            </div>
           </div>
         </FormSection>
 
@@ -583,48 +553,38 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
                   <Input id="p-l-mail2" type="email" value={autre.email2} onChange={(e) => setAutre((a) => ({ ...a, email2: e.target.value }))} />
                 </Field>
               </div>
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-sm sm:col-span-2">
+                <Checkbox checked={lieuConvenu} onCheckedChange={(c) => setLieuConvenu(!!c)} />
+                <span>Lieu convenu avec le client</span>
+              </label>
             </div>
           )}
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-            <Checkbox checked={lieuConvenu} onCheckedChange={(c) => setLieuConvenu(!!c)} />
-            <span>Lieu convenu avec le client</span>
-          </label>
         </FormSection>
 
         <FormSection n={4} title="Dates proposées *" hint="Une seule date suffit">
           <div className="flex flex-col gap-2">
-            {/* Accord confirmé par téléphone : une seule date, déjà convenue avec le client */}
-            {dates.map((v, i) => (confirme && i > 0 ? null : (
-              <div key={i} className="flex items-center gap-3">
+            {dates.map((v, i) => (dateConvenue && singleDate && !v ? null : (
+              <div key={i} className="flex flex-wrap items-center gap-3">
                 <span className="w-16 shrink-0 text-sm font-medium">{i === 0 ? "1er choix" : `${i + 1}e choix`}</span>
-                <DateInput
-                  withTime
-                  aria-label={`Date, ${i + 1}e choix`}
-                  value={v}
-                  min={toDateTimeInput(new Date().toISOString())}
-                  onChange={(val) => setDates((all) => all.map((x, j) => (j === i ? val : x)))}
-                />
+                <div className="min-w-0 flex-1">
+                  <DateInput
+                    withTime
+                    aria-label={`Date, ${i + 1}e choix`}
+                    value={v}
+                    min={toDateTimeInput(new Date().toISOString())}
+                    onChange={(val) => setDates((all) => all.map((x, j) => (j === i ? val : x)))}
+                  />
+                </div>
+                {/* La case n'apparaît que lorsqu'une seule date est saisie, à droite de celle-ci */}
+                {singleDate && !!v && (
+                  <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+                    <Checkbox checked={dateConvenue} onCheckedChange={(c) => setDateConvenue(!!c)} />
+                    <span>Date convenue avec le client</span>
+                  </label>
+                )}
               </div>
             )))}
           </div>
-          {singleDate && !confirme && (
-            <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-              <Checkbox checked={dateConvenue} onCheckedChange={(c) => setDateConvenue(!!c)} />
-              <span>Date convenue avec le client</span>
-            </label>
-          )}
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-sm">
-            <Checkbox
-              className="mt-0.5"
-              checked={confirme}
-              onCheckedChange={(c) => {
-                setConfirme(!!c)
-                // Une seule date : les autres choix sont retirés
-                if (c) setDates((all) => [all[0], "", ""])
-              }}
-            />
-            <span>J&apos;ai joint par téléphone le client et le lieu d&apos;expertise : ils confirment leur accord sur la date d&apos;expertise (date unique, convenue avec le client).</span>
-          </label>
         </FormSection>
 
         <FormSection n={5} title="Observations">
