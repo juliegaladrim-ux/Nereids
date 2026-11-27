@@ -74,7 +74,7 @@ export function cleanValues(v: FormValues): Partial<User> {
 export function missingFields(role: RoleId | null, v: FormValues): Partial<Record<keyof FormValues, boolean>> {
   const garage = role === "reparateur"
   return {
-    structure: (garage || role === "expert") && !v.structure.trim(),
+    structure: (garage || role === "expert" || role === "admin_cabinet") && !v.structure.trim(),
     firstName: !garage && !v.firstName.trim(),
     lastName: !garage && !v.lastName.trim(),
     email: !/^\S+@\S+\.\S+$/.test(v.email.trim()),
@@ -114,7 +114,7 @@ export function UserFields({
     </div>
   )
   // Expert : on demande d'abord le cabinet
-  const orgFirst = role === "expert"
+  const orgFirst = role === "expert" || role === "admin_cabinet"
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {orgFirst && org}

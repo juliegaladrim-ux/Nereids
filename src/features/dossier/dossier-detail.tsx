@@ -34,6 +34,7 @@ import {
   UserPlus,
   Wrench,
   X,
+  Sparkles,
 } from "lucide-react"
 
 import { useRole } from "@/components/app-shell/role-context"
@@ -55,6 +56,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { DossierFacturation } from "./dossier-facturation"
 import { DevisSignatureBanner, RibCard } from "./devis-signature"
+import { suggestName } from "./doc-ai-rename"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ACTOR_LABELS,
@@ -693,7 +695,7 @@ export function DossierDetail({ id }: { id: string }) {
             pending={pendingRequests}
             onRequestSuiveur={isClient && !closed ? requestSuiveur : undefined}
           />
-          {(isClient || canSeeNotes) && <RibCard cabinet={cabinet} />}
+          {(isClient || canSeeNotes || role.id === "expert") && <RibCard cabinet={cabinet} />}
           <Card size="sm">
             <CardHeader>
               <CardTitle>Références</CardTitle>
@@ -1387,6 +1389,15 @@ function Documents({
     })
   }
 
+  /** Renommage automatique (simulation IA) : nom normalisé date_type_immat_client, annulable */
+  function renameAuto(doc: DocumentItem) {
+    const next = suggestName(doc, d)
+    if (next === doc.name) return toast.info("Ce document porte déjà le nom proposé par l'IA")
+    const prev = doc.name
+    patchDocs(d.id, [doc.id], (x) => ({ ...x, name: next }))
+    toast.success("Document renommé par l'IA", { description: next, action: { label: "Annuler", onClick: () => patchDocs(d.id, [doc.id], (x) => ({ ...x, name: prev })) } })
+  }
+
   function actions(doc: Dossier["documents"][number], className?: string) {
     return (
       <div className={cn("relative z-10 flex shrink-0", className)}>
@@ -1411,6 +1422,9 @@ function Documents({
               <MoreHorizontal />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => renameAuto(doc)}>
+                <Sparkles /> Renommer automatiquement
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEditDoc(doc.id)}>
                 <Pencil /> Modifier
               </DropdownMenuItem>

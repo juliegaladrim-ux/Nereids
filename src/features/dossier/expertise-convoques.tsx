@@ -14,6 +14,7 @@ import { useDocPreview } from "@/components/doc-preview"
 import { allExpertises, clientConvoqueId, expertisePeople, fullName, getUser, personneName, setExpertise, type Dossier, type Partie, type User } from "@/lib/data"
 import { useStore } from "@/lib/store"
 import { ConvocationDialog, modeleFor, type Convoque } from "./convocation-dialog"
+import { AddPersonDialog } from "./expertise-parcours"
 
 /** Ordre d'affichage : le client d'abord, puis ceux qui représentent ou accueillent, puis les autres intervenants */
 const ORDER: Record<string, number> = { client: 0, expert: 1, reparateur: 2, suiveur: 3, gestionnaire: 4, admin: 5, partie: 6 }
@@ -55,6 +56,7 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
   const { updateDossier, addEvent } = useStore()
   const preview = useDocPreview()
   const [generating, setGenerating] = React.useState<Convoque | null>(null)
+  const [newPerson, setNewPerson] = React.useState(false)
   const e = allExpertises(d)[index]
   // L'expert qui mène l'expertise n'est jamais convoqué
   const ids = expertisePeople(d, index).filter((id) => id !== d.intervenants.expert)
@@ -173,7 +175,7 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
           Personnes à convoquer <span className="font-normal text-muted-foreground">· {people.length}</span>
           {people.length > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{done}/{people.length} convocation{done > 1 ? "s" : ""} générée{done > 1 ? "s" : ""}</span>}
         </CardTitle>
-        {canAdd && candidates.length > 0 && (
+        {canAdd && (
           <CardAction>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button size="xs" variant="outline" />}>
@@ -186,6 +188,9 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
                     <span className="text-xs text-muted-foreground">{p.label}</span>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuItem onClick={() => setNewPerson(true)}>
+                  <Plus /> Nouvelle personne…
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </CardAction>
@@ -280,6 +285,7 @@ export function ConvoquesCard({ dossier: d, index = 0, canAdd }: { dossier: Doss
         </ul>
         {!hasDate && people.length > 0 && canAdd && <p className="mt-3 text-xs text-muted-foreground">Les convocations se génèrent une fois la date et le lieu de l&apos;expertise renseignés.</p>}
       </CardContent>
+      {newPerson && <AddPersonDialog dossier={d} index={index} onClose={() => setNewPerson(false)} />}
       {generating && <ConvocationDialog dossier={d} index={index} person={generating} onClose={() => setGenerating(null)} />}
     </Card>
   )

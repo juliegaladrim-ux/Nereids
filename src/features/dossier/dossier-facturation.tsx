@@ -527,7 +527,7 @@ function PieceList({
                   <TableCell>{`${p.client.firstName} ${p.client.lastName}`.trim() || "—"}</TableCell>
                   <TableCell>
                     <Badge className={cn("border-transparent", STATUT_TONE[p.statut])}>{STATUT_LABELS[p.statut]}</Badge>
-                    {p.signature && <span className="mt-1 block text-xs text-muted-foreground">Signé le {formatDate(p.signature.at)} · CGV acceptées</span>}
+                    {p.signature && <span className="mt-1 block text-xs text-muted-foreground">{p.signature.manual ? "Signature enregistrée le" : "Signé le"} {formatDate(p.signature.at)} · CGV acceptées</span>}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {p.pennylane ? `Synchronisé le ${formatDate(p.pennylane.at)}` : p.statut === "brouillon" ? "—" : "À synchroniser"}

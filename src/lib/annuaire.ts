@@ -27,7 +27,7 @@ export const ORG_TYPES: Record<OrgType, { label: string; plural: string }> = {
 }
 
 /** Structure de rattachement d'un intervenant selon son rôle (un expert appartient à un cabinet, etc.) */
-export const ROLE_ORG: Partial<Record<RoleId, OrgType>> = { expert: "cabinet", reparateur: "garage", suiveur: "juridique" }
+export const ROLE_ORG: Partial<Record<RoleId, OrgType>> = { expert: "cabinet", admin_cabinet: "cabinet", reparateur: "garage", suiveur: "juridique" }
 
 /**
  * Abonnement souscrit par un cabinet d'expertise (point client 26/10) : il fixe les droits du gestionnaire

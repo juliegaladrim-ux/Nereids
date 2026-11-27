@@ -30,6 +30,8 @@ import {
   type ClientValidation,
   type Dossier,
   type ValidationState,
+  setExpertise,
+  expertisePeople,
 } from "@/lib/data"
 import { useDossierCabinet } from "@/lib/annuaire"
 import { buildDevis, nextNumber, pieceNumero } from "@/lib/facturation"
@@ -87,6 +89,20 @@ export function useParcoursActions(d: Dossier) {
     const missionSigned = key === "mission" && state === "ok" && !!d.intervenants.expert && !d.proposition && !d.expertise.date
     updateDossier(d.id, (x) => ({
       ...x,
+      // Devis marqué signé à la main : la pièce est acceptée (signature manuelle, CGV réputées acceptées) ; retour en arrière : elle redevient émise
+      ...(key === "devis" && x.facturation && {
+        facturation: {
+          ...x.facturation,
+          pieces: (() => {
+            const target = state === "ok"
+              ? x.facturation.pieces.filter((p) => p.kind === "devis" && p.statut === "emis" && !p.signature).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+              : x.facturation.pieces.filter((p) => p.kind === "devis" && p.signature?.manual).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+            return x.facturation.pieces.map((p) =>
+              p !== target ? p : state === "ok" ? { ...p, statut: "accepte" as const, signature: { at: new Date().toISOString(), by: user.id, cgv: true, manual: true } } : { ...p, statut: "emis" as const, signature: undefined },
+            )
+          })(),
+        },
+      }),
       validation: { ...clientValidation(x), [key]: state },
       // Mission signée : c'est à l'expert de faire sa pré-étude
       ...(missionSigned && {
@@ -306,7 +322,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
   const allPeople = [...people, ...extras.map((e) => ({ id: e.tmp, label: newPersonName(e), detail: qualiteLabel(e) }))]
   const motifsOk = convoques.every((id) => motifs[id]?.trim())
   const valid = amount > 0 && convoques.length > 0 && motifsOk && !!lieu && !!dates[0] && (!secondeOn || secondeMontant > 0)
-  const nvOk = !!nv.qualite && (nv.qualite !== "Autre" || !!nv.qualiteAutre.trim()) && (nv.kind === "morale" ? !!nv.societe.trim() : !!(nv.prenom.trim() || nv.nom.trim()))
+  const nvOk = newPersonValid(nv)
 
   function addExtra() {
     if (!nvOk) return
@@ -325,17 +341,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
       // Les personnes ajoutées rejoignent les intervenants du dossier (ids définitifs)
       const base = Math.max(0, ...(x.parties ?? []).map((p) => Number(p.id.slice(1)) || 0))
       const ids = Object.fromEntries(extras.map((e, i) => [e.tmp, `p${base + i + 1}`]))
-      const newParties = extras.map((e) => ({
-        id: ids[e.tmp],
-        qualite: e.qualite,
-        qualiteAutre: e.qualite === "Autre" ? e.qualiteAutre.trim() || undefined : undefined,
-        kind: e.kind === "morale" ? ("morale" as const) : undefined,
-        firstName: e.kind === "physique" ? e.prenom.trim() || undefined : undefined,
-        lastName: e.kind === "physique" ? e.nom.trim() || undefined : undefined,
-        societe: e.kind === "morale" ? e.societe.trim() : undefined,
-        address: e.kind === "morale" ? e.adresse.trim() || undefined : undefined,
-        email: e.email.trim() || undefined,
-      }))
+      const newParties = extras.map((e) => partieFromNew(e, ids[e.tmp]))
       const finalMotifs = Object.fromEntries(convoques.map((id) => [ids[id] ?? id, motifs[id].trim()]))
       // Le devis se génère dès que l'expert renseigne ses honoraires
       const devis = buildDevis(x, {
@@ -507,55 +513,7 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
             </Button>
           ) : (
             <div className="grid gap-3 rounded-lg bg-muted/50 p-3 sm:grid-cols-2">
-              <Field className="sm:col-span-2">
-                <FieldLabel>Type de personne</FieldLabel>
-                <RadioGroup value={nv.kind} onValueChange={(v) => setNv((a) => ({ ...a, kind: v as "physique" | "morale" }))} className="flex gap-4">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <RadioGroupItem value="physique" /> Personne physique
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <RadioGroupItem value="morale" /> Personne morale
-                  </label>
-                </RadioGroup>
-              </Field>
-              <Field className={nv.qualite === "Autre" ? undefined : "sm:col-span-2"}>
-                <FieldLabel>Qualité *</FieldLabel>
-                <SimpleSelect placeholder="Client, vendeur du véhicule, réparateur…" value={nv.qualite || null} onChange={(v) => setNv((a) => ({ ...a, qualite: v ?? "" }))} options={QUALITES_INTERVENANT.map((q) => ({ value: q, label: q }))} />
-              </Field>
-              {nv.qualite === "Autre" && (
-                <Field>
-                  <FieldLabel htmlFor="p-n-autre">Précisez la qualité *</FieldLabel>
-                  <Input id="p-n-autre" value={nv.qualiteAutre} onChange={(e) => setNv((a) => ({ ...a, qualiteAutre: e.target.value }))} />
-                </Field>
-              )}
-              {nv.kind === "physique" ? (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="p-n-prenom">Prénom</FieldLabel>
-                    <Input id="p-n-prenom" value={nv.prenom} onChange={(e) => setNv((a) => ({ ...a, prenom: e.target.value }))} />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="p-n-nom">Nom *</FieldLabel>
-                    <Input id="p-n-nom" value={nv.nom} onChange={(e) => setNv((a) => ({ ...a, nom: e.target.value }))} />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="p-n-soc">Nom de la société *</FieldLabel>
-                    <Input id="p-n-soc" value={nv.societe} onChange={(e) => setNv((a) => ({ ...a, societe: e.target.value }))} />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="p-n-adresse">Adresse postale</FieldLabel>
-                    <Input id="p-n-adresse" value={nv.adresse} onChange={(e) => setNv((a) => ({ ...a, adresse: e.target.value }))} />
-                  </Field>
-                </>
-              )}
-              <Field className="sm:col-span-2">
-                <FieldLabel htmlFor="p-n-mail">E-mail</FieldLabel>
-                <Input id="p-n-mail" type="email" value={nv.email} onChange={(e) => setNv((a) => ({ ...a, email: e.target.value }))} />
-                <FieldDescription>Facultatif : n&apos;empêche pas l&apos;envoi de la proposition.</FieldDescription>
-              </Field>
+              <NewPersonFields nv={nv} setNv={setNv} />
               <div className="flex gap-2 sm:col-span-2">
                 <Button type="button" size="sm" onClick={addExtra} disabled={!nvOk}>
                   Ajouter
@@ -683,10 +641,130 @@ function PropositionDialog({ dossier: d, onClose }: { dossier: Dossier; onClose:
 }
 
 /** Personne ajoutée à la main par l'expert */
-type NewPerson = { tmp: string; kind: "physique" | "morale"; qualite: string; qualiteAutre: string; prenom: string; nom: string; societe: string; adresse: string; email: string }
-const EMPTY_PERSON: Omit<NewPerson, "tmp"> = { kind: "physique", qualite: "", qualiteAutre: "", prenom: "", nom: "", societe: "", adresse: "", email: "" }
-const newPersonName = (e: Omit<NewPerson, "tmp">) => (e.kind === "morale" ? e.societe.trim() : [e.prenom.trim(), e.nom.trim()].filter(Boolean).join(" "))
-const qualiteLabel = (e: Omit<NewPerson, "tmp">) => (e.qualite === "Autre" ? e.qualiteAutre.trim() || "Autre" : e.qualite)
+export type NewPerson = { tmp: string; kind: "physique" | "morale"; qualite: string; qualiteAutre: string; prenom: string; nom: string; societe: string; adresse: string; email: string }
+export const EMPTY_PERSON: Omit<NewPerson, "tmp"> = { kind: "physique", qualite: "", qualiteAutre: "", prenom: "", nom: "", societe: "", adresse: "", email: "" }
+export const newPersonName = (e: Omit<NewPerson, "tmp">) => (e.kind === "morale" ? e.societe.trim() : [e.prenom.trim(), e.nom.trim()].filter(Boolean).join(" "))
+export const qualiteLabel = (e: Omit<NewPerson, "tmp">) => (e.qualite === "Autre" ? e.qualiteAutre.trim() || "Autre" : e.qualite)
+
+/** Champs d'une personne ajoutée à la main (physique ou morale, qualité en liste avec « Autre ») */
+export function NewPersonFields({ nv, setNv }: { nv: Omit<NewPerson, "tmp">; setNv: React.Dispatch<React.SetStateAction<Omit<NewPerson, "tmp">>> }) {
+  return (
+    <>
+            <Field className="sm:col-span-2">
+              <FieldLabel>Type de personne</FieldLabel>
+              <RadioGroup value={nv.kind} onValueChange={(v) => setNv((a) => ({ ...a, kind: v as "physique" | "morale" }))} className="flex gap-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem value="physique" /> Personne physique
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem value="morale" /> Personne morale
+                </label>
+              </RadioGroup>
+            </Field>
+            <Field className={nv.qualite === "Autre" ? undefined : "sm:col-span-2"}>
+              <FieldLabel>Qualité *</FieldLabel>
+              <SimpleSelect placeholder="Client, vendeur du véhicule, réparateur…" value={nv.qualite || null} onChange={(v) => setNv((a) => ({ ...a, qualite: v ?? "" }))} options={QUALITES_INTERVENANT.map((q) => ({ value: q, label: q }))} />
+            </Field>
+            {nv.qualite === "Autre" && (
+              <Field>
+                <FieldLabel htmlFor="np-autre">Précisez la qualité *</FieldLabel>
+                <Input id="np-autre" value={nv.qualiteAutre} onChange={(e) => setNv((a) => ({ ...a, qualiteAutre: e.target.value }))} />
+              </Field>
+            )}
+            {nv.kind === "physique" ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="np-prenom">Prénom</FieldLabel>
+                  <Input id="np-prenom" value={nv.prenom} onChange={(e) => setNv((a) => ({ ...a, prenom: e.target.value }))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="np-nom">Nom *</FieldLabel>
+                  <Input id="np-nom" value={nv.nom} onChange={(e) => setNv((a) => ({ ...a, nom: e.target.value }))} />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="np-soc">Nom de la société *</FieldLabel>
+                  <Input id="np-soc" value={nv.societe} onChange={(e) => setNv((a) => ({ ...a, societe: e.target.value }))} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="np-adresse">Adresse postale</FieldLabel>
+                  <Input id="np-adresse" value={nv.adresse} onChange={(e) => setNv((a) => ({ ...a, adresse: e.target.value }))} />
+                </Field>
+              </>
+            )}
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="np-mail">E-mail</FieldLabel>
+              <Input id="np-mail" type="email" value={nv.email} onChange={(e) => setNv((a) => ({ ...a, email: e.target.value }))} />
+              <FieldDescription>Facultatif : n&apos;empêche pas l&apos;envoi de la proposition.</FieldDescription>
+            </Field>
+    </>
+  )
+}
+
+export const newPersonValid = (nv: Omit<NewPerson, "tmp">) => !!nv.qualite && (nv.qualite !== "Autre" || !!nv.qualiteAutre.trim()) && (nv.kind === "morale" ? !!nv.societe.trim() : !!(nv.prenom.trim() || nv.nom.trim()))
+
+/** Intervenant du dossier créé depuis une personne ajoutée à la main */
+export const partieFromNew = (e: Omit<NewPerson, "tmp">, id: string) => ({
+  id,
+  qualite: e.qualite,
+  qualiteAutre: e.qualite === "Autre" ? e.qualiteAutre.trim() || undefined : undefined,
+  kind: e.kind === "morale" ? ("morale" as const) : undefined,
+  firstName: e.kind === "physique" ? e.prenom.trim() || undefined : undefined,
+  lastName: e.kind === "physique" ? e.nom.trim() || undefined : undefined,
+  societe: e.kind === "morale" ? e.societe.trim() : undefined,
+  address: e.kind === "morale" ? e.adresse.trim() || undefined : undefined,
+  email: e.email.trim() || undefined,
+})
+
+/** Gestionnaire : ajoute à la main une personne à convoquer (physique ou morale, qualité, motif) */
+export function AddPersonDialog({ dossier: d, index, onClose }: { dossier: Dossier; index: number; onClose: () => void }) {
+  const { user } = useRole()
+  const { updateDossier, addEvent } = useStore()
+  const [nv, setNv] = React.useState<Omit<NewPerson, "tmp">>(EMPTY_PERSON)
+  const [motif, setMotif] = React.useState("")
+  const ok = newPersonValid(nv) && !!motif.trim()
+
+  function save() {
+    if (!ok) return
+    updateDossier(d.id, (x) => {
+      const id = `p${Math.max(0, ...(x.parties ?? []).map((p) => Number(p.id.slice(1)) || 0)) + 1}`
+      return {
+        ...setExpertise({ ...x, parties: [...(x.parties ?? []), partieFromNew(nv, id)] }, index, (cur) => ({
+          ...cur,
+          aConvoquer: [...expertisePeople(x, index).filter((i) => !cur.convoques.includes(i)), id],
+          motifs: { ...cur.motifs, [id]: motif.trim() },
+        })),
+      }
+    })
+    addEvent(d.id, { kind: "expertise", author: user.id, title: `${newPersonName(nv)} ajouté(e) aux personnes à convoquer`, body: motif.trim() })
+    toast.success(`${newPersonName(nv)} ajouté(e)`)
+    onClose()
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>Ajouter une personne à convoquer</DialogTitle>
+          <DialogDescription>Elle rejoint les intervenants du dossier. L&apos;e-mail est facultatif.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <NewPersonFields nv={nv} setNv={setNv} />
+          <Field className="sm:col-span-2">
+            <FieldLabel htmlFor="np-motif">Motif de la convocation *</FieldLabel>
+            <Input id="np-motif" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ex. présenter le véhicule" />
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={save} disabled={!ok}>Ajouter</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ─── Gestionnaire : programmer l'expertise et convoquer ──────────────────────
 
@@ -705,6 +783,8 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
   })
   const date = choice === "autre" ? fromDateInput(autreDate) : p.dates[Number(choice)]
   const convoques = d.expertise.aConvoquer ?? []
+  // Motif de convocation de chaque personne : repris de la proposition de l'expert, modifiable par le gestionnaire
+  const [motifs, setMotifs] = React.useState<Record<string, string>>(d.expertise.motifs ?? {})
 
   // Programmer fixe la date et le lieu ; chaque convocation se génère ensuite pour une personne, depuis l'onglet Expertise
   function convoquer() {
@@ -720,6 +800,7 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
         lieuPhone2: lieuCoord.phone2.trim() || undefined,
         lieuEmail: lieuCoord.email.trim() || undefined,
         lieuEmail2: lieuCoord.email2.trim() || undefined,
+        motifs: Object.fromEntries(convoques.map((id) => [id, motifs[id]?.trim() ?? ""]).filter(([, m]) => m)),
       },
       pilotage: {
         ...x.pilotage,
@@ -758,7 +839,7 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
                   <RadioGroupItem id={`g-d-${i}`} value={String(i)} />
                   <Label htmlFor={`g-d-${i}`} className="font-normal">
                     <span className="first-letter:uppercase">{formatLongDate(iso)}</span>
-                    <span className="text-muted-foreground">· {i === 0 ? "1er choix" : `${i + 1}e choix`}</span>
+                    <span className="text-muted-foreground">· {p.dates.length === 1 && p.dateConvenue ? "convenue avec le client" : i === 0 ? "1er choix" : `${i + 1}e choix`}</span>
                   </Label>
                 </div>
               ))}
@@ -771,6 +852,19 @@ function ProgrammerDialog({ dossier: d, onClose }: { dossier: Dossier; onClose: 
               <DateInput withTime aria-label="Autre date" value={autreDate} onChange={setAutreDate} min={toDateTimeInput(new Date().toISOString())} />
             )}
           </Field>
+          {convoques.length > 0 && (
+            <Field>
+              <FieldLabel>Personnes à convoquer · motif de chacune</FieldLabel>
+              <div className="flex flex-col gap-2">
+                {convoques.map((id) => (
+                  <div key={id} className="flex flex-col gap-1">
+                    <Label htmlFor={`g-m-${id}`} className="text-xs font-normal text-muted-foreground">{convoqueName(d, id)}</Label>
+                    <Input id={`g-m-${id}`} value={motifs[id] ?? ""} placeholder="Motif de la convocation" onChange={(e) => setMotifs((m) => ({ ...m, [id]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+            </Field>
+          )}
           <Field>
             <FieldLabel htmlFor="g-lieu">Lieu *</FieldLabel>
             <Input id="g-lieu" value={lieu} onChange={(e) => setLieu(e.target.value)} />

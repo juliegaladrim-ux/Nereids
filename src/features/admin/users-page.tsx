@@ -52,7 +52,7 @@ const GROUPS: Record<Group, { label: string; roles: RoleId[]; add: string }> = {
   },
   intervenants: {
     label: "Intervenants",
-    roles: ["expert", "reparateur", "suiveur"],
+    roles: ["admin_cabinet", "expert", "reparateur", "suiveur"],
     add: "Ajouter un intervenant",
   },
 }

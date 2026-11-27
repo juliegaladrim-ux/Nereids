@@ -84,6 +84,8 @@ const RECIPIENT_ROLES: { id: RoleId | "all"; field?: keyof Dossier["intervenants
   { id: "expert", field: "expert" },
   { id: "reparateur", field: "reparateur" },
   { id: "suiveur", field: "suiveurs" },
+  // Administrateur du cabinet de l'expert : adressable dès qu'un expert est assigné
+  { id: "admin_cabinet", field: "expert" },
   { id: "all" },
 ]
 
@@ -370,7 +372,7 @@ function Composer({ dossier, pickRecipients }: { dossier: Dossier; pickRecipient
   // Sans choix des destinataires (client), le message part à Nereids
   const fixedTo: (RoleId | "all")[] = ["admin"]
   // Un intervenant extérieur écrit d'abord à Nereids : coché par défaut
-  const defaultTo: (RoleId | "all")[] = role.id === "admin" ? [] : ["admin"]
+  const defaultTo: (RoleId | "all")[] = role.id === "admin" || role.id === "admin_cabinet" ? [] : ["admin"]
   const [picked, setTo] = React.useState<(RoleId | "all")[]>(defaultTo)
   const to = pickRecipients ? picked : fixedTo
   const [focused, setFocused] = React.useState(false)

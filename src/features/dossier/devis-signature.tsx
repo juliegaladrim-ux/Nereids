@@ -151,4 +151,4 @@ export function RibCard({ cabinet }: { cabinet?: Organisation }) {
 }
 
 /** Mention de signature, affichée sur une pièce signée */
-export const signatureLabel = (p: Piece) => (p.signature ? `Signé le ${formatDateTime(p.signature.at)} (YouSign) — CGV acceptées` : undefined)
+export const signatureLabel = (p: Piece) => (p.signature ? `${p.signature.manual ? "Signature enregistrée le" : "Signé le"} ${formatDateTime(p.signature.at)}${p.signature.manual ? "" : " (YouSign)"} — CGV acceptées` : undefined)

@@ -39,7 +39,7 @@ export type Piece = {
   /** Pièce importée depuis un fichier (les lignes se résument alors à un montant) */
   fichier?: string
   /** Signature du client (simulation YouSign) avec acceptation des CGV */
-  signature?: { at: string; by: string; cgv: boolean }
+  signature?: { at: string; by: string; cgv: boolean; /** Enregistrée à la main par Nereids ou un gestionnaire (signature papier, par téléphone…) */ manual?: boolean }
   /** Pièce générée automatiquement quand l'expert renseigne ses honoraires */
   auto?: boolean
   /** Synchronisation Pennylane (simulée) */
